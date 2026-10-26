@@ -4,6 +4,7 @@ Every table except `users` is tied to a user, and every function that touches
 those tables takes a `user_id` so one user's data can never leak into another's.
 """
 
+import os
 import sqlite3
 from contextlib import closing
 from datetime import date
@@ -11,7 +12,11 @@ from pathlib import Path
 
 import pandas as pd
 
-DB_PATH = Path(__file__).resolve().parent.parent / "expenses.db"
+# EXPENSES_DB_PATH lets tests and local experiments use a separate database file.
+DB_PATH = Path(
+    os.environ.get("EXPENSES_DB_PATH")
+    or Path(__file__).resolve().parent.parent / "expenses.db"
+)
 
 DEFAULT_CATEGORIES = [
     "Dairy",
