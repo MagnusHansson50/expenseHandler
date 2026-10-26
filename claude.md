@@ -1,39 +1,88 @@
 Project
-Streamlit web application for splitting grocery receipts (specifically from ICA). 
-The app will parse PDF receipts, allow manual item entry, categorize purchases, 
-calculate individual and shared costs, and save history to a database.
+ExpenseHandler: a Streamlit web application for tracking personal spending.
+Users upload grocery receipts (ICA PDFs, to begin with), add manual purchases,
+categorize items, and save them to a history so they can follow up on their expenses.
+
+The app supports MULTIPLE USERS, and each user's data (categories, item memory,
+history) is COMPLETELY ISOLATED from every other user's.
+
+Code location
+All new code lives in this repository (`C:\Git\ExpenseHandler`).
+`[removed]` is an older receipt-splitter prototype,
+kept for reference only (e.g. its ICA parsing logic). Never write to it.
 
 Tech stack
 - Python 3.12+
-- Streamlit (for Web UI and state management)
-- Pandas (for Data manipulation and tables)
-- PyPDF2 (for PDF text extraction)
-- SQLite3 (for Local persistent database)
+- Streamlit (web UI and state management)
+- Pandas (data manipulation and tables)
+- PyPDF2 (PDF text extraction)
+- SQLite3 (local persistent database)
 
 Code conventions
+- Language: UI text, variable names, comments and DataFrame columns in English.
 - Naming: `snake_case` for functions and variables.
-- Modularization: Database operations (init, save, load, delete) should be separated into distinct functions.
-- Language: UI text, variables or comments in English.
+- Modularization: each database operation (init, create, load, save, delete) is its own function.
+- `core/` modules are pure Python: no Streamlit imports, they take and return Pandas DataFrames.
 
 Architecture
-- The application will follow a single-file structure (`app.py`).
-- State Management: The app must heavily rely on Streamlit's `st.session_state` to prevent UI freezing and data loss during reactive re-renders (especially for editable data tables).
-- Data Storage: Will use a local SQLite database (`kvitto_minne.db`) for persistent storage of categories, item-to-category mappings, and historical receipts.
-- Connection Handling: SQLite connections must use `check_same_thread=False` to prevent locking issues within Streamlit's threading model.
-- PDF Parsing: Will use a combination of text splitting and Regex to identify items, prices, quantities, and discounts specific to ICA's PDF format.
+- `app.py`: UI only (sidebar user handling, tabs, forms, tables, charts).
+- `integrations/db.py`: all SQLite access.
+- `core/parser.py`: ICA PDF parsing.
+- `core/calculator.py`: totals and per-category summaries.
+- Connection handling: SQLite connections must use `check_same_thread=False`.
+- State management: rely on `st.session_state` to prevent UI freezes and data loss on re-render.
+  - `current_user`: id of the selected user. Nothing but the sidebar is shown until a user is selected.
+  - `receipt_df`: the receipt currently being edited.
+  - `table_version`: part of the `st.data_editor` key; bump it to force a rebuild of the table.
+
+Database (`expenses.db`)
+Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
+1. `users` (id, name) - name is unique.
+2. `categories` (name, user_id) - unique on (name, user_id).
+3. `memory` (item, category, user_id) - unique on (item, user_id); remembers the last category chosen for an item.
+4. `history` (id, date, item, price, category, user_id)
+- Creating a user automatically seeds a default set of categories (Dairy, Pantry, Fruit, Vegetables, Other, ...).
+- Always use `CREATE TABLE IF NOT EXISTS`. Keep the schema stable.
+- The legacy `kvitto_minne.db` (tables `minne`, `kategorier`, `historik`) belongs to the old receipt-splitter version and is not used.
+
+PDF parsing
+- `parse_pdf(file_bytes)` reads the upload via `io.BytesIO` and PyPDF2.
+- Designed specifically for the ICA receipt format: process line by line, pick up item lines ending in
+  `st` or `kg`, parse the price, and capture discounts (negative amounts).
+- Returns a DataFrame with the columns `Item` and `Price`.
+
+UI
+- Sidebar: dropdown to select an existing user, text field to create a new one.
+- Tab "🛒 Current Receipt": add/remove categories, manual entry (item, price, category), PDF upload,
+  `st.data_editor` for the current list, date picker + save button that writes to `history`
+  and learns category choices into `memory`.
+- Tab "📜 History": pick a start and end date, show total spent and an `st.bar_chart` per category.
 
 Rules
-- Do not break Streamlit's reactive loop. Always use `st.form` or `st.session_state` for UI elements that trigger heavy updates to prevent infinite reloads.
-- Design the PDF parsing logic specifically for the ICA receipt format.
-- Keep the planned `kvitto_minne.db` schema stable. Always use `IF NOT EXISTS` for table creation.
-- All file operations involving uploaded PDFs must use `io.BytesIO` to prevent Streamlit from losing the file context upon reload.
+- Do not break Streamlit's reactive loop. Use `st.form` for input and `st.session_state` for anything
+  that triggers heavy updates.
+- All file operations on uploaded PDFs must use `io.BytesIO`.
+- Never read or write another user's rows: every function in `db.py` except the `users` functions takes `user_id`.
 
-Project structure (Planned)
+Build plan
+The app is built in phases, one at a time, with approval before moving on:
+1. Database layer (`integrations/db.py`)
+2. PDF parser (`core/parser.py`)
+3. Calculation logic (`core/calculator.py`)
+4. UI shell and user handling (`app.py`)
+5. UI: input tab
+6. UI: history tab
+
+Project structure
 /
-├── CLAUDE.md
-├── app.py              # Main Streamlit application and business logic (To be built)
-├── requirements.txt    # Project dependencies
-└── kvitto_minne.db     # SQLite database (Will be auto-generated on first run)
+├── app.py
+├── integrations/
+│   └── db.py
+├── core/
+│   ├── parser.py
+│   └── calculator.py
+├── requirements.txt
+└── expenses.db         # Auto-generated on first run
 
 Setup
 pip install -r requirements.txt
