@@ -8,7 +8,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from core.calculator import total_cost
+from core.calculator import sum_by_category, total_cost
 from core.parser import parse_pdf
 from integrations import db
 
@@ -274,9 +274,60 @@ def render_current_receipt_tab():
     render_save_section(user_id)
 
 
+def render_delete_date(user_id):
+    """Expander for removing everything saved on one date."""
+    saved_dates = db.get_history_dates(user_id)
+    if not saved_dates:
+        return
+
+    with st.expander("🗑️ Delete a saved receipt"):
+        with st.form("delete_date_form"):
+            to_delete = st.selectbox("Date", options=saved_dates)
+            confirmed = st.checkbox("Yes, delete every purchase saved on this date")
+            delete_clicked = st.form_submit_button("Delete")
+        if delete_clicked:
+            if not confirmed:
+                st.error("Tick the box to confirm.")
+            else:
+                removed = db.delete_history_date(user_id, to_delete)
+                flash("success", f"Deleted {removed} rows from {to_delete}.")
+                st.rerun()
+
+
 def render_history_tab():
-    """Tab 2: summaries of saved purchases (Phase 6)."""
-    st.info("History is coming in Phase 6.")
+    """Tab 2: total spent and spending per category for a period."""
+    user_id = st.session_state.current_user
+    today = date.today()
+
+    col_start, col_end = st.columns(2)
+    start_date = col_start.date_input("Start date", value=today.replace(day=1), format="YYYY-MM-DD")
+    end_date = col_end.date_input("End date", value=today, format="YYYY-MM-DD")
+
+    if start_date > end_date:
+        st.error("The start date must be on or before the end date.")
+        return
+
+    history = db.get_history(user_id, start_date, end_date)
+    if history.empty:
+        st.info("No purchases saved in this period.")
+    else:
+        col_total, col_count = st.columns(2)
+        col_total.metric("Total spent", f"{total_cost(history):.2f} kr")
+        col_count.metric("Purchases", len(history))
+
+        by_category = sum_by_category(history)
+        st.subheader("Spending per category")
+        st.bar_chart(by_category, y="Price", y_label="kr", horizontal=True, sort="-Price")
+
+        with st.expander("Show all purchases"):
+            st.dataframe(
+                history.drop(columns="Id"),
+                hide_index=True,
+                width="stretch",
+                column_config={"Price": st.column_config.NumberColumn("Price (kr)", format="%.2f")},
+            )
+
+    render_delete_date(user_id)
 
 
 def main():
