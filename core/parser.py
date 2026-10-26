@@ -12,10 +12,14 @@ Discount lines follow the item they apply to and end in a negative amount:
 Discounts are merged into the preceding item so its price is what was actually paid.
 Back-to-back lines with the same article number (e.g. the same product at two
 prices) are combined into one row, since a multi-buy discount after them covers both.
+
+The purchase date is the first YYYY-MM-DD in the header. PyPDF2 may glue it to
+the preceding label (e.g. "Kassör2026-09-26"), so it is not matched on word boundaries.
 """
 
 import io
 import re
+from datetime import date
 
 import pandas as pd
 import PyPDF2
@@ -34,6 +38,7 @@ ITEM_LINE = re.compile(
     rf"^(?P<name>.+?)\s+(?P<article>\S+)\s+{AMOUNT}\s+\d+(?:,\d+)?\s+(?:st|kg)\s+(?P<total>{AMOUNT})$"
 )
 DISCOUNT_LINE = re.compile(rf"^.+\s(?P<discount>-\d+,\d{{2}})$")
+ISO_DATE = re.compile(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)")
 
 
 def _to_float(amount):
@@ -81,6 +86,26 @@ def parse_receipt_text(text):
     return pd.DataFrame(items, columns=COLUMNS)
 
 
+def parse_receipt_date(text):
+    """Return the purchase date from ICA receipt text, or None if none is found."""
+    for match in ISO_DATE.finditer(text):
+        try:
+            return date.fromisoformat(match.group(1))
+        except ValueError:
+            continue  # Looked like a date but was not one, e.g. 2026-13-45
+    return None
+
+
+def read_receipt(file_bytes):
+    """Parse an uploaded ICA receipt PDF.
+
+    Returns (items, purchase_date): a DataFrame with Item and Price, and the
+    date printed on the receipt (None if it could not be found).
+    """
+    text = extract_text(file_bytes)
+    return parse_receipt_text(text), parse_receipt_date(text)
+
+
 def parse_pdf(file_bytes):
     """Parse an uploaded ICA receipt PDF into a DataFrame with Item and Price."""
-    return parse_receipt_text(extract_text(file_bytes))
+    return read_receipt(file_bytes)[0]

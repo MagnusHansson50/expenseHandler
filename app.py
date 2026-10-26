@@ -9,7 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from core.calculator import sum_by_category, total_cost
-from core.parser import parse_pdf
+from core.parser import read_receipt
 from integrations import db
 
 RECEIPT_COLUMNS = ["Item", "Price", "Category"]
@@ -40,6 +40,8 @@ def init_session_state():
         "receipt_df": empty_receipt(),
         "table_version": 0,
         "upload_version": 0,
+        "purchase_date": date.today(),
+        "date_version": 0,
         "flash": None,
     }
     for key, value in defaults.items():
@@ -51,6 +53,22 @@ def switch_user(user_id):
     """Select a user and drop the previous user's unsaved receipt."""
     st.session_state.current_user = user_id
     set_receipt(empty_receipt())
+    set_purchase_date(date.today())
+
+
+def set_purchase_date(value):
+    """Set the date shown in the date picker; a new key makes the picker show it."""
+    st.session_state.purchase_date = value
+    st.session_state.date_version += 1
+
+
+def date_key():
+    return f"purchase_date_{st.session_state.date_version}"
+
+
+def remember_picked_date():
+    """on_change for the date picker: keep the user's own choice."""
+    st.session_state.purchase_date = st.session_state[date_key()]
 
 
 def set_receipt(df):
@@ -196,7 +214,7 @@ def render_pdf_upload(user_id):
         return
 
     try:
-        items = parse_pdf(uploaded.getvalue())
+        items, receipt_date = read_receipt(uploaded.getvalue())
     except Exception as error:  # PyPDF2 raises many different errors for broken files
         st.error(f"Could not read the PDF: {error}")
         return
@@ -210,7 +228,13 @@ def render_pdf_upload(user_id):
         items["Category"] = items["Item"].map(memory).fillna(FALLBACK_CATEGORY)
         add_to_receipt(items)
         remembered = items["Item"].isin(memory.keys()).sum()
-        flash("success", f"Added {len(items)} items ({remembered} categorized from memory).")
+        message = f"Added {len(items)} items ({remembered} categorized from memory)."
+        if receipt_date:
+            set_purchase_date(receipt_date)
+            message += f" Purchase date set to {receipt_date:%Y-%m-%d} from the receipt."
+        else:
+            message += " No date found on the receipt; check the purchase date."
+        flash("success", message)
     st.rerun()
 
 
@@ -240,18 +264,26 @@ def render_save_section(user_id):
     receipt = st.session_state.receipt_df
 
     col_date, col_save, col_clear = st.columns([2, 1, 1], vertical_alignment="bottom")
-    purchase_date = col_date.date_input("Purchase date", value=date.today(), format="YYYY-MM-DD")
+    purchase_date = col_date.date_input(
+        "Purchase date",
+        value=st.session_state.purchase_date,
+        key=date_key(),
+        on_change=remember_picked_date,
+        format="YYYY-MM-DD",
+    )
 
     if col_save.button("💾 Save", type="primary", width="stretch"):
         saved = db.save_history(user_id, purchase_date, receipt)
         learned = receipt.dropna(subset=["Item", "Category"])
         db.save_memory(user_id, dict(zip(learned["Item"], learned["Category"])))
         set_receipt(empty_receipt())
+        set_purchase_date(date.today())
         flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
         st.rerun()
 
     if col_clear.button("🗑️ Clear list", width="stretch"):
         set_receipt(empty_receipt())
+        set_purchase_date(date.today())
         st.rerun()
 
 
