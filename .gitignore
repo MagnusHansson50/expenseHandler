@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 .idea/
 expenses.db
+.claude/launch.json
