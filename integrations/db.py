@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from core.constants import FALLBACK_CATEGORY
+
 # EXPENSES_DB_PATH lets tests and local experiments use a separate database file.
 DB_PATH = Path(
     os.environ.get("EXPENSES_DB_PATH")
@@ -29,7 +31,7 @@ DEFAULT_CATEGORIES = [
     "Drinks",
     "Snacks",
     "Household",
-    "Other",
+    FALLBACK_CATEGORY,
 ]
 
 HISTORY_COLUMNS = ["Id", "Date", "Item", "Price", "Category"]

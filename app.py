@@ -9,11 +9,9 @@ import pandas as pd
 import streamlit as st
 
 from core.calculator import sum_by_category, total_cost
+from core.constants import FALLBACK_CATEGORY, RECEIPT_COLUMNS
 from core.parser import read_receipt
 from integrations import db
-
-RECEIPT_COLUMNS = ["Item", "Price", "Category"]
-FALLBACK_CATEGORY = "Other"
 
 
 def empty_receipt():
