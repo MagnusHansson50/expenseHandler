@@ -68,6 +68,19 @@ def test_switching_user_clears_unsaved_receipt(app):
     assert app.session_state["receipt_df"].empty
 
 
+def test_removing_category_in_ui_forgets_its_memory(app, temp_db):
+    create_user(app, "Anna")
+    anna = temp_db.get_users()[0][0]
+    temp_db.save_memory(anna, {"Chips": "Snacks"})
+
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert not app.exception
+    assert "Removed category 'Snacks'" in app.success[0].value
+    assert "Snacks" not in temp_db.get_categories(anna)
+    assert temp_db.load_memory(anna) == {}
+
+
 def test_fallback_category_cannot_be_chosen_for_removal(app):
     create_user(app, "Anna")
     options = widget(app.selectbox, "Category to remove").options

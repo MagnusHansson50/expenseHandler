@@ -156,13 +156,26 @@ def add_category(user_id, name):
 
 
 def delete_category(user_id, name):
-    """Delete a category. Returns True if a row was removed."""
+    """Delete one of the user's categories. Returns True if it was removed.
+
+    FALLBACK_CATEGORY can never be removed. The user's remembered items that
+    pointed at the category are forgotten in the same transaction, so they
+    fall back to FALLBACK_CATEGORY next time. History is left as it was saved.
+    """
+    if name == FALLBACK_CATEGORY:
+        return False
     with closing(get_connection()) as conn, conn:
         cursor = conn.execute(
             "DELETE FROM categories WHERE user_id = ? AND name = ?",
             (user_id, name),
         )
-    return cursor.rowcount == 1
+        if cursor.rowcount != 1:
+            return False
+        conn.execute(
+            "DELETE FROM memory WHERE user_id = ? AND category = ?",
+            (user_id, name),
+        )
+    return True
 
 
 # --- Memory --------------------------------------------------------------

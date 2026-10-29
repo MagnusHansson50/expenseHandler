@@ -152,9 +152,10 @@ def render_category_manager(user_id, categories):
                 to_delete = st.selectbox("Category to remove", options=removable)
                 delete_clicked = st.form_submit_button("🗑️ Remove")
             if delete_clicked and to_delete:
-                db.delete_category(user_id, to_delete)
-                flash("success", f"Removed category '{to_delete}'.")
-                st.rerun()
+                if db.delete_category(user_id, to_delete):
+                    flash("success", f"Removed category '{to_delete}'.")
+                    st.rerun()
+                st.error(f"Category '{to_delete}' could not be removed.")
 
 
 def render_manual_entry(categories):

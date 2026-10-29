@@ -3,6 +3,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from core.constants import FALLBACK_CATEGORY
 from integrations import db
 
 
@@ -62,6 +63,32 @@ def test_add_and_delete_category(two_users):
     assert db.add_category(anna, "  ") is False
     assert db.delete_category(anna, "Candy") is True
     assert db.delete_category(anna, "Candy") is False
+
+
+def test_fallback_category_cannot_be_deleted(two_users):
+    anna, _ = two_users
+    assert db.delete_category(anna, FALLBACK_CATEGORY) is False
+    assert FALLBACK_CATEGORY in db.get_categories(anna)
+
+
+def test_deleting_category_forgets_its_memory_but_keeps_history(two_users):
+    anna, _ = two_users
+    db.save_memory(anna, {"Chips": "Snacks", "Popcorn": "Snacks", "Milk": "Dairy"})
+    db.save_history(anna, "2026-10-01", receipt(("Chips", 31.0, "Snacks")))
+
+    assert db.delete_category(anna, "Snacks") is True
+    assert db.load_memory(anna) == {"Milk": "Dairy"}
+    assert db.get_history(anna, "2026-10-01", "2026-10-01")["Category"].tolist() == ["Snacks"]
+
+
+def test_deleting_missing_category_leaves_memory(two_users):
+    anna, _ = two_users
+    db.save_memory(anna, {"Chips": "Snacks"})
+    db.delete_category(anna, "Snacks")
+    db.save_memory(anna, {"Chips": "Snacks"})  # stale choice saved after deletion
+
+    assert db.delete_category(anna, "Snacks") is False
+    assert db.load_memory(anna) == {"Chips": "Snacks"}
 
 
 # --- Memory --------------------------------------------------------------
@@ -137,6 +164,17 @@ def test_users_have_separate_memory(two_users):
     db.save_memory(bo, {"Milk": "Drinks"})
     assert db.load_memory(anna) == {"Milk": "Dairy"}
     assert db.load_memory(bo) == {"Milk": "Drinks"}
+
+
+def test_deleting_category_only_affects_that_users_memory(two_users):
+    anna, bo = two_users
+    db.save_memory(anna, {"Chips": "Snacks"})
+    db.save_memory(bo, {"Chips": "Snacks"})
+
+    db.delete_category(anna, "Snacks")
+    assert db.load_memory(anna) == {}
+    assert db.load_memory(bo) == {"Chips": "Snacks"}
+    assert "Snacks" in db.get_categories(bo)
 
 
 def test_users_have_separate_history(two_users):
