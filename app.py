@@ -8,20 +8,11 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+from core import receipt as receipt_logic
 from core.calculator import sum_by_category, total_cost
-from core.constants import FALLBACK_CATEGORY, RECEIPT_COLUMNS
+from core.constants import FALLBACK_CATEGORY
 from core.parser import read_receipt
 from integrations import db
-
-
-def empty_receipt():
-    return normalize_receipt(pd.DataFrame(columns=RECEIPT_COLUMNS))
-
-
-def normalize_receipt(df):
-    """Give the receipt a clean index and stable dtypes for st.data_editor."""
-    df = df.reindex(columns=RECEIPT_COLUMNS).reset_index(drop=True)
-    return df.astype({"Item": "object", "Price": "float64", "Category": "object"})
 
 
 @st.cache_resource
@@ -35,7 +26,7 @@ def init_session_state():
     """Set default values for everything the app keeps between reruns."""
     defaults = {
         "current_user": None,
-        "receipt_df": empty_receipt(),
+        "receipt_df": receipt_logic.empty_receipt(),
         "table_version": 0,
         "upload_version": 0,
         "purchase_date": date.today(),
@@ -50,7 +41,7 @@ def init_session_state():
 def switch_user(user_id):
     """Select a user and drop the previous user's unsaved receipt."""
     st.session_state.current_user = user_id
-    set_receipt(empty_receipt())
+    set_receipt(receipt_logic.empty_receipt())
     set_purchase_date(date.today())
 
 
@@ -71,23 +62,19 @@ def remember_picked_date():
 
 def set_receipt(df):
     """Replace the receipt and give st.data_editor a fresh key so it redraws."""
-    st.session_state.receipt_df = normalize_receipt(df)
+    st.session_state.receipt_df = receipt_logic.normalize_receipt(df)
     st.session_state.table_version += 1
 
 
 def add_to_receipt(rows):
-    receipt = st.session_state.receipt_df
-    if receipt.empty:
-        set_receipt(rows)
-    else:
-        set_receipt(pd.concat([receipt, rows], ignore_index=True))
+    set_receipt(receipt_logic.add_rows(st.session_state.receipt_df, rows))
 
 
 def editor_key():
     return f"receipt_editor_{st.session_state.table_version}"
 
 
-def apply_editor_changes():
+def on_editor_change():
     """on_change for st.data_editor: fold its edits into receipt_df.
 
     The editor reports changes relative to the data it was given, so they are
@@ -95,17 +82,7 @@ def apply_editor_changes():
     and avoids edits being applied twice on the next rerun.
     """
     changes = st.session_state[editor_key()]
-    df = st.session_state.receipt_df.copy()
-
-    for row, values in changes["edited_rows"].items():
-        for column, value in values.items():
-            df.at[int(row), column] = value
-    df = df.drop(index=changes["deleted_rows"])
-    if changes["added_rows"]:
-        added = pd.DataFrame(changes["added_rows"], columns=RECEIPT_COLUMNS)
-        df = pd.concat([df, added], ignore_index=True)
-
-    set_receipt(df)
+    set_receipt(receipt_logic.apply_editor_changes(st.session_state.receipt_df, changes))
 
 
 def flash(kind, message):
@@ -201,7 +178,7 @@ def render_manual_entry(categories):
                 st.rerun()
 
 
-def render_pdf_upload(user_id):
+def render_pdf_upload(user_id, categories):
     """Upload an ICA receipt, parse it and pre-fill categories from memory."""
     uploaded = st.file_uploader(
         "Upload an ICA receipt (.pdf)",
@@ -222,10 +199,8 @@ def render_pdf_upload(user_id):
     if items.empty:
         flash("warning", "No items were found in the PDF.")
     else:
-        memory = db.load_memory(user_id)
-        items["Category"] = items["Item"].map(memory).fillna(FALLBACK_CATEGORY)
+        items, remembered = receipt_logic.categorize(items, db.load_memory(user_id), categories)
         add_to_receipt(items)
-        remembered = items["Item"].isin(memory.keys()).sum()
         message = f"Added {len(items)} items ({remembered} categorized from memory)."
         if receipt_date:
             set_purchase_date(receipt_date)
@@ -245,7 +220,7 @@ def render_receipt_editor(categories):
     st.data_editor(
         receipt,
         key=editor_key(),
-        on_change=apply_editor_changes,
+        on_change=on_editor_change,
         num_rows="dynamic",
         hide_index=True,
         width="stretch",
@@ -272,15 +247,14 @@ def render_save_section(user_id):
 
     if col_save.button("💾 Save", type="primary", width="stretch"):
         saved = db.save_history(user_id, purchase_date, receipt)
-        learned = receipt.dropna(subset=["Item", "Category"])
-        db.save_memory(user_id, dict(zip(learned["Item"], learned["Category"])))
-        set_receipt(empty_receipt())
+        db.save_memory(user_id, receipt_logic.memory_from_receipt(receipt))
+        set_receipt(receipt_logic.empty_receipt())
         set_purchase_date(date.today())
         flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
         st.rerun()
 
     if col_clear.button("🗑️ Clear list", width="stretch"):
-        set_receipt(empty_receipt())
+        set_receipt(receipt_logic.empty_receipt())
         set_purchase_date(date.today())
         st.rerun()
 
@@ -292,7 +266,7 @@ def render_current_receipt_tab():
 
     render_category_manager(user_id, categories)
     render_manual_entry(categories)
-    render_pdf_upload(user_id)
+    render_pdf_upload(user_id, categories)
 
     if st.session_state.receipt_df.empty:
         st.info("Add a purchase manually or upload a receipt to get started.")
