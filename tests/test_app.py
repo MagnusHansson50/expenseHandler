@@ -81,6 +81,30 @@ def test_removing_category_in_ui_forgets_its_memory(app, temp_db):
     assert temp_db.load_memory(anna) == {}
 
 
+def tabs_position(at):
+    """Index of the top-level block holding the tabs in the main area."""
+    return next(
+        index
+        for index, child in at.main.children.items()
+        if any(type(node).__name__ == "Tab" for node in getattr(child, "children", {}).values())
+    )
+
+
+def test_tabs_keep_their_position_when_a_flash_message_comes_and_goes(app):
+    # If the tabs move, Streamlit treats them as new and jumps back to the first tab.
+    create_user(app, "Anna")
+    without_message = tabs_position(app)
+
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert app.success  # flash message is showing
+    assert tabs_position(app) == without_message
+
+    app.run()
+    assert not app.success  # flash message is gone
+    assert tabs_position(app) == without_message
+
+
 def test_fallback_category_cannot_be_chosen_for_removal(app):
     create_user(app, "Anna")
     options = widget(app.selectbox, "Category to remove").options

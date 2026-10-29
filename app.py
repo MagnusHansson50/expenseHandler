@@ -91,10 +91,17 @@ def flash(kind, message):
 
 
 def show_flash():
-    if st.session_state.flash:
-        kind, message = st.session_state.flash
-        getattr(st, kind)(message)
-        st.session_state.flash = None
+    """Show the pending flash message, if any.
+
+    It is drawn inside a container that is rendered on every run, even when
+    empty. Otherwise the tabs below would move up when the message goes away,
+    Streamlit would treat them as new tabs and jump back to the first one.
+    """
+    with st.container():
+        if st.session_state.flash:
+            kind, message = st.session_state.flash
+            getattr(st, kind)(message)
+            st.session_state.flash = None
 
 
 def render_user_sidebar():
