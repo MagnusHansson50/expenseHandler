@@ -4,9 +4,21 @@ Pure functions on Pandas DataFrames with the columns in RECEIPT_COLUMNS.
 No Streamlit and no database access: the UI passes in what it has loaded.
 """
 
+from typing import NamedTuple
+
 import pandas as pd
 
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
+
+
+class Problem(NamedTuple):
+    """A reason a receipt cannot be saved, as a translation key plus its parameters.
+
+    The UI shows it with t(problem.key, lang, **problem.params).
+    """
+
+    key: str
+    params: dict
 
 
 def normalize_receipt(df):
@@ -63,7 +75,7 @@ def categorize(items, memory, categories):
 
 
 def validate_receipt(receipt):
-    """Return a list of problems that stop the receipt from being saved.
+    """Return a list of Problem that stop the receipt from being saved.
 
     Rows are numbered from 1 as shown to the user. An empty list means the
     receipt can be saved. Rows with neither item nor price are ignored, as
@@ -76,13 +88,13 @@ def validate_receipt(receipt):
         if not has_item and not has_price:
             continue
         if not has_item:
-            problems.append(f"Row {number}: the item description is missing.")
+            problems.append(Problem("problem_item_missing", {"row": number}))
         elif len(str(row.Item).strip()) > MAX_ITEM_LENGTH:
-            problems.append(f"Row {number}: the item description is longer than {MAX_ITEM_LENGTH} characters.")
+            problems.append(Problem("problem_item_too_long", {"row": number, "max": MAX_ITEM_LENGTH}))
         if not has_price:
-            problems.append(f"Row {number}: the price is missing.")
+            problems.append(Problem("problem_price_missing", {"row": number}))
         elif not -MAX_PRICE <= float(row.Price) <= MAX_PRICE:
-            problems.append(f"Row {number}: the price must be between -{MAX_PRICE} and {MAX_PRICE} kr.")
+            problems.append(Problem("problem_price_out_of_range", {"row": number, "max": MAX_PRICE}))
     return problems
 
 

@@ -63,6 +63,15 @@ TRANSLATIONS = {
         "clear_list": "🗑️ Töm listan",
         "not_saved": "Kvittot sparades inte:",
         "saved_rows": "{count} rader sparades för {date}.",
+        # Problems from core.receipt.validate_receipt
+        "problem_item_missing": "Rad {row}: beskrivning av varan saknas.",
+        "problem_item_too_long": "Rad {row}: beskrivningen av varan är längre än {max} tecken.",
+        "problem_price_missing": "Rad {row}: priset saknas.",
+        "problem_price_out_of_range": "Rad {row}: priset måste vara mellan -{max} och {max} kr.",
+        # Rejected user names from db.create_user
+        "user_name_empty": "Användarnamnet får inte vara tomt.",
+        "user_name_too_long": "Användarnamnet får vara högst {max} tecken.",
+        "user_name_taken": "Det finns redan en användare som heter '{name}'.",
         # History
         "start_date": "Startdatum",
         "end_date": "Slutdatum",
@@ -143,6 +152,15 @@ TRANSLATIONS = {
         "clear_list": "🗑️ Clear list",
         "not_saved": "The receipt was not saved:",
         "saved_rows": "Saved {count} rows for {date}.",
+        # Problems from core.receipt.validate_receipt
+        "problem_item_missing": "Row {row}: the item description is missing.",
+        "problem_item_too_long": "Row {row}: the item description is longer than {max} characters.",
+        "problem_price_missing": "Row {row}: the price is missing.",
+        "problem_price_out_of_range": "Row {row}: the price must be between -{max} and {max} kr.",
+        # Rejected user names from db.create_user
+        "user_name_empty": "User name cannot be empty.",
+        "user_name_too_long": "User name can be at most {max} characters.",
+        "user_name_taken": "A user named '{name}' already exists.",
         # History
         "start_date": "Start date",
         "end_date": "End date",

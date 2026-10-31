@@ -2,6 +2,7 @@ import pandas as pd
 
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
 from core.receipt import (
+    Problem,
     add_rows,
     apply_editor_changes,
     categorize,
@@ -127,8 +128,8 @@ def test_validate_receipt_reports_each_problem_with_row_number():
         ("No price", None, "Other"),
     )
     assert validate_receipt(df) == [
-        f"Row 2: the item description is longer than {MAX_ITEM_LENGTH} characters.",
-        f"Row 3: the price must be between -{MAX_PRICE} and {MAX_PRICE} kr.",
-        "Row 4: the item description is missing.",
-        "Row 5: the price is missing.",
+        Problem("problem_item_too_long", {"row": 2, "max": MAX_ITEM_LENGTH}),
+        Problem("problem_price_out_of_range", {"row": 3, "max": MAX_PRICE}),
+        Problem("problem_item_missing", {"row": 4}),
+        Problem("problem_price_missing", {"row": 5}),
     ]

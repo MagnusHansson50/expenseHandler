@@ -340,3 +340,28 @@ def test_users_have_separate_history(two_users):
     assert db.delete_history_date(anna, "2026-10-01") == 1
     assert db.get_history_dates(anna) == []
     assert db.get_history_dates(bo) == ["2026-10-01"]
+
+
+# --- Typed user-name errors (translated in the UI) -----------------------
+
+
+@pytest.mark.parametrize(
+    "name, error, params",
+    [
+        ("   ", db.UserNameEmpty, {}),
+        ("x" * (MAX_NAME_LENGTH + 1), db.UserNameTooLong, {"max": MAX_NAME_LENGTH}),
+    ],
+)
+def test_create_user_raises_typed_errors(temp_db, name, error, params):
+    with pytest.raises(error) as caught:
+        temp_db.create_user(name)
+    assert isinstance(caught.value, ValueError)
+    assert caught.value.key and caught.value.params == params
+
+
+def test_duplicate_user_raises_user_name_taken_with_name(temp_db):
+    temp_db.create_user("Anna")
+    with pytest.raises(db.UserNameTaken) as caught:
+        temp_db.create_user(" Anna ")
+    assert caught.value.key == "user_name_taken"
+    assert caught.value.params == {"name": "Anna"}

@@ -107,3 +107,34 @@ def test_same_screen_in_english_uses_english_amounts(temp_db):
     next(w for w in at.number_input if w.label == "Price (kr)").set_value(1234.5)
     next(b for b in at.button if "Add to list" in b.label).click().run()
     assert at.metric[0].value == "1,234.50 kr"
+
+
+def test_user_name_errors_are_translated(temp_db):
+    at = run_app("sv")
+    create_user(at, "Anna")
+    create_user(at, "Anna")
+    assert at.sidebar.error[0].value == "Det finns redan en användare som heter 'Anna'."
+
+    language_box(at).set_value("en").run()
+    create_user(at, "Anna")
+    assert at.sidebar.error[0].value == "A user named 'Anna' already exists."
+
+
+def test_save_problems_are_translated(temp_db):
+    import pandas as pd
+
+    from core.constants import MAX_PRICE
+
+    at = run_app("sv")
+    create_user(at, "Anna")
+    # The UI blocks out-of-range prices, so put an invalid draft straight into session state.
+    at.session_state["receipt_df"] = pd.DataFrame(
+        [{"Item": "TV", "Price": MAX_PRICE + 1.0, "Category": "Other"}]
+    )
+    at.run()
+    next(b for b in at.button if "Spara" in b.label).click().run()
+
+    assert not at.exception
+    assert at.error[0].value == (
+        f"Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -{MAX_PRICE} och {MAX_PRICE} kr."
+    )

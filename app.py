@@ -225,8 +225,9 @@ def render_user_sidebar():
             with write_errors("action_create_user"):
                 try:
                     new_id = db.create_user(new_name)
-                except ValueError as error:
-                    st.error(escape_markdown(error))
+                except db.UserNameError as error:
+                    params = {name: escape_markdown(value) for name, value in error.params.items()}
+                    st.error(t(error.key, lang(), **params))
                 else:
                     switch_user(new_id)
                     st.rerun()
@@ -384,7 +385,7 @@ def render_save_section(user_id):
             try:
                 saved = receipts.save_receipt(user_id, purchase_date, draft)
             except receipts.InvalidReceipt as error:
-                problems = "\n".join(f"- {p}" for p in error.problems)
+                problems = "\n".join(f"- {t(p.key, lang(), **p.params)}" for p in error.problems)
                 st.error(f"{t('not_saved', lang())}\n\n{problems}")
                 return
             set_draft(draft_ops.empty_receipt())

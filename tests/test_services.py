@@ -6,6 +6,7 @@ import pytest
 
 from core.constants import FALLBACK_CATEGORY, MAX_PRICE, RECEIPT_COLUMNS
 from core.parser import NotAPdfError, ReceiptReadError
+from core.receipt import Problem
 from integrations import db
 from services import receipts
 from test_parser import SAMPLE_RECEIPT, make_pdf
@@ -85,6 +86,6 @@ def test_invalid_receipt_is_rejected_with_problems_and_nothing_saved(two_users):
             anna, date(2026, 10, 1), draft(("Milk", 15.0, "Dairy"), ("TV", MAX_PRICE + 1, "Other"))
         )
 
-    assert caught.value.problems == [f"Row 2: the price must be between -{MAX_PRICE} and {MAX_PRICE} kr."]
+    assert caught.value.problems == [Problem("problem_price_out_of_range", {"row": 2, "max": MAX_PRICE})]
     assert db.get_history_dates(anna) == []
     assert db.load_memory(anna) == {}

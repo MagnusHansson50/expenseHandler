@@ -45,6 +45,28 @@ class User(NamedTuple):
     name: str
 
 
+class UserNameError(ValueError):
+    """A user name was rejected. `key` and `params` let the UI show it translated."""
+
+    key = ""
+
+    def __init__(self, message, **params):
+        super().__init__(message)
+        self.params = params
+
+
+class UserNameEmpty(UserNameError):
+    key = "user_name_empty"
+
+
+class UserNameTooLong(UserNameError):
+    key = "user_name_too_long"
+
+
+class UserNameTaken(UserNameError):
+    key = "user_name_taken"
+
+
 def get_connection():
     """Open a new connection. Read-only callers close it via `closing(...)`."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -118,19 +140,20 @@ def _to_iso(value):
 def create_user(name):
     """Create a user, seed default categories and return the new id.
 
-    Raises ValueError if the name is empty, too long or already taken.
+    Raises UserNameEmpty, UserNameTooLong or UserNameTaken (all UserNameError,
+    a ValueError) if the name is rejected.
     """
     name = name.strip()
     if not name:
-        raise ValueError("User name cannot be empty.")
+        raise UserNameEmpty("User name cannot be empty.")
     if len(name) > MAX_NAME_LENGTH:
-        raise ValueError(f"User name can be at most {MAX_NAME_LENGTH} characters.")
+        raise UserNameTooLong(f"User name can be at most {MAX_NAME_LENGTH} characters.", max=MAX_NAME_LENGTH)
 
     with transaction() as conn:
         try:
             cursor = conn.execute("INSERT INTO users (name) VALUES (?)", (name,))
         except sqlite3.IntegrityError:
-            raise ValueError(f"A user named '{name}' already exists.") from None
+            raise UserNameTaken(f"A user named '{name}' already exists.", name=name) from None
         user_id = cursor.lastrowid
         conn.executemany(
             "INSERT INTO categories (name, user_id) VALUES (?, ?)",

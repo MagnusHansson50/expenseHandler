@@ -118,8 +118,31 @@ def ui_keys_used_in_app():
     return keys
 
 
+def keys_produced_below_the_ui():
+    """Keys created in core/receipt.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
+    import ast
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parent.parent
+    keys = set()
+    receipt_tree = ast.parse((repo / "core" / "receipt.py").read_text(encoding="utf-8"))
+    for node in ast.walk(receipt_tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
+            keys.add(node.args[0].value)
+    db_tree = ast.parse((repo / "integrations" / "db.py").read_text(encoding="utf-8"))
+    for node in ast.walk(db_tree):
+        if isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == ["key"]:
+            if node.value.value:
+                keys.add(node.value.value)
+    return keys
+
+
+def all_keys_in_use():
+    return ui_keys_used_in_app() | keys_produced_below_the_ui()
+
+
 def test_every_key_used_in_app_exists_in_every_language():
-    used = ui_keys_used_in_app()
+    used = all_keys_in_use()
     assert len(used) > 50  # sanity check that the scan finds the keys
     for lang, table in TRANSLATIONS.items():
         missing = used - set(table)
@@ -127,5 +150,17 @@ def test_every_key_used_in_app_exists_in_every_language():
 
 
 def test_no_unused_keys():
-    unused = set(TRANSLATIONS[DEFAULT_LANGUAGE]) - ui_keys_used_in_app()
+    unused = set(TRANSLATIONS[DEFAULT_LANGUAGE]) - all_keys_in_use()
     assert not unused, f"unused translation keys: {sorted(unused)}"
+
+
+def test_keys_from_core_and_db_are_found():
+    assert keys_produced_below_the_ui() == {
+        "problem_item_missing",
+        "problem_item_too_long",
+        "problem_price_missing",
+        "problem_price_out_of_range",
+        "user_name_empty",
+        "user_name_too_long",
+        "user_name_taken",
+    }

@@ -26,10 +26,10 @@ class ImportResult(NamedTuple):
 
 
 class InvalidReceipt(ValueError):
-    """Raised when a receipt cannot be saved; `problems` lists why, per row."""
+    """Raised when a receipt cannot be saved; `problems` lists why (core.receipt.Problem)."""
 
     def __init__(self, problems):
-        super().__init__("; ".join(problems))
+        super().__init__("; ".join(problem.key for problem in problems))
         self.problems = problems
 
 
