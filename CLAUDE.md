@@ -27,13 +27,26 @@ Code conventions
 - Naming: `snake_case` for functions and variables.
 - Modularization: each database operation (init, create, load, save, delete) is its own function.
 - `core/` modules are pure functions: no Streamlit and no database imports. They take plain values
-  (DataFrames, dicts, lists, bytes) and return them; the UI passes in whatever it has loaded from `db`.
+  (DataFrames, dicts, lists, bytes) and return them; callers pass in whatever they loaded from `db`.
 - Shared values (`FALLBACK_CATEGORY`, `RECEIPT_COLUMNS`, `MAX_NAME_LENGTH`, `MAX_ITEM_LENGTH`,
   `MAX_PRICE`) live only in `core/constants.py`. Never redefine them.
+- Return named types, not bare tuples, when a result has several parts: `db.User(id, name)`,
+  `core.parser.ParsedReceipt(items, purchase_date)`, `services.receipts.ImportResult(items,
+  remembered, purchase_date)`. Use the field names (`user.name`), never positions (`user[1]`).
+- "Draft" is the receipt being edited before it is saved: `st.session_state.receipt_df`, the local
+  name `draft`, `set_draft` / `add_to_draft`, and `core/receipt.py` imported as `draft_ops` in `app.py`.
+  "Receipt" alone means the purchase as a whole (the PDF, or what is saved to history).
+- Write non-trivial regular expressions with `re.VERBOSE`, one commented line per part and an example
+  line in the comment.
 
 Architecture
 - `app.py`: UI only (sidebar user handling, tabs, forms, tables, charts). It reads and writes
-  `st.session_state` and calls `core/` and `integrations/db.py`; business rules do not belong here.
+  `st.session_state` and calls `services/`, `core/` and `integrations/db.py`; business rules and
+  multi-step flows do not belong here. Every `db` call goes through `load(...)` or `write_errors(...)`
+  (see Error handling).
+- `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
+  `import_receipt` (parse PDF, load memory, categorize -> `ImportResult`) and `save_receipt`
+  (validate -> `InvalidReceipt(problems)`, or save history and memory in one transaction).
 - `integrations/db.py`: all SQLite access, and the data rules that must always hold (see Database).
 - `core/constants.py`: shared constants and input limits. Imports nothing, so every module may depend on it.
 - `core/parser.py`: ICA PDF parsing.
@@ -41,9 +54,13 @@ Architecture
   changes, categorize from memory, validate before saving, decide what to remember on save).
 - `core/calculator.py`: totals and per-category summaries.
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
-- Dependency direction: `app.py` -> `core/`, `integrations/`; `integrations/` -> `core/constants.py` only.
+- Dependency direction: `app.py` -> `services/`, `core/`, `integrations/`;
+  `services/` -> `core/`, `integrations/`; `core/` -> `core/` only;
+  `integrations/` -> `core/constants.py` only. `tests/test_architecture.py` enforces this.
 - Connection handling: SQLite connections must use `check_same_thread=False`. Each `db` function opens
-  and closes its own connection. All SQL uses `?` parameters; never build SQL with f-strings or `.format()`.
+  and closes its own connection: writes use `with transaction() as conn:` (commit on success, rollback
+  on error, always closed), reads use `closing(get_connection())`. All SQL uses `?` parameters; never
+  build SQL with f-strings or `.format()`.
 - State management: rely on `st.session_state` to prevent UI freezes and data loss on re-render.
   - `current_user`: id of the selected user. Nothing but the sidebar is shown until a user is selected.
     Switching user clears the unsaved receipt.
@@ -73,17 +90,22 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   `MAX_ITEM_LENGTH` or a price is outside -`MAX_PRICE`..`MAX_PRICE`.
 - Only the user's own categories are accepted: `save_history` stores any other category as
   `FALLBACK_CATEGORY`, and `save_memory` skips it. Another user's category can never be used.
+- A flow that writes more than once must do so in ONE transaction, so a failure leaves nothing
+  half-saved and a retry cannot duplicate rows. `save_receipt(user_id, purchase_date, items_df, memory)`
+  writes history and memory together; the private `_write_history` / `_write_memory` helpers take an
+  open connection so they can be combined. The memory mapping is passed in because `integrations/`
+  may not import `core/receipt.py`.
 - Always use `CREATE TABLE IF NOT EXISTS`. Keep the schema stable.
 - The `EXPENSES_DB_PATH` environment variable points the app at another database file
   (used for manual testing; the test suite patches `db.DB_PATH` instead).
 - The legacy `kvitto_minne.db` (tables `minne`, `kategorier`, `historik`) belongs to the old receipt-splitter version and is not used.
 
 PDF parsing
-- `read_receipt(file_bytes)` is what the app uses: it reads the upload via `io.BytesIO` and pypdf and
-  returns `(items, purchase_date)` - a DataFrame with `Item` and `Price`, and the date printed on the
-  receipt (`None` if not found).
-- Bytes that do not start with `%PDF-` raise `NotAPdfError` before pypdf sees them.
-- `parse_pdf(file_bytes)` returns only the items DataFrame.
+- `read_receipt(file_bytes)` reads the upload via `io.BytesIO` and pypdf and returns
+  `ParsedReceipt(items, purchase_date)` - a DataFrame with `Item` and `Price`, and the date printed on
+  the receipt (`None` if not found). The app calls it through `services.receipts.import_receipt`.
+- Bytes that do not start with `%PDF-` raise `NotAPdfError` before pypdf sees them. Any error raised by
+  pypdf itself becomes `ReceiptReadError` (the pypdf exception is kept as `__cause__`).
 - Designed specifically for the ICA receipt format: process line by line, pick up item lines ending in
   `st` or `kg`, parse the price, and capture discounts (negative amounts), which are merged into the
   item above. Back-to-back lines with the same article number are combined into one row.
@@ -96,9 +118,27 @@ UI
 - Tab "🛒 Current Receipt": add/remove categories, manual entry (item, price, category), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
-  choices into `memory`. Save is blocked with a per-row list of problems from `validate_receipt`.
+  choices into `memory`. Save is blocked with the per-row list of problems from `InvalidReceipt`.
 - Tab "📜 History": pick a start and end date, show total spent, an `st.bar_chart` per category,
   the list of purchases, and delete all purchases saved on a date (with confirmation).
+
+Error handling
+- Catch errors from external code at the boundary where it is called, and turn them into our own
+  types or messages: pypdf -> `ReceiptReadError` (in `core/parser.extract_text`), SQLite ->
+  `sqlite3.Error` handled in `app.py`. Only external calls go inside these `try` blocks.
+- Never wrap our own code in `except Exception`. A bug must surface: Streamlit logs the full traceback
+  and shows a generic message. `except Exception` is allowed only at the pypdf boundary, and
+  `tests/test_parser.py` checks that it appears nowhere else.
+- Database reads in `app.py` use `load(fetch, *args, what=...)`: on `sqlite3.Error` it logs, shows
+  "Could not load ..." with a "Try again" button and raises `DataUnavailable`, which `render_section`
+  catches so only that part of the page stops (the user list and selected user stop the whole page).
+- Database writes in `app.py` run inside `with write_errors("<action>"):`, together with everything
+  that should only happen on success (reset, flash, `st.rerun()`). On `sqlite3.Error` it logs and shows
+  "Could not <action> ... try again"; the user's input stays on the page.
+- Log with `logging` (`logger.exception` / `logger.warning(..., exc_info=True)`). Log messages must not
+  contain receipt data, item names or other personal data.
+- Expected problems with user input are not exceptions to log: show them directly (validation
+  problems from `InvalidReceipt`, `NotAPdfError`, duplicate user name).
 
 Security
 - Network: `.streamlit/config.toml` sets `server.address = "localhost"`. The app has no login, so it
@@ -127,19 +167,25 @@ Rules
   that triggers heavy updates.
 - All file operations on uploaded PDFs must use `io.BytesIO`.
 - Never read or write another user's rows: every function in `db.py` except the `users` functions takes `user_id`.
-- New logic goes in `core/` with tests; `app.py` only wires it to the UI.
-- Follow the Security section for anything that renders user text, accepts input or adds a dependency.
+- New logic goes in `core/` with tests; flows that also need the database go in `services/`;
+  `app.py` only wires them to the UI.
+- Follow the Security section for anything that renders user text, accepts input or adds a dependency,
+  and the Error handling section for anything that calls the database or an external library.
 
 Testing
 - Install dev dependencies: `pip install -r requirements-dev.txt`
 - Run: `python -m pytest`
-- `tests/test_db.py`: data layer, including user isolation and input limits. Each test uses its own
-  temporary database.
+- `tests/test_db.py`: data layer, including user isolation, input limits, transactions and atomic
+  `save_receipt`. Each test uses its own temporary database.
 - `tests/test_parser.py`, `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
+- `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
 - `tests/test_app.py`: headless UI tests with Streamlit's `AppTest` (including that user text is shown
   literally). PDF upload and `st.data_editor` interactions are not supported by `AppTest`; check those
   in a browser.
+- `tests/test_app_db_errors.py`: the UI with simulated database errors (messages, "Try again", input
+  kept, retry saves once, no receipt data in logs).
+- `tests/test_architecture.py`: the dependency direction between layers.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
 - Optional real-receipt test: set `ICA_SAMPLE_PDF` to a local receipt (and `ICA_SAMPLE_TOTAL` to its
@@ -156,6 +202,8 @@ Project structure
 ├── app.py
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
+├── services/
+│   └── receipts.py     # Import and save flows (core + database, no Streamlit)
 ├── integrations/
 │   └── db.py
 ├── core/
@@ -167,18 +215,27 @@ Project structure
 ├── tests/
 │   ├── conftest.py
 │   ├── test_app.py
+│   ├── test_app_db_errors.py
+│   ├── test_architecture.py
 │   ├── test_calculator.py
 │   ├── test_db.py
 │   ├── test_no_personal_data.py
 │   ├── test_parser.py
 │   ├── test_receipt.py
 │   ├── test_requirements.py
+│   ├── test_services.py
 │   ├── test_streamlit_config.py
 │   └── test_text.py
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pytest.ini
 └── expenses.db         # Auto-generated on first run (not committed)
+
+Commits
+- Commit messages are in English: a short summary line, a blank line, then what changed and why.
+- Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
+  `Code Quality Step 3: handle database errors in the UI with retry` or `Security step 2: ...`.
+- One commit per step; push only when the user asks.
 
 Setup
 pip install -r requirements.txt
