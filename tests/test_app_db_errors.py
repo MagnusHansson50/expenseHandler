@@ -57,7 +57,7 @@ def test_failed_save_keeps_the_receipt_and_retry_saves_once(anna_app, temp_db, m
     assert not anna_app.exception
     assert "Could not save the receipt" in anna_app.error[0].value
     assert len(anna_app.session_state["receipt_df"]) == 1
-    anna = temp_db.get_users()[0][0]
+    anna = temp_db.get_users()[0].id
     assert temp_db.get_history_dates(anna) == []
 
     click(anna_app, "Save")

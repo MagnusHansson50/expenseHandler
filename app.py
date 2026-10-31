@@ -11,7 +11,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from core import receipt as receipt_logic
+from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
 from core.parser import NotAPdfError, ReceiptReadError
@@ -83,7 +83,7 @@ def init_session_state():
     """Set default values for everything the app keeps between reruns."""
     defaults = {
         "current_user": None,
-        "receipt_df": receipt_logic.empty_receipt(),
+        "receipt_df": draft_ops.empty_receipt(),
         "table_version": 0,
         "upload_version": 0,
         "purchase_date": date.today(),
@@ -98,7 +98,7 @@ def init_session_state():
 def switch_user(user_id):
     """Select a user and drop the previous user's unsaved receipt."""
     st.session_state.current_user = user_id
-    set_receipt(receipt_logic.empty_receipt())
+    set_draft(draft_ops.empty_receipt())
     set_purchase_date(date.today())
 
 
@@ -117,14 +117,14 @@ def remember_picked_date():
     st.session_state.purchase_date = st.session_state[date_key()]
 
 
-def set_receipt(df):
-    """Replace the receipt and give st.data_editor a fresh key so it redraws."""
-    st.session_state.receipt_df = receipt_logic.normalize_receipt(df)
+def set_draft(df):
+    """Replace the draft receipt and give st.data_editor a fresh key so it redraws."""
+    st.session_state.receipt_df = draft_ops.normalize_receipt(df)
     st.session_state.table_version += 1
 
 
-def add_to_receipt(rows):
-    set_receipt(receipt_logic.add_rows(st.session_state.receipt_df, rows))
+def add_to_draft(rows):
+    set_draft(draft_ops.add_rows(st.session_state.receipt_df, rows))
 
 
 def editor_key():
@@ -139,7 +139,7 @@ def on_editor_change():
     and avoids edits being applied twice on the next rerun.
     """
     changes = st.session_state[editor_key()]
-    set_receipt(receipt_logic.apply_editor_changes(st.session_state.receipt_df, changes))
+    set_draft(draft_ops.apply_editor_changes(st.session_state.receipt_df, changes))
 
 
 def flash(kind, message):
@@ -167,7 +167,7 @@ def render_user_sidebar():
         st.header("👤 User")
 
         users = load(db.get_users, what="the list of users")
-        user_names = dict(users)
+        user_names = {user.id: user.name for user in users}
         user_ids = list(user_names)
         current = st.session_state.current_user
 
@@ -249,7 +249,7 @@ def render_manual_entry(categories):
             if not item.strip():
                 st.error("Enter an item description.")
             else:
-                add_to_receipt(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))
+                add_to_draft(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))
                 st.rerun()
 
 
@@ -286,7 +286,7 @@ def render_pdf_upload(user_id, categories):
     if result.items.empty:
         flash("warning", "No items were found in the PDF.")
     else:
-        add_to_receipt(result.items)
+        add_to_draft(result.items)
         if result.purchase_date:
             set_purchase_date(result.purchase_date)
         flash("success", import_message(result))
@@ -303,12 +303,12 @@ def import_message(result):
 
 def render_receipt_editor(categories):
     """Editable table of the current receipt."""
-    receipt = st.session_state.receipt_df
+    draft = st.session_state.receipt_df
     # Keep categories that were deleted after being assigned, so they still display.
-    options = sorted(set(categories) | set(receipt["Category"].dropna()), key=str.lower)
+    options = sorted(set(categories) | set(draft["Category"].dropna()), key=str.lower)
 
     st.data_editor(
-        receipt,
+        draft,
         key=editor_key(),
         on_change=on_editor_change,
         num_rows="dynamic",
@@ -330,7 +330,7 @@ def render_receipt_editor(categories):
 
 def render_save_section(user_id):
     """Pick a date and save the receipt to history; learn categories into memory."""
-    receipt = st.session_state.receipt_df
+    draft = st.session_state.receipt_df
 
     col_date, col_save, col_clear = st.columns([2, 1, 1], vertical_alignment="bottom")
     purchase_date = col_date.date_input(
@@ -344,17 +344,17 @@ def render_save_section(user_id):
     if col_save.button("💾 Save", type="primary", width="stretch"):
         with write_errors("save the receipt"):
             try:
-                saved = receipts.save_receipt(user_id, purchase_date, receipt)
+                saved = receipts.save_receipt(user_id, purchase_date, draft)
             except receipts.InvalidReceipt as error:
                 st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in error.problems))
                 return
-            set_receipt(receipt_logic.empty_receipt())
+            set_draft(draft_ops.empty_receipt())
             set_purchase_date(date.today())
             flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
             st.rerun()
 
     if col_clear.button("🗑️ Clear list", width="stretch"):
-        set_receipt(receipt_logic.empty_receipt())
+        set_draft(draft_ops.empty_receipt())
         set_purchase_date(date.today())
         st.rerun()
 
@@ -452,7 +452,7 @@ def main():
         st.info("Select or create a user in the sidebar to get started.")
         return
 
-    st.caption(f"Showing data for **{escape_markdown(user[1])}**")
+    st.caption(f"Showing data for **{escape_markdown(user.name)}**")
     show_flash()
 
     tab_receipt, tab_history = st.tabs(["🛒 Current Receipt", "📜 History"])

@@ -8,8 +8,8 @@ import pytest
 import core.parser
 from core.parser import (
     NotAPdfError,
+    ParsedReceipt,
     ReceiptReadError,
-    parse_pdf,
     parse_receipt_date,
     parse_receipt_text,
     read_receipt,
@@ -130,8 +130,11 @@ def test_read_receipt_from_pdf_matches_text_parsing():
     assert purchase_date == date(2026, 10, 20)
 
 
-def test_parse_pdf_returns_items_only():
-    assert parse_pdf(make_pdf(SAMPLE_RECEIPT)).equals(parse_receipt_text(SAMPLE_RECEIPT))
+def test_read_receipt_returns_named_fields():
+    parsed = read_receipt(make_pdf(SAMPLE_RECEIPT))
+    assert isinstance(parsed, ParsedReceipt)
+    assert parsed.items.equals(parse_receipt_text(SAMPLE_RECEIPT))
+    assert parsed.purchase_date == date(2026, 10, 20)
 
 
 @pytest.mark.parametrize(

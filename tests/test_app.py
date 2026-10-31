@@ -54,7 +54,7 @@ def test_manual_purchase_is_added_and_saved(app, temp_db):
 
     next(b for b in app.button if "Save" in b.label).click().run()
     assert not app.exception
-    anna = temp_db.get_users()[0][0]
+    anna = temp_db.get_users()[0].id
     assert temp_db.get_history_dates(anna)
     assert temp_db.load_memory(anna) == {"Coffee": "Other"}
     assert app.session_state["receipt_df"].empty
@@ -70,7 +70,7 @@ def test_switching_user_clears_unsaved_receipt(app):
 
 def test_removing_category_in_ui_forgets_its_memory(app, temp_db):
     create_user(app, "Anna")
-    anna = temp_db.get_users()[0][0]
+    anna = temp_db.get_users()[0].id
     temp_db.save_memory(anna, {"Chips": "Snacks"})
 
     widget(app.selectbox, "Category to remove").set_value("Snacks")

@@ -9,6 +9,7 @@ import sqlite3
 from contextlib import closing, contextmanager
 from datetime import date
 from pathlib import Path
+from typing import NamedTuple
 
 import pandas as pd
 
@@ -35,6 +36,13 @@ DEFAULT_CATEGORIES = [
 ]
 
 HISTORY_COLUMNS = ["Id", "Date", "Item", "Price", "Category"]
+
+
+class User(NamedTuple):
+    """A row from the users table."""
+
+    id: int
+    name: str
 
 
 def get_connection():
@@ -132,19 +140,21 @@ def create_user(name):
 
 
 def get_users():
-    """Return all users as a list of (id, name) tuples, sorted by name."""
+    """Return all users as a list of User, sorted by name."""
     with closing(get_connection()) as conn:
-        return conn.execute(
+        rows = conn.execute(
             "SELECT id, name FROM users ORDER BY name COLLATE NOCASE"
         ).fetchall()
+    return [User(*row) for row in rows]
 
 
 def get_user(user_id):
-    """Return (id, name) for a user, or None if it does not exist."""
+    """Return the User with this id, or None if it does not exist."""
     with closing(get_connection()) as conn:
-        return conn.execute(
+        row = conn.execute(
             "SELECT id, name FROM users WHERE id = ?", (user_id,)
         ).fetchone()
+    return User(*row) if row else None
 
 
 # --- Categories ----------------------------------------------------------

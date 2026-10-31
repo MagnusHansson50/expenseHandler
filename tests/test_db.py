@@ -45,6 +45,9 @@ def test_create_user_trims_name_and_lists_sorted(temp_db):
     anna = temp_db.create_user("anna")
     assert temp_db.get_users() == [(anna, "anna"), (bo, "Bo")]
     assert temp_db.get_user(bo) == (bo, "Bo")
+    user = temp_db.get_user(bo)
+    assert isinstance(user, db.User) and (user.id, user.name) == (bo, "Bo")
+    assert all(isinstance(u, db.User) for u in temp_db.get_users())
 
 
 def test_get_user_returns_none_for_unknown_id(temp_db):

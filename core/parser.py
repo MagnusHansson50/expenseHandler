@@ -24,6 +24,7 @@ bugs). Uploads that do not start with the PDF header are rejected before parsing
 import io
 import re
 from datetime import date
+from typing import NamedTuple
 
 import pandas as pd
 from pypdf import PdfReader
@@ -127,16 +128,17 @@ def parse_receipt_date(text):
     return None
 
 
-def read_receipt(file_bytes):
-    """Parse an uploaded ICA receipt PDF.
+class ParsedReceipt(NamedTuple):
+    """What read_receipt finds in an ICA receipt PDF."""
 
-    Returns (items, purchase_date): a DataFrame with Item and Price, and the
-    date printed on the receipt (None if it could not be found).
+    items: pd.DataFrame  # columns Item and Price
+    purchase_date: date | None  # date printed on the receipt, None if not found
+
+
+def read_receipt(file_bytes):
+    """Parse an uploaded ICA receipt PDF into a ParsedReceipt.
+
+    Raises NotAPdfError or ReceiptReadError if the file cannot be read.
     """
     text = extract_text(file_bytes)
-    return parse_receipt_text(text), parse_receipt_date(text)
-
-
-def parse_pdf(file_bytes):
-    """Parse an uploaded ICA receipt PDF into a DataFrame with Item and Price."""
-    return read_receipt(file_bytes)[0]
+    return ParsedReceipt(parse_receipt_text(text), parse_receipt_date(text))

@@ -7,7 +7,10 @@ result. Errors are passed on unchanged for the UI to handle:
 - sqlite3.Error when the database fails
 """
 
+from datetime import date
 from typing import NamedTuple
+
+import pandas as pd
 
 from core.parser import read_receipt
 from core.receipt import categorize, memory_from_receipt, validate_receipt
@@ -17,9 +20,9 @@ from integrations import db
 class ImportResult(NamedTuple):
     """Outcome of importing a receipt PDF."""
 
-    items: object  # DataFrame with Item, Price, Category (empty if nothing was found)
+    items: pd.DataFrame  # columns Item, Price, Category (empty if nothing was found)
     remembered: int  # how many items got their category from the user's memory
-    purchase_date: object  # datetime.date printed on the receipt, or None
+    purchase_date: date | None  # date printed on the receipt, None if not found
 
 
 class InvalidReceipt(ValueError):
@@ -36,11 +39,11 @@ def import_receipt(user_id, pdf_bytes, categories):
     `categories` are the user's current category names; remembered categories
     the user no longer has fall back to FALLBACK_CATEGORY.
     """
-    parsed_items, purchase_date = read_receipt(pdf_bytes)
-    if parsed_items.empty:
-        return ImportResult(parsed_items, 0, purchase_date)
-    categorized_items, remembered = categorize(parsed_items, db.load_memory(user_id), categories)
-    return ImportResult(categorized_items, remembered, purchase_date)
+    parsed = read_receipt(pdf_bytes)
+    if parsed.items.empty:
+        return ImportResult(parsed.items, 0, parsed.purchase_date)
+    categorized_items, remembered = categorize(parsed.items, db.load_memory(user_id), categories)
+    return ImportResult(categorized_items, remembered, parsed.purchase_date)
 
 
 def save_receipt(user_id, purchase_date, draft):
