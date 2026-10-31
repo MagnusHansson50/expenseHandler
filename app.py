@@ -14,6 +14,7 @@ import streamlit as st
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
+from core.i18n import LANGUAGES, resolve_language, t
 from core.parser import NotAPdfError, ReceiptReadError
 from core.text import escape_markdown
 from integrations import db
@@ -93,6 +94,40 @@ def init_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    if "language" not in st.session_state:
+        # First run in this browser tab: take the language from ?lang= (if valid).
+        st.session_state.language = resolve_language(st.query_params.get("lang"))
+
+
+# --- Language --------------------------------------------------------------
+# The language lives in st.session_state.language and in the URL (?lang=sv),
+# so it survives a page reload and can be bookmarked. It is not stored per user.
+
+
+def lang():
+    """The language currently selected in this browser tab."""
+    return st.session_state.language
+
+
+def sync_language_to_url():
+    """Keep ?lang= in the address bar equal to the selected language."""
+    if st.query_params.get("lang") != lang():
+        st.query_params["lang"] = lang()
+
+
+def render_language_selector():
+    """Language picker at the top of the sidebar.
+
+    Bound to st.session_state.language via its key, so changing it only
+    changes the language; the draft receipt and everything else are kept.
+    """
+    st.sidebar.selectbox(
+        "🌐 " + t("language_label", lang()),
+        options=list(LANGUAGES),
+        format_func=LANGUAGES.get,
+        key="language",
+        on_change=sync_language_to_url,
+    )
 
 
 def switch_user(user_id):
@@ -438,7 +473,9 @@ def render_history_tab():
 def main():
     st.set_page_config(page_title="ExpenseHandler", page_icon="🧾", layout="centered")
     init_session_state()
-    st.title("🧾 ExpenseHandler")
+    sync_language_to_url()
+    render_language_selector()
+    st.title(t("app_title", lang()))
 
     try:
         load(setup_database, what="the database")
