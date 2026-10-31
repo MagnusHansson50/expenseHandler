@@ -11,7 +11,7 @@ import streamlit as st
 from core import receipt as receipt_logic
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
-from core.parser import read_receipt
+from core.parser import NotAPdfError, read_receipt
 from core.text import escape_markdown
 from integrations import db
 
@@ -206,8 +206,12 @@ def render_pdf_upload(user_id, categories):
 
     try:
         items, receipt_date = read_receipt(uploaded.getvalue())
-    except Exception as error:  # PyPDF2 raises many different errors for broken files
-        st.error(f"Could not read the PDF: {error}")
+    except NotAPdfError:
+        st.error("The file is not a PDF. Upload the receipt as a PDF from ICA.")
+        return
+    except Exception:  # pypdf raises many different errors for broken files
+        # Library details are not shown to the user (they can reveal internals).
+        st.error("Could not read the PDF. Check that it is an ICA receipt and try again.")
         return
 
     # A new key empties the uploader, so the same file is not parsed again on rerun.

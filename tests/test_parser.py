@@ -1,12 +1,13 @@
 import os
+import re
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-from core.parser import parse_pdf, parse_receipt_date, parse_receipt_text, read_receipt
+from core.parser import NotAPdfError, parse_pdf, parse_receipt_date, parse_receipt_text, read_receipt
 
-# Mirrors the layout PyPDF2 extracts from a real ICA receipt.
+# Mirrors the item layout extracted from a real ICA receipt.
 SAMPLE_RECEIPT = """ICA Supermarket Testbutiken
 Kassör2026-10-20
 08:27
@@ -123,6 +124,27 @@ def test_read_receipt_from_pdf_matches_text_parsing():
 
 def test_parse_pdf_returns_items_only():
     assert parse_pdf(make_pdf(SAMPLE_RECEIPT)).equals(parse_receipt_text(SAMPLE_RECEIPT))
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"Hello, this is text", b"\x89PNG\r\n\x1a\n", b"PK\x03\x04 zip", b" %PDF-1.4 leading space"],
+)
+def test_non_pdf_bytes_are_rejected_before_parsing(data):
+    with pytest.raises(NotAPdfError):
+        read_receipt(data)
+
+
+def test_broken_pdf_raises_instead_of_returning_garbage():
+    with pytest.raises(Exception):
+        read_receipt(b"%PDF-1.4\nthis is not a real PDF body")
+
+
+def test_unmaintained_pypdf2_is_not_imported():
+    repo = Path(__file__).resolve().parent.parent
+    imports_pypdf2 = re.compile(r"^\s*(import|from)\s+PyPDF2\b", re.MULTILINE)
+    for path in [repo / "app.py", *repo.glob("core/*.py"), *repo.glob("integrations/*.py")]:
+        assert not imports_pypdf2.search(path.read_text(encoding="utf-8")), path.name
 
 
 # Real receipts contain personal data and are never committed. To run this test,

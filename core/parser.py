@@ -13,8 +13,12 @@ Discounts are merged into the preceding item so its price is what was actually p
 Back-to-back lines with the same article number (e.g. the same product at two
 prices) are combined into one row, since a multi-buy discount after them covers both.
 
-The purchase date is the first YYYY-MM-DD in the header. PyPDF2 may glue it to
-the preceding label (e.g. "Kassör2026-09-26"), so it is not matched on word boundaries.
+The purchase date is the first YYYY-MM-DD in the header. Text extraction may glue
+it to the preceding label (e.g. "Kassör2026-09-26"), so it is not matched on word
+boundaries.
+
+PDFs are read with pypdf (PyPDF2 is unmaintained and has unpatched denial-of-service
+bugs). Uploads that do not start with the PDF header are rejected before parsing.
 """
 
 import io
@@ -22,7 +26,7 @@ import re
 from datetime import date
 
 import pandas as pd
-import PyPDF2
+from pypdf import PdfReader
 
 COLUMNS = ["Item", "Price"]
 
@@ -46,9 +50,21 @@ def _to_float(amount):
     return float(amount.replace(",", "."))
 
 
+PDF_HEADER = b"%PDF-"
+
+
+class NotAPdfError(ValueError):
+    """Raised when uploaded bytes are not a PDF file."""
+
+
 def extract_text(file_bytes):
-    """Extract the raw text of every page in a PDF."""
-    reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
+    """Extract the raw text of every page in a PDF.
+
+    Raises NotAPdfError if the bytes do not start with the PDF header.
+    """
+    if not file_bytes.startswith(PDF_HEADER):
+        raise NotAPdfError("The file is not a PDF.")
+    reader = PdfReader(io.BytesIO(file_bytes))
     return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
