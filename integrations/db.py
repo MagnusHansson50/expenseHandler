@@ -133,6 +133,12 @@ def init_db():
             );
 
             CREATE INDEX IF NOT EXISTS idx_history_user_date ON history (user_id, date);
+
+            CREATE TABLE IF NOT EXISTS credentials (
+                user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                password_hash BLOB NOT NULL,
+                salt          BLOB NOT NULL
+            );
             """
         )
 
@@ -155,23 +161,39 @@ def create_user(name, default_categories=DEFAULT_CATEGORIES):
     always added. Raises UserNameEmpty, UserNameTooLong or UserNameTaken (all
     UserNameError, a ValueError) if the name is rejected.
     """
+    with transaction() as conn:
+        return _insert_user(conn, name, default_categories)
+
+
+def create_user_with_password(name, password_hash, salt, default_categories=DEFAULT_CATEGORIES):
+    """Create a user with categories (as create_user) and a password, all or nothing.
+
+    `password_hash` and `salt` come from core.auth.hash_password; the password
+    itself never reaches the database. Returns the new user id.
+    """
+    with transaction() as conn:
+        user_id = _insert_user(conn, name, default_categories)
+        _write_password(conn, user_id, password_hash, salt)
+    return user_id
+
+
+def _insert_user(conn, name, default_categories):
+    """Insert a user and their starting categories on an open connection."""
     seeds = list(dict.fromkeys([*default_categories, FALLBACK_CATEGORY]))  # keep order, no duplicates
     name = name.strip()
     if not name:
         raise UserNameEmpty("User name cannot be empty.")
     if len(name) > MAX_NAME_LENGTH:
         raise UserNameTooLong(f"User name can be at most {MAX_NAME_LENGTH} characters.", max=MAX_NAME_LENGTH)
-
-    with transaction() as conn:
-        try:
-            cursor = conn.execute("INSERT INTO users (name) VALUES (?)", (name,))
-        except sqlite3.IntegrityError:
-            raise UserNameTaken(f"A user named '{name}' already exists.", name=name) from None
-        user_id = cursor.lastrowid
-        conn.executemany(
-            "INSERT INTO categories (name, user_id) VALUES (?, ?)",
-            [(category, user_id) for category in seeds],
-        )
+    try:
+        cursor = conn.execute("INSERT INTO users (name) VALUES (?)", (name,))
+    except sqlite3.IntegrityError:
+        raise UserNameTaken(f"A user named '{name}' already exists.", name=name) from None
+    user_id = cursor.lastrowid
+    conn.executemany(
+        "INSERT INTO categories (name, user_id) VALUES (?, ?)",
+        [(category, user_id) for category in seeds],
+    )
     return user_id
 
 
@@ -191,6 +213,60 @@ def get_user(user_id):
             "SELECT id, name FROM users WHERE id = ?", (user_id,)
         ).fetchone()
     return User(*row) if row else None
+
+
+def get_user_by_name(name):
+    """Return the User with this exact name (surrounding spaces ignored), or None."""
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            "SELECT id, name FROM users WHERE name = ?", (name.strip(),)
+        ).fetchone()
+    return User(*row) if row else None
+
+
+# --- Credentials ---------------------------------------------------------
+# Only a salted hash is stored (see core/auth.py); never the password.
+
+
+class Login(NamedTuple):
+    """What is needed to check a login: the user and their stored hash and salt."""
+
+    user: User
+    password_hash: bytes
+    salt: bytes
+
+
+def get_login(name):
+    """Return the Login for a user name, or None if the user does not exist or has no password."""
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            """
+            SELECT users.id, users.name, credentials.password_hash, credentials.salt
+            FROM users JOIN credentials ON credentials.user_id = users.id
+            WHERE users.name = ?
+            """,
+            (name.strip(),),
+        ).fetchone()
+    return Login(User(row[0], row[1]), row[2], row[3]) if row else None
+
+
+def set_password(user_id, password_hash, salt):
+    """Set or replace a user's password hash. Returns False if the user does not exist."""
+    with transaction() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is None:
+            return False
+        _write_password(conn, user_id, password_hash, salt)
+    return True
+
+
+def _write_password(conn, user_id, password_hash, salt):
+    conn.execute(
+        """
+        INSERT INTO credentials (user_id, password_hash, salt) VALUES (?, ?, ?)
+        ON CONFLICT (user_id) DO UPDATE SET password_hash = excluded.password_hash, salt = excluded.salt
+        """,
+        (user_id, password_hash, salt),
+    )
 
 
 # --- Categories ----------------------------------------------------------
