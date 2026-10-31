@@ -1,3 +1,5 @@
-streamlit>=1.66
-pandas>=3.0
-pypdf>=3.9.0
+# Versions the app is tested with. "~=X.Y.Z" allows only patch releases
+# (>=X.Y.Z, <X.(Y+1)); raise a pin deliberately and run the tests.
+streamlit~=1.66.1
+pandas~=3.1.0
+pypdf~=6.21.4
