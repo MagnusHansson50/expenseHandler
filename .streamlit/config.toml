@@ -1,0 +1,14 @@
+# Security-related Streamlit settings. Streamlit reads this file when the app
+# is started from the repository root (python -m streamlit run app.py).
+
+[server]
+# Only accept connections from this computer. The app has no login, so it
+# must not be reachable from the local network or the internet.
+address = "localhost"
+
+# ICA receipts are ~0.1 MB; the Streamlit default is 200 MB.
+maxUploadSize = 5
+
+[client]
+# Do not show tracebacks (file paths, code) to whoever uses the app.
+showErrorDetails = "none"
