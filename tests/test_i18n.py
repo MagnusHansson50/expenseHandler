@@ -119,16 +119,17 @@ def ui_keys_used_in_app():
 
 
 def keys_produced_below_the_ui():
-    """Keys created in core/receipt.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
+    """Keys created in core/receipt.py and core/auth.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
     import ast
     from pathlib import Path
 
     repo = Path(__file__).resolve().parent.parent
     keys = set()
-    receipt_tree = ast.parse((repo / "core" / "receipt.py").read_text(encoding="utf-8"))
-    for node in ast.walk(receipt_tree):
-        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
-            keys.add(node.args[0].value)
+    for module in ("receipt.py", "auth.py"):
+        tree = ast.parse((repo / "core" / module).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
+                keys.add(node.args[0].value)
     db_tree = ast.parse((repo / "integrations" / "db.py").read_text(encoding="utf-8"))
     for node in ast.walk(db_tree):
         if isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == ["key"]:
@@ -163,6 +164,8 @@ def test_keys_from_core_and_db_are_found():
         "user_name_empty",
         "user_name_too_long",
         "user_name_taken",
+        "password_too_short",
+        "password_too_long",
     }
 
 

@@ -84,6 +84,9 @@ TRANSLATIONS = {
         "user_name_empty": "Användarnamnet får inte vara tomt.",
         "user_name_too_long": "Användarnamnet får vara högst {max} tecken.",
         "user_name_taken": "Det finns redan en användare som heter '{name}'.",
+        # Password rules from core.auth.password_problem
+        "password_too_short": "Lösenordet måste vara minst {min} tecken.",
+        "password_too_long": "Lösenordet får vara högst {max} tecken.",
         # History
         "start_date": "Startdatum",
         "end_date": "Slutdatum",
@@ -173,6 +176,9 @@ TRANSLATIONS = {
         "user_name_empty": "User name cannot be empty.",
         "user_name_too_long": "User name can be at most {max} characters.",
         "user_name_taken": "A user named '{name}' already exists.",
+        # Password rules from core.auth.password_problem
+        "password_too_short": "The password must be at least {min} characters.",
+        "password_too_long": "The password can be at most {max} characters.",
         # History
         "start_date": "Start date",
         "end_date": "End date",

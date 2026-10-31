@@ -19,3 +19,8 @@ RECEIPT_COLUMNS = ["Item", "Price", "Category"]
 MAX_NAME_LENGTH = 50  # user and category names
 MAX_ITEM_LENGTH = 100  # item descriptions
 MAX_PRICE = 100_000  # kr; prices must lie within -MAX_PRICE..MAX_PRICE (discounts are negative)
+
+# Password length limits. The upper limit keeps hashing a single login
+# attempt cheap, so a huge "password" cannot be used to slow the server down.
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 128
