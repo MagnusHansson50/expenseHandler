@@ -55,7 +55,9 @@ def categorize(items, memory, categories):
     Returns (items with a Category column, number categorized from memory).
     """
     valid = {item: category for item, category in memory.items() if category in categories}
-    remembered = items["Item"].map(valid)
+    # astype(object): when nothing is remembered, map() returns float NaNs, and
+    # pandas will stop allowing a string fill value for a float column.
+    remembered = items["Item"].map(valid).astype(object)
     categorized = items.assign(Category=remembered.fillna(FALLBACK_CATEGORY))
     return categorized, int(remembered.notna().sum())
 
