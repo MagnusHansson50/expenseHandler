@@ -10,9 +10,7 @@ and history. No function may read or change another user's rows, and an action b
 It does NOT mean authentication: there is no login, and anyone who opens the app can pick any user.
 
 Code location
-All new code lives in this repository (`C:\Git\ExpenseHandler`).
-`[removed]` is an older receipt-splitter prototype,
-kept for reference only (e.g. its ICA parsing logic). Never write to it.
+All code lives in this repository.
 
 Tech stack
 - Python 3.12+
