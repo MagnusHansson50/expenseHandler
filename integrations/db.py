@@ -6,7 +6,7 @@ those tables takes a `user_id` so one user's data can never leak into another's.
 
 import os
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import date
 from pathlib import Path
 
@@ -38,15 +38,31 @@ HISTORY_COLUMNS = ["Id", "Date", "Item", "Price", "Category"]
 
 
 def get_connection():
-    """Open a new connection. Callers close it via `closing(...)`."""
+    """Open a new connection. Read-only callers close it via `closing(...)`."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
+@contextmanager
+def transaction():
+    """Run a block of writes as one unit of work.
+
+    Yields a connection. If the block finishes, everything it wrote is
+    committed; if it raises, everything is rolled back and the exception
+    propagates. The connection is always closed afterwards.
+    """
+    conn = get_connection()
+    try:
+        with conn:  # sqlite3: commit on success, rollback on exception
+            yield conn
+    finally:
+        conn.close()
+
+
 def init_db():
     """Create all tables if they do not exist yet."""
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -102,7 +118,7 @@ def create_user(name):
     if len(name) > MAX_NAME_LENGTH:
         raise ValueError(f"User name can be at most {MAX_NAME_LENGTH} characters.")
 
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         try:
             cursor = conn.execute("INSERT INTO users (name) VALUES (?)", (name,))
         except sqlite3.IntegrityError:
@@ -149,7 +165,7 @@ def add_category(user_id, name):
     name = name.strip()
     if not name or len(name) > MAX_NAME_LENGTH:
         return False
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         cursor = conn.execute(
             "INSERT OR IGNORE INTO categories (name, user_id) VALUES (?, ?)",
             (name, user_id),
@@ -166,7 +182,7 @@ def delete_category(user_id, name):
     """
     if name == FALLBACK_CATEGORY:
         return False
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         cursor = conn.execute(
             "DELETE FROM categories WHERE user_id = ? AND name = ?",
             (user_id, name),
@@ -203,7 +219,7 @@ def save_memory(user_id, mapping):
     Choices are skipped if the item is empty or too long, or if the category
     is not one of the user's categories.
     """
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         categories = _category_names(conn, user_id)
         rows = [
             (item, category, user_id)
@@ -246,7 +262,7 @@ def save_history(user_id, purchase_date, items_df):
     if not candidates:
         return 0
 
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         categories = _category_names(conn, user_id)
         rows = [
             (iso_date, item, price, category if category in categories else FALLBACK_CATEGORY, user_id)
@@ -285,7 +301,7 @@ def get_history_dates(user_id):
 
 def delete_history_date(user_id, purchase_date):
     """Delete all of the user's purchases on a date. Returns rows removed."""
-    with closing(get_connection()) as conn, conn:
+    with transaction() as conn:
         cursor = conn.execute(
             "DELETE FROM history WHERE user_id = ? AND date = ?",
             (user_id, _to_iso(purchase_date)),

@@ -21,6 +21,21 @@ def test_init_db_is_idempotent(temp_db):
     assert temp_db.get_users() == []
 
 
+def test_transaction_commits_when_block_succeeds(temp_db):
+    with temp_db.transaction() as conn:
+        conn.execute("INSERT INTO users (name) VALUES ('Anna')")
+    assert [name for _, name in temp_db.get_users()] == ["Anna"]
+
+
+def test_transaction_rolls_back_everything_when_block_raises(temp_db):
+    with pytest.raises(RuntimeError):
+        with temp_db.transaction() as conn:
+            conn.execute("INSERT INTO users (name) VALUES ('Anna')")
+            conn.execute("INSERT INTO users (name) VALUES ('Bo')")
+            raise RuntimeError("simulated failure after two writes")
+    assert temp_db.get_users() == []
+
+
 # --- Users ---------------------------------------------------------------
 
 
