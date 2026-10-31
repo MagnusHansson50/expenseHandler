@@ -135,8 +135,9 @@ def test_save_problems_are_translated(temp_db):
     next(b for b in at.button if "Spara" in b.label).click().run()
 
     assert not at.exception
+    assert MAX_PRICE == 100_000  # shown with a Swedish thousands separator below
     assert at.error[0].value == (
-        f"Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -{MAX_PRICE} och {MAX_PRICE} kr."
+        "Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -100 000 och 100 000 kr."
     )
 
 

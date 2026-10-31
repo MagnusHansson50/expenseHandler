@@ -198,3 +198,37 @@ def test_category_label_translates_only_the_fallback():
 @pytest.mark.parametrize("name", [FALLBACK_CATEGORY, "Mejeri", "Dairy", "Snacks"])
 def test_category_value_reverses_category_label(lang, name):
     assert category_value(category_label(name, lang), lang) == name
+
+
+# --- Numbers in messages -------------------------------------------------
+
+from core.i18n import format_number  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    "value, swedish, english",
+    [
+        (5, "5", "5"),
+        (100000, "100 000", "100,000"),
+        (-100000, "-100 000", "-100,000"),
+        (1234.5, "1 234,50", "1,234.50"),
+        (50.0, "50", "50"),
+    ],
+)
+def test_format_number_per_language(value, swedish, english):
+    assert format_number(value, "sv") == swedish
+    assert format_number(value, "en") == english
+
+
+def test_t_formats_numeric_params_per_language():
+    assert t("problem_price_out_of_range", "sv", row=3, max=100000) == (
+        "Rad 3: priset måste vara mellan -100 000 och 100 000 kr."
+    )
+    assert t("problem_price_out_of_range", "en", row=3, max=100000) == (
+        "Row 3: the price must be between -100,000 and 100,000 kr."
+    )
+
+
+def test_t_leaves_text_params_unchanged():
+    assert t("saved_rows", "sv", count=1200, date="2026-09-26") == "1 200 rader sparades för 2026-09-26."
+    assert t("user_name_taken", "en", name="1234") == "A user named '1234' already exists."

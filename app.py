@@ -20,6 +20,7 @@ from core.i18n import (
     category_label,
     category_value,
     format_amount,
+    format_number,
     resolve_language,
     t,
 )
@@ -29,6 +30,12 @@ from integrations import db
 from services import receipts
 
 logger = logging.getLogger(__name__)
+
+# Number format for prices in st.number_input, st.data_editor and st.dataframe.
+# These widgets only accept printf-style formats, which always use a decimal
+# point, so tables show "1122.17" in every language. Totals and messages are
+# formatted per language with format_amount / format_number instead.
+PRICE_INPUT_FORMAT = "%.2f"
 
 
 # --- Database error handling ---------------------------------------------
@@ -285,7 +292,7 @@ def render_manual_entry(categories):
                 max_value=float(MAX_PRICE),
                 value=0.0,
                 step=1.0,
-                format="%.2f",
+                format=PRICE_INPUT_FORMAT,
             )
             # Options are the labels as shown ("Övrigt"); category_value maps the choice back.
             labels = [category_label(name, lang()) for name in categories]
@@ -372,7 +379,7 @@ def render_receipt_editor(categories):
             "Item": st.column_config.TextColumn(t("col_item", lang()), required=True, max_chars=MAX_ITEM_LENGTH),
             "Price": st.column_config.NumberColumn(
                 t("col_price", lang()),
-                format="%.2f",
+                format=PRICE_INPUT_FORMAT,
                 required=True,
                 min_value=-MAX_PRICE,
                 max_value=MAX_PRICE,
@@ -475,7 +482,7 @@ def render_history_tab():
     else:
         col_total, col_count = st.columns(2)
         col_total.metric(t("total_spent", lang()), format_amount(total_cost(history), lang()))
-        col_count.metric(t("purchases", lang()), len(history))
+        col_count.metric(t("purchases", lang()), format_number(len(history), lang()))
 
         by_category = sum_by_category(history).rename(index=lambda name: category_label(name, lang()))
         st.subheader(t("spending_per_category", lang()))
@@ -493,7 +500,7 @@ def render_history_tab():
                 column_config={
                     "Date": st.column_config.TextColumn(t("col_date", lang())),
                     "Item": st.column_config.TextColumn(t("col_item", lang())),
-                    "Price": st.column_config.NumberColumn(t("col_price", lang()), format="%.2f"),
+                    "Price": st.column_config.NumberColumn(t("col_price", lang()), format=PRICE_INPUT_FORMAT),
                     "Category": st.column_config.TextColumn(t("col_category", lang())),
                 },
             )

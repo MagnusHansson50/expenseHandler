@@ -218,12 +218,36 @@ def resolve_language(lang):
 def t(key, lang, **params):
     """Return the text for `key` in `lang`, with {placeholders} filled from `params`.
 
-    An unsupported language falls back to DEFAULT_LANGUAGE. An unknown key or
-    a missing parameter raises KeyError: a missing text is a bug, and the
-    tests check that every key used exists in every language.
+    Numbers in `params` are formatted for the language (format_number), so
+    "{max}" becomes "100 000" in Swedish and "100,000" in English. An
+    unsupported language falls back to DEFAULT_LANGUAGE. An unknown key or a
+    missing parameter raises KeyError: a missing text is a bug, and the tests
+    check that every key used exists in every language.
     """
     text = TRANSLATIONS[resolve_language(lang)][key]
-    return text.format(**params) if params else text
+    if not params:
+        return text
+    formatted = {
+        name: format_number(value, lang) if _is_number(value) else value
+        for name, value in params.items()
+    }
+    return text.format(**formatted)
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def format_number(value, lang):
+    """Format a number for the language: whole numbers without decimals, others with two.
+
+    Swedish: "100 000" / "1 234,50". English: "100,000" / "1,234.50".
+    """
+    decimals = 0 if float(value).is_integer() else 2
+    number = f"{value:,.{decimals}f}"
+    if resolve_language(lang) == "sv":
+        number = number.replace(",", _NBSP).replace(".", ",")
+    return number
 
 
 def category_label(name, lang):
