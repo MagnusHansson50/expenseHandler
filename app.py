@@ -12,6 +12,7 @@ from core import receipt as receipt_logic
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY
 from core.parser import read_receipt
+from core.text import escape_markdown
 from integrations import db
 
 
@@ -132,7 +133,7 @@ def render_user_sidebar():
             try:
                 new_id = db.create_user(new_name)
             except ValueError as error:
-                st.error(str(error))
+                st.error(escape_markdown(error))
             else:
                 switch_user(new_id)
                 st.rerun()
@@ -149,7 +150,7 @@ def render_category_manager(user_id, categories):
                 add_clicked = st.form_submit_button("➕ Add")
             if add_clicked:
                 if db.add_category(user_id, new_category):
-                    flash("success", f"Added category '{new_category.strip()}'.")
+                    flash("success", f"Added category '{escape_markdown(new_category)}'.")
                     st.rerun()
                 st.error("Enter a name that is not already in the list.")
 
@@ -160,9 +161,9 @@ def render_category_manager(user_id, categories):
                 delete_clicked = st.form_submit_button("🗑️ Remove")
             if delete_clicked and to_delete:
                 if db.delete_category(user_id, to_delete):
-                    flash("success", f"Removed category '{to_delete}'.")
+                    flash("success", f"Removed category '{escape_markdown(to_delete)}'.")
                     st.rerun()
-                st.error(f"Category '{to_delete}' could not be removed.")
+                st.error(f"Category '{escape_markdown(to_delete)}' could not be removed.")
 
 
 def render_manual_entry(categories):
@@ -356,7 +357,7 @@ def main():
         st.info("Select or create a user in the sidebar to get started.")
         st.stop()
 
-    st.caption(f"Showing data for **{user[1]}**")
+    st.caption(f"Showing data for **{escape_markdown(user[1])}**")
     show_flash()
 
     tab_receipt, tab_history = st.tabs(["🛒 Current Receipt", "📜 History"])

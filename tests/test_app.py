@@ -105,6 +105,39 @@ def test_tabs_keep_their_position_when_a_flash_message_comes_and_goes(app):
     assert tabs_position(app) == without_message
 
 
+MARKDOWN_NAME = "Eve ![x](http://evil.test/p.png) [Click](https://evil.test)"
+WJ = "⁠"  # invisible WORD JOINER inserted to stop automatic links
+ESCAPED_NAME = (
+    rf"Eve \!\[x\]\(http\:{WJ}\/\/evil\.test\/p\.png\) \[Click\]\(https\:{WJ}\/\/evil\.test\)"
+)
+
+
+def test_user_name_is_shown_literally_not_as_markdown(app):
+    create_user(app, MARKDOWN_NAME)
+    assert app.caption[0].value == f"Showing data for **{ESCAPED_NAME}**"
+
+
+def test_duplicate_user_error_shows_name_literally(app):
+    create_user(app, MARKDOWN_NAME)
+    create_user(app, MARKDOWN_NAME)
+    assert ESCAPED_NAME in app.sidebar.error[0].value
+
+
+def test_category_names_in_messages_are_shown_literally(app):
+    create_user(app, "Anna")
+    widget(app.text_input, "New category").input("**Bold** [x](https://evil.test)")
+    next(b for b in app.button if b.label == "➕ Add").click().run()
+    assert app.success[0].value == (
+        rf"Added category '\*\*Bold\*\* \[x\]\(https\:{WJ}\/\/evil\.test\)'."
+    )
+
+    widget(app.selectbox, "Category to remove").set_value("**Bold** [x](https://evil.test)")
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert app.success[0].value == (
+        rf"Removed category '\*\*Bold\*\* \[x\]\(https\:{WJ}\/\/evil\.test\)'."
+    )
+
+
 def test_fallback_category_cannot_be_chosen_for_removal(app):
     create_user(app, "Anna")
     options = widget(app.selectbox, "Category to remove").options
