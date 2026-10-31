@@ -9,6 +9,7 @@ from typing import NamedTuple
 import pandas as pd
 
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
+from core.i18n import category_label, category_value
 
 
 class Problem(NamedTuple):
@@ -57,6 +58,33 @@ def apply_editor_changes(receipt, changes):
         df = pd.concat([df, pd.DataFrame(added, columns=RECEIPT_COLUMNS)], ignore_index=True)
 
     return normalize_receipt(df)
+
+
+def with_category_labels(receipt, lang):
+    """Copy of the receipt with categories as shown in `lang` (for display only)."""
+    shown = receipt.copy()
+    shown["Category"] = shown["Category"].map(
+        lambda name: category_label(name, lang) if isinstance(name, str) else name
+    )
+    return shown
+
+
+def changes_to_stored_categories(changes, lang):
+    """Turn category labels in a `st.data_editor` change set back into stored names.
+
+    The editor shows with_category_labels(), so a category picked there is a
+    label (e.g. "Övrigt"); it must be saved as the stored name ("Other").
+    """
+    def stored(values):
+        if isinstance(values.get("Category"), str):
+            return {**values, "Category": category_value(values["Category"], lang)}
+        return values
+
+    return {
+        **changes,
+        "edited_rows": {row: stored(values) for row, values in changes.get("edited_rows", {}).items()},
+        "added_rows": [stored(values) for values in changes.get("added_rows", [])],
+    }
 
 
 def categorize(items, memory, categories):

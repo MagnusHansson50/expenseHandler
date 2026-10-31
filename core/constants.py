@@ -4,7 +4,12 @@ Kept free of imports so any module can depend on it.
 """
 
 # Category used when an item has no category, and that can never be removed.
+# This internal name is what is stored in the database, in every language.
 FALLBACK_CATEGORY = "Other"
+
+# How FALLBACK_CATEGORY is shown per language. These names are reserved:
+# a user cannot create a category with any of them (any letter case).
+FALLBACK_CATEGORY_LABELS = {"sv": "Övrigt", "en": "Other"}
 
 # Columns of the receipt being edited (and of the rows saved to history).
 RECEIPT_COLUMNS = ["Item", "Price", "Category"]

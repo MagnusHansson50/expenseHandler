@@ -164,3 +164,37 @@ def test_keys_from_core_and_db_are_found():
         "user_name_too_long",
         "user_name_taken",
     }
+
+
+# --- Categories ----------------------------------------------------------
+
+from core.constants import FALLBACK_CATEGORY, FALLBACK_CATEGORY_LABELS  # noqa: E402
+from core.i18n import DEFAULT_CATEGORIES, category_label, category_value  # noqa: E402
+
+
+def test_fallback_label_and_default_categories_exist_for_every_language():
+    assert set(FALLBACK_CATEGORY_LABELS) == set(LANGUAGES)
+    assert set(DEFAULT_CATEGORIES) == set(LANGUAGES)
+    assert FALLBACK_CATEGORY_LABELS["sv"] == "Övrigt"
+
+
+def test_default_categories_have_the_same_length_and_no_reserved_names():
+    reserved = {label.casefold() for label in FALLBACK_CATEGORY_LABELS.values()}
+    lengths = {lang: len(names) for lang, names in DEFAULT_CATEGORIES.items()}
+    assert len(set(lengths.values())) == 1, lengths
+    for names in DEFAULT_CATEGORIES.values():
+        assert len(set(names)) == len(names)
+        assert not reserved & {name.casefold() for name in names}
+
+
+def test_category_label_translates_only_the_fallback():
+    assert category_label(FALLBACK_CATEGORY, "sv") == "Övrigt"
+    assert category_label(FALLBACK_CATEGORY, "en") == "Other"
+    assert category_label("Mejeri", "en") == "Mejeri"  # user data is never translated
+    assert category_label("Dairy", "sv") == "Dairy"
+
+
+@pytest.mark.parametrize("lang", list(LANGUAGES))
+@pytest.mark.parametrize("name", [FALLBACK_CATEGORY, "Mejeri", "Dairy", "Snacks"])
+def test_category_value_reverses_category_label(lang, name):
+    assert category_value(category_label(name, lang), lang) == name

@@ -138,3 +138,32 @@ def test_save_problems_are_translated(temp_db):
     assert at.error[0].value == (
         f"Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -{MAX_PRICE} och {MAX_PRICE} kr."
     )
+
+
+# --- Categories per language ---------------------------------------------
+
+
+def test_new_user_gets_categories_in_selected_language(temp_db):
+    from core.i18n import DEFAULT_CATEGORIES
+
+    at = run_app("sv")
+    create_user(at, "Anna")
+    removable = next(w for w in at.selectbox if w.label == "Kategori att ta bort").options
+    assert sorted(removable) == sorted(DEFAULT_CATEGORIES["sv"])
+
+    language_box(at).set_value("en").run()
+    create_user(at, "Bo")
+    removable = next(w for w in at.selectbox if w.label == "Category to remove").options
+    assert sorted(removable) == sorted(DEFAULT_CATEGORIES["en"])
+
+
+def test_fallback_is_shown_as_ovrigt_but_stored_as_other(temp_db):
+    at = run_app("sv")
+    create_user(at, "Anna")
+    category_box = next(w for w in at.selectbox if w.label == "Kategori")
+    assert "Övrigt" in category_box.options and "Other" not in category_box.options
+    assert category_box.value == "Övrigt"  # default choice
+
+    next(w for w in at.text_input if w.label == "Vara").input("Tuggummi")
+    next(b for b in at.button if "Lägg till i listan" in b.label).click().run()
+    assert at.session_state["receipt_df"]["Category"].tolist() == ["Other"]

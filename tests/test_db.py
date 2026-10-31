@@ -365,3 +365,27 @@ def test_duplicate_user_raises_user_name_taken_with_name(temp_db):
         temp_db.create_user(" Anna ")
     assert caught.value.key == "user_name_taken"
     assert caught.value.params == {"name": "Anna"}
+
+
+# --- Starting categories per language and reserved names -----------------
+
+
+def test_create_user_seeds_given_categories_plus_fallback(temp_db):
+    from core.i18n import DEFAULT_CATEGORIES
+
+    sv_user = temp_db.create_user("Anna", DEFAULT_CATEGORIES["sv"])
+    en_user = temp_db.create_user("Bo", DEFAULT_CATEGORIES["en"])
+    assert sorted(temp_db.get_categories(sv_user)) == sorted(DEFAULT_CATEGORIES["sv"] + [FALLBACK_CATEGORY])
+    assert sorted(temp_db.get_categories(en_user)) == sorted(DEFAULT_CATEGORIES["en"] + [FALLBACK_CATEGORY])
+
+
+def test_create_user_does_not_duplicate_fallback(temp_db):
+    user = temp_db.create_user("Anna", ["Mejeri", FALLBACK_CATEGORY])
+    assert sorted(temp_db.get_categories(user)) == sorted(["Mejeri", FALLBACK_CATEGORY])
+
+
+@pytest.mark.parametrize("name", ["Övrigt", "övrigt", "ÖVRIGT", "Other", "other", " OTHER "])
+def test_fallback_labels_are_reserved_category_names(two_users, name):
+    anna, _ = two_users
+    assert db.add_category(anna, name) is False
+    assert db.get_categories(anna).count(FALLBACK_CATEGORY) == 1

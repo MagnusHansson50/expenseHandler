@@ -10,8 +10,20 @@ or a placeholder.
 
 import string
 
+from core.constants import FALLBACK_CATEGORY, FALLBACK_CATEGORY_LABELS
+
 LANGUAGES = {"sv": "Svenska", "en": "English"}
 DEFAULT_LANGUAGE = "sv"
+
+# Categories a new user starts with, in the language selected when the user
+# is created. They are stored as the user's own data and never translated
+# afterwards. FALLBACK_CATEGORY is always added on top (see db.create_user).
+DEFAULT_CATEGORIES = {
+    "sv": ["Mejeri", "Skafferi", "Frukt", "Grönsaker", "Kött & fisk",
+           "Bröd", "Fryst", "Dryck", "Snacks", "Hushåll"],
+    "en": ["Dairy", "Pantry", "Fruit", "Vegetables", "Meat & Fish",
+           "Bread", "Frozen", "Drinks", "Snacks", "Household"],
+}
 
 TRANSLATIONS = {
     "sv": {
@@ -212,6 +224,20 @@ def t(key, lang, **params):
     """
     text = TRANSLATIONS[resolve_language(lang)][key]
     return text.format(**params) if params else text
+
+
+def category_label(name, lang):
+    """How a stored category name is shown: FALLBACK_CATEGORY is translated, others as stored."""
+    if name == FALLBACK_CATEGORY:
+        return FALLBACK_CATEGORY_LABELS[resolve_language(lang)]
+    return name
+
+
+def category_value(label, lang):
+    """The stored category name for a label shown in `lang` (reverse of category_label)."""
+    if label == FALLBACK_CATEGORY_LABELS[resolve_language(lang)]:
+        return FALLBACK_CATEGORY
+    return label
 
 
 def placeholders(text):

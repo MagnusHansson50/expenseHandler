@@ -13,7 +13,13 @@ from typing import NamedTuple
 
 import pandas as pd
 
-from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
+from core.constants import (
+    FALLBACK_CATEGORY,
+    FALLBACK_CATEGORY_LABELS,
+    MAX_ITEM_LENGTH,
+    MAX_NAME_LENGTH,
+    MAX_PRICE,
+)
 
 # EXPENSES_DB_PATH lets tests and local experiments use a separate database file.
 DB_PATH = Path(
@@ -36,6 +42,10 @@ DEFAULT_CATEGORIES = [
 ]
 
 HISTORY_COLUMNS = ["Id", "Date", "Item", "Price", "Category"]
+
+_RESERVED_CATEGORY_NAMES = {
+    label.casefold() for label in (FALLBACK_CATEGORY, *FALLBACK_CATEGORY_LABELS.values())
+}
 
 
 class User(NamedTuple):
@@ -137,12 +147,15 @@ def _to_iso(value):
 # --- Users ---------------------------------------------------------------
 
 
-def create_user(name):
-    """Create a user, seed default categories and return the new id.
+def create_user(name, default_categories=DEFAULT_CATEGORIES):
+    """Create a user, seed their starting categories and return the new id.
 
-    Raises UserNameEmpty, UserNameTooLong or UserNameTaken (all UserNameError,
-    a ValueError) if the name is rejected.
+    `default_categories` are the names to start with, e.g. in the language
+    selected in the UI (core.i18n.DEFAULT_CATEGORIES); FALLBACK_CATEGORY is
+    always added. Raises UserNameEmpty, UserNameTooLong or UserNameTaken (all
+    UserNameError, a ValueError) if the name is rejected.
     """
+    seeds = list(dict.fromkeys([*default_categories, FALLBACK_CATEGORY]))  # keep order, no duplicates
     name = name.strip()
     if not name:
         raise UserNameEmpty("User name cannot be empty.")
@@ -157,7 +170,7 @@ def create_user(name):
         user_id = cursor.lastrowid
         conn.executemany(
             "INSERT INTO categories (name, user_id) VALUES (?, ?)",
-            [(category, user_id) for category in DEFAULT_CATEGORIES],
+            [(category, user_id) for category in seeds],
         )
     return user_id
 
@@ -194,9 +207,16 @@ def get_categories(user_id):
 
 
 def add_category(user_id, name):
-    """Add a category. Returns False if it is empty, too long or already exists."""
+    """Add a category. Returns False if it is empty, too long, reserved or already exists.
+
+    Reserved names are the fallback category's labels in every language
+    ("Övrigt", "Other"), in any letter case, so a user's own category can
+    never be mistaken for the fallback.
+    """
     name = name.strip()
     if not name or len(name) > MAX_NAME_LENGTH:
+        return False
+    if name.casefold() in _RESERVED_CATEGORY_NAMES:
         return False
     with transaction() as conn:
         cursor = conn.execute(

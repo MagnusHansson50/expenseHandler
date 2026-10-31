@@ -14,7 +14,15 @@ import streamlit as st
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
-from core.i18n import LANGUAGES, format_amount, resolve_language, t
+from core.i18n import (
+    DEFAULT_CATEGORIES,
+    LANGUAGES,
+    category_label,
+    category_value,
+    format_amount,
+    resolve_language,
+    t,
+)
 from core.parser import NotAPdfError, ReceiptReadError
 from core.text import escape_markdown
 from integrations import db
@@ -164,7 +172,9 @@ def add_to_draft(rows):
 
 
 def editor_key():
-    return f"receipt_editor_{st.session_state.table_version}"
+    # The language is part of the key: the editor shows translated category
+    # labels, so a language switch gives it new data and must start it fresh.
+    return f"receipt_editor_{lang()}_{st.session_state.table_version}"
 
 
 def on_editor_change():
@@ -172,9 +182,10 @@ def on_editor_change():
 
     The editor reports changes relative to the data it was given, so they are
     applied to receipt_df and the key is bumped. This keeps one source of truth
-    and avoids edits being applied twice on the next rerun.
+    and avoids edits being applied twice on the next rerun. Category labels
+    picked in the editor are turned back into stored names first.
     """
-    changes = st.session_state[editor_key()]
+    changes = draft_ops.changes_to_stored_categories(st.session_state[editor_key()], lang())
     set_draft(draft_ops.apply_editor_changes(st.session_state.receipt_df, changes))
 
 
@@ -224,7 +235,7 @@ def render_user_sidebar():
         if submitted:
             with write_errors("action_create_user"):
                 try:
-                    new_id = db.create_user(new_name)
+                    new_id = db.create_user(new_name, DEFAULT_CATEGORIES[lang()])
                 except db.UserNameError as error:
                     params = {name: escape_markdown(value) for name, value in error.params.items()}
                     st.error(t(error.key, lang(), **params))
@@ -276,16 +287,20 @@ def render_manual_entry(categories):
                 step=1.0,
                 format="%.2f",
             )
-            category = col_category.selectbox(
+            # Options are the labels as shown ("Övrigt"); category_value maps the choice back.
+            labels = [category_label(name, lang()) for name in categories]
+            fallback_label = category_label(FALLBACK_CATEGORY, lang())
+            category_shown = col_category.selectbox(
                 t("col_category", lang()),
-                options=categories,
-                index=categories.index(FALLBACK_CATEGORY) if FALLBACK_CATEGORY in categories else 0,
+                options=labels,
+                index=labels.index(fallback_label) if fallback_label in labels else 0,
             )
             submitted = st.form_submit_button(t("add_to_list", lang()))
         if submitted:
             if not item.strip():
                 st.error(t("item_missing", lang()))
             else:
+                category = category_value(category_shown, lang())
                 add_to_draft(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))
                 st.rerun()
 
@@ -340,12 +355,14 @@ def import_message(result):
 
 def render_receipt_editor(categories):
     """Editable table of the current receipt."""
-    draft = st.session_state.receipt_df
+    # The editor shows category labels ("Övrigt"); on_editor_change maps them back.
+    shown = draft_ops.with_category_labels(st.session_state.receipt_df, lang())
+    labels = {category_label(name, lang()) for name in categories}
     # Keep categories that were deleted after being assigned, so they still display.
-    options = sorted(set(categories) | set(draft["Category"].dropna()), key=str.lower)
+    options = sorted(labels | set(shown["Category"].dropna()), key=str.lower)
 
     st.data_editor(
-        draft,
+        shown,
         key=editor_key(),
         on_change=on_editor_change,
         num_rows="dynamic",
@@ -460,7 +477,7 @@ def render_history_tab():
         col_total.metric(t("total_spent", lang()), format_amount(total_cost(history), lang()))
         col_count.metric(t("purchases", lang()), len(history))
 
-        by_category = sum_by_category(history)
+        by_category = sum_by_category(history).rename(index=lambda name: category_label(name, lang()))
         st.subheader(t("spending_per_category", lang()))
         st.bar_chart(
             # y is the value column ("kr"), also when the bars are horizontal.
@@ -470,7 +487,7 @@ def render_history_tab():
 
         with st.expander(t("show_all_purchases", lang())):
             st.dataframe(
-                history.drop(columns="Id"),
+                draft_ops.with_category_labels(history.drop(columns="Id"), lang()),
                 hide_index=True,
                 width="stretch",
                 column_config={

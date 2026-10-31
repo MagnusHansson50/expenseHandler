@@ -133,3 +133,35 @@ def test_validate_receipt_reports_each_problem_with_row_number():
         Problem("problem_item_missing", {"row": 4}),
         Problem("problem_price_missing", {"row": 5}),
     ]
+
+
+# --- Category labels in the editor ---------------------------------------
+
+from core.receipt import changes_to_stored_categories, with_category_labels  # noqa: E402
+
+
+def test_with_category_labels_translates_fallback_for_display_only():
+    df = receipt(("Milk", 15.0, "Mejeri"), ("Gum", 9.0, FALLBACK_CATEGORY), ("New", 1.0, None))
+    shown = with_category_labels(df, "sv")
+    assert shown["Category"].tolist()[:2] == ["Mejeri", "Övrigt"]
+    assert pd.isna(shown["Category"].tolist()[2])
+    assert df["Category"].tolist()[1] == FALLBACK_CATEGORY  # original untouched
+
+
+def test_changes_to_stored_categories_maps_labels_back():
+    changes = {
+        "edited_rows": {0: {"Category": "Övrigt"}, 1: {"Price": 5.0}, 2: {"Category": "Mejeri"}},
+        "deleted_rows": [3],
+        "added_rows": [{"Item": "Gum", "Category": "Övrigt"}, {"Item": "Bread"}],
+    }
+    stored = changes_to_stored_categories(changes, "sv")
+    assert stored["edited_rows"] == {0: {"Category": FALLBACK_CATEGORY}, 1: {"Price": 5.0}, 2: {"Category": "Mejeri"}}
+    assert stored["added_rows"] == [{"Item": "Gum", "Category": FALLBACK_CATEGORY}, {"Item": "Bread"}]
+    assert stored["deleted_rows"] == [3]
+    assert changes["edited_rows"][0] == {"Category": "Övrigt"}  # input untouched
+
+
+def test_edit_in_swedish_editor_is_stored_with_internal_name():
+    df = receipt(("Gum", 9.0, "Mejeri"))
+    changes = changes_to_stored_categories({"edited_rows": {0: {"Category": "Övrigt"}}}, "sv")
+    assert apply_editor_changes(df, changes)["Category"].tolist() == [FALLBACK_CATEGORY]
