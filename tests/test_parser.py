@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from core.parser import NotAPdfError, parse_pdf, parse_receipt_date, parse_receipt_text, read_receipt
+import core.parser
+from core.parser import (
+    NotAPdfError,
+    ReceiptReadError,
+    parse_pdf,
+    parse_receipt_date,
+    parse_receipt_text,
+    read_receipt,
+)
 
 # Mirrors the item layout extracted from a real ICA receipt.
 SAMPLE_RECEIPT = """ICA Supermarket Testbutiken
@@ -135,9 +143,29 @@ def test_non_pdf_bytes_are_rejected_before_parsing(data):
         read_receipt(data)
 
 
-def test_broken_pdf_raises_instead_of_returning_garbage():
-    with pytest.raises(Exception):
+def test_broken_pdf_raises_receipt_read_error_with_cause():
+    with pytest.raises(ReceiptReadError) as caught:
         read_receipt(b"%PDF-1.4\nthis is not a real PDF body")
+    assert caught.value.__cause__ is not None  # pypdf's own error is kept for logging
+
+
+def test_bug_in_our_parsing_is_not_hidden_as_a_read_error(monkeypatch):
+    def broken_parser(_text):
+        raise KeyError("simulated bug in parse_receipt_text")
+
+    monkeypatch.setattr(core.parser, "parse_receipt_text", broken_parser)
+    with pytest.raises(KeyError):
+        read_receipt(make_pdf(SAMPLE_RECEIPT))
+
+
+def test_broad_except_is_only_used_at_the_pypdf_boundary():
+    repo = Path(__file__).resolve().parent.parent
+    sources = [repo / "app.py", *repo.glob("core/*.py"), *repo.glob("integrations/*.py")]
+    found = {
+        path.relative_to(repo).as_posix(): path.read_text(encoding="utf-8").count("except Exception")
+        for path in sources
+    }
+    assert {name: count for name, count in found.items() if count} == {"core/parser.py": 1}
 
 
 def test_unmaintained_pypdf2_is_not_imported():

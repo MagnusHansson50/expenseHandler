@@ -57,15 +57,30 @@ class NotAPdfError(ValueError):
     """Raised when uploaded bytes are not a PDF file."""
 
 
+class ReceiptReadError(Exception):
+    """Raised when pypdf cannot read a file that looks like a PDF.
+
+    The original pypdf exception is kept as __cause__ for logging.
+    """
+
+
 def extract_text(file_bytes):
     """Extract the raw text of every page in a PDF.
 
-    Raises NotAPdfError if the bytes do not start with the PDF header.
+    Raises NotAPdfError if the bytes do not start with the PDF header, and
+    ReceiptReadError if pypdf fails to read them.
     """
     if not file_bytes.startswith(PDF_HEADER):
         raise NotAPdfError("The file is not a PDF.")
-    reader = PdfReader(io.BytesIO(file_bytes))
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        pages = [page.extract_text() or "" for page in reader.pages]
+    except Exception as error:
+        # Boundary to an external library: broken or hostile PDFs make pypdf
+        # raise many unrelated exception types. Only pypdf calls are inside
+        # this try; errors in our own parsing must not be hidden here.
+        raise ReceiptReadError("Could not read the PDF.") from error
+    return "\n".join(pages)
 
 
 def parse_receipt_text(text):
