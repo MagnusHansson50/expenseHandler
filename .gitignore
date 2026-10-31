@@ -2,6 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 .idea/
-expenses.db
+*.db
 .claude/launch.json
 .pytest_cache/
