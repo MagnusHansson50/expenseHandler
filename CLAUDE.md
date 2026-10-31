@@ -23,13 +23,18 @@ Tech stack
 - Versions are pinned in `requirements.txt` / `requirements-dev.txt` (see Security).
 
 Code conventions
-- Language: UI text, variable names, comments and DataFrame columns in English.
+- Language: code, variable names, comments, DataFrame columns, log messages and commits are in English.
+  Everything the user sees is translated: it goes through `t(key, lang)` and exists in Swedish and
+  English (see Languages). Never write user-facing text directly in `app.py`.
 - Naming: `snake_case` for functions and variables.
 - Modularization: each database operation (init, create, load, save, delete) is its own function.
 - `core/` modules are pure functions: no Streamlit and no database imports. They take plain values
   (DataFrames, dicts, lists, bytes) and return them; callers pass in whatever they loaded from `db`.
-- Shared values (`FALLBACK_CATEGORY`, `RECEIPT_COLUMNS`, `MAX_NAME_LENGTH`, `MAX_ITEM_LENGTH`,
-  `MAX_PRICE`) live only in `core/constants.py`. Never redefine them.
+- Shared values (`FALLBACK_CATEGORY`, `FALLBACK_CATEGORY_LABELS`, `RECEIPT_COLUMNS`, `MAX_NAME_LENGTH`,
+  `MAX_ITEM_LENGTH`, `MAX_PRICE`) live only in `core/constants.py`. Never redefine them.
+- Code below the UI (`core/`, `services/`, `integrations/`) returns translation keys, not sentences,
+  for anything the user will read: `core.receipt.Problem(key, params)` and `db.UserNameError` (with
+  `key` and `params`). The UI turns them into text with `t()`.
 - Return named types, not bare tuples, when a result has several parts: `db.User(id, name)`,
   `core.parser.ParsedReceipt(items, purchase_date)`, `services.receipts.ImportResult(items,
   remembered, purchase_date)`. Use the field names (`user.name`), never positions (`user[1]`).
@@ -54,6 +59,8 @@ Architecture
   changes, categorize from memory, validate before saving, decide what to remember on save).
 - `core/calculator.py`: totals and per-category summaries.
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
+- `core/i18n.py`: translations (`TRANSLATIONS`, `t`), number and amount formatting per language,
+  default categories per language and the fallback category label (see Languages).
 - Dependency direction: `app.py` -> `services/`, `core/`, `integrations/`;
   `services/` -> `core/`, `integrations/`; `core/` -> `core/` only;
   `integrations/` -> `core/constants.py` only. `tests/test_architecture.py` enforces this.
@@ -62,11 +69,14 @@ Architecture
   on error, always closed), reads use `closing(get_connection())`. All SQL uses `?` parameters; never
   build SQL with f-strings or `.format()`.
 - State management: rely on `st.session_state` to prevent UI freezes and data loss on re-render.
+  - `language`: "sv" or "en", bound to the language selector and mirrored in the URL as `?lang=`.
+    Changing it keeps the user and the unsaved receipt.
   - `current_user`: id of the selected user. Nothing but the sidebar is shown until a user is selected.
     Switching user clears the unsaved receipt.
   - `receipt_df`: the receipt currently being edited (single source of truth for the table).
-  - `table_version`: part of the `st.data_editor` key. Edits are folded into `receipt_df` in the editor's
-    `on_change`, then the version is bumped so the table is rebuilt and no edit is applied twice.
+  - `table_version`: part of the `st.data_editor` key (together with the language). Edits are folded
+    into `receipt_df` in the editor's `on_change`, then the version is bumped so the table is rebuilt
+    and no edit is applied twice.
   - `upload_version`: part of the `st.file_uploader` key; bumped after a PDF is parsed so the same file
     is not parsed again on the next rerun.
   - `purchase_date`: the date that will be saved with the receipt (from the receipt, or picked by the user).
@@ -81,8 +91,12 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 2. `categories` (name, user_id) - unique on (name, user_id).
 3. `memory` (item, category, user_id) - unique on (item, user_id); remembers the last category chosen for an item.
 4. `history` (id, date, item, price, category, user_id) - date stored as `YYYY-MM-DD` text.
-- Creating a user automatically seeds a default set of categories (Dairy, Pantry, Fruit, Vegetables, Other, ...).
-- `FALLBACK_CATEGORY` ("Other") can never be deleted; `delete_category` refuses it.
+- `create_user(name, default_categories)` seeds the user's starting categories (the app passes
+  `core.i18n.DEFAULT_CATEGORIES[language]`) and always adds `FALLBACK_CATEGORY`. Name errors are
+  `UserNameEmpty`, `UserNameTooLong`, `UserNameTaken` (all `UserNameError`, a `ValueError`).
+- `FALLBACK_CATEGORY` is stored as "Other" in every language and can never be deleted;
+  `delete_category` refuses it. Its labels in every language ("Övrigt", "Other") are reserved:
+  `add_category` rejects them in any letter case.
 - Deleting a category also deletes that user's `memory` rows pointing at it, in the same transaction.
   `history` is never rewritten: saved purchases keep the category they were saved with.
 - Input limits are enforced here as the last guard: `create_user` / `add_category` reject names longer
@@ -114,13 +128,35 @@ PDF parsing
   (e.g. `Kassör2026-09-26`).
 
 UI
-- Sidebar: dropdown to select an existing user, text field to create a new one.
-- Tab "🛒 Current Receipt": add/remove categories, manual entry (item, price, category), PDF upload
+- Sidebar: language selector (Svenska / English) at the top, then a dropdown to select an existing
+  user and a text field to create a new one.
+- Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price, category), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
   choices into `memory`. Save is blocked with the per-row list of problems from `InvalidReceipt`.
-- Tab "📜 History": pick a start and end date, show total spent, an `st.bar_chart` per category,
+- Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
   the list of purchases, and delete all purchases saved on a date (with confirmation).
+
+Languages
+- Supported: Swedish (`sv`, the default) and English (`en`), listed in `core.i18n.LANGUAGES`.
+- Where the language is kept: `st.session_state.language` and the URL (`?lang=sv`). On the first run
+  in a browser tab it is read from `?lang=` (unknown values fall back to Swedish); after that the
+  selector writes it back to the URL, so a reload or bookmark keeps it. It is NOT stored per user:
+  a new tab without `?lang=` starts in Swedish, and switching user keeps the tab's language.
+- Adding or changing a text: add the same key to every language in `core.i18n.TRANSLATIONS`, with the
+  same `{placeholders}`, and use it with `t("key", lang())`. `tests/test_i18n.py` fails if a key is
+  missing in a language, has different placeholders, or is defined but never used.
+- `t()` formats numeric parameters for the language (`format_number`): "100 000" in Swedish,
+  "100,000" in English. Amounts in kronor use `format_amount`: "1 122,17 kr" / "1,122.17 kr".
+  Dates are shown as `YYYY-MM-DD` in both languages.
+- `load(..., what="what_...")` and `write_errors("action_...")` take translation keys; their log lines
+  use the English text (logs stay in English).
+- Categories: a new user's starting categories are created in the language selected at that moment
+  (`DEFAULT_CATEGORIES`) and are the user's own data from then on; they are never translated. Only
+  `FALLBACK_CATEGORY` is translated: stored as "Other", shown via `category_label` ("Övrigt" in
+  Swedish). The receipt editor shows a copy with labels (`with_category_labels`) and maps edits back
+  to stored names (`changes_to_stored_categories`); select boxes list labels and map the choice back
+  with `category_value`. Never store a label.
 
 Error handling
 - Catch errors from external code at the boundary where it is called, and turn them into our own
@@ -186,6 +222,10 @@ Testing
 - `tests/test_app_db_errors.py`: the UI with simulated database errors (messages, "Try again", input
   kept, retry saves once, no receipt data in logs).
 - `tests/test_architecture.py`: the dependency direction between layers.
+- `tests/test_i18n.py`: translation tables (same keys and placeholders in every language, every used
+  key exists, no unused keys), number/amount formatting and category labels.
+- `tests/test_app_language.py`: the UI in both languages (`?lang=`, switching, kept state, translated
+  messages and categories). Other UI tests run in English via `start_app(lang="en")`.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
 - Optional real-receipt test: set `ICA_SAMPLE_PDF` to a local receipt (and `ICA_SAMPLE_TOTAL` to its
@@ -196,6 +236,12 @@ Known limitations
 - `expenses.db` is not encrypted.
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
+- The language is remembered per browser tab/URL, not per user.
+- Prices in number inputs and tables (`PRICE_INPUT_FORMAT`) always use a decimal point ("1122.17"):
+  these Streamlit widgets only accept printf-style formats. Totals and messages are localized.
+- Streamlit's own widget texts ("Press Enter to submit form", "Upload", "… per file") are English and
+  cannot be translated. The date picker's month names follow the browser's language.
+- Switching language changes the tab labels, so Streamlit may show the first tab again.
 
 Project structure
 /
@@ -211,14 +257,17 @@ Project structure
 │   ├── parser.py
 │   ├── receipt.py
 │   ├── calculator.py
+│   ├── i18n.py         # Translations, number formatting, categories per language
 │   └── text.py
 ├── tests/
 │   ├── conftest.py
 │   ├── test_app.py
 │   ├── test_app_db_errors.py
+│   ├── test_app_language.py
 │   ├── test_architecture.py
 │   ├── test_calculator.py
 │   ├── test_db.py
+│   ├── test_i18n.py
 │   ├── test_no_personal_data.py
 │   ├── test_parser.py
 │   ├── test_receipt.py
@@ -234,7 +283,8 @@ Project structure
 Commits
 - Commit messages are in English: a short summary line, a blank line, then what changed and why.
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
-  `Code Quality Step 3: handle database errors in the UI with retry` or `Security step 2: ...`.
+  `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...` or
+  `Language Step 5: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
