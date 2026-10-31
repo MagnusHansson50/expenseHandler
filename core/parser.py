@@ -37,12 +37,37 @@ STOP_MARKERS = ("Delavstämning", "Betalat", "Betalningsinformation")
 # Summary lines can end in a negative amount but are not discounts.
 SKIP_PREFIXES = ("Totalt", "Summa", "Moms")
 
+# Swedish amount with exactly two decimals and an optional minus: "15,90", "-6,80".
 AMOUNT = r"-?\d+,\d{2}"
 
+# Quantity: a whole number of pieces or a weight with decimals: "2,00", "0,85", "1".
+QUANTITY = r"\d+(?:,\d+)?"
+
+# An item line, e.g. "*Bananer Eko 2000000000001 29,90 0,85 kg 25,42".
+# The name is matched lazily so the five fixed columns are taken from the end.
 ITEM_LINE = re.compile(
-    rf"^(?P<name>.+?)\s+(?P<article>\S+)\s+{AMOUNT}\s+\d+(?:,\d+)?\s+(?:st|kg)\s+(?P<total>{AMOUNT})$"
+    rf"""
+    ^(?P<name>.+?)                 # item name; may contain spaces, % and a leading *
+    \s+(?P<article>\S+)            # article number (used to combine repeated lines)
+    \s+(?P<unit_price>{AMOUNT})    # price per piece or per kg
+    \s+(?P<quantity>{QUANTITY})    # number of pieces or weight
+    \s+(?P<unit>st|kg)             # unit: st = pieces, kg = kilograms
+    \s+(?P<total>{AMOUNT})$        # amount for the whole line (what is parsed)
+    """,
+    re.VERBOSE,
 )
-DISCOUNT_LINE = re.compile(rf"^.+\s(?P<discount>-\d+,\d{{2}})$")
+
+# A discount line, e.g. "Rabatt: 2 för 25 -6,80" or "Juice 2f65kr  -20,04".
+# It applies to the item above it; summary lines are skipped before this is tried.
+DISCOUNT_LINE = re.compile(
+    r"""
+    ^.+\s                          # description, separated from the amount by whitespace
+    (?P<discount>-\d+,\d{2})$      # negative amount with two decimals at the end
+    """,
+    re.VERBOSE,
+)
+
+# An ISO date not embedded in a longer number; it may be glued to letters ("Kassör2026-09-26").
 ISO_DATE = re.compile(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)")
 
 

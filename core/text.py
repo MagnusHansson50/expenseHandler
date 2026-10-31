@@ -12,7 +12,17 @@ _MARKDOWN_SPECIAL = re.compile("([" + re.escape(string.punctuation) + "])")
 # after escapes are resolved, so escaping alone is not enough. An invisible
 # WORD JOINER breaks the patterns it looks for: "scheme://", "www." and "x@y".
 _WORD_JOINER = "\u2060"
-_AUTOLINK_TRIGGERS = re.compile(r"(:)(?=//)|(?<=www)(?=\.)|(@)", re.IGNORECASE)
+
+# Where the word joiner goes. Each alternative matches the text to keep in
+# front of the joiner; for "www." that is an empty match between "www" and ".".
+_AUTOLINK_TRIGGERS = re.compile(
+    r"""
+    :(?=//)            # "http://" -> "http:" + joiner + "//"
+    | (?<=www)(?=\.)   # "www.x"   -> "www"   + joiner + ".x"  (empty match)
+    | @                # "a@example.com" -> "a@" + joiner + "example.com"
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 def escape_markdown(text):
@@ -25,5 +35,5 @@ def escape_markdown(text):
     create a link from a bare URL or e-mail address.
     """
     single_line = " ".join(str(text).split())
-    unlinkable = _AUTOLINK_TRIGGERS.sub(lambda m: (m.group(0) or "") + _WORD_JOINER, single_line)
+    unlinkable = _AUTOLINK_TRIGGERS.sub(lambda match: match.group(0) + _WORD_JOINER, single_line)
     return _MARKDOWN_SPECIAL.sub(r"\\\1", unlinkable)
