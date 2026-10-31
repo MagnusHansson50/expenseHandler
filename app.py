@@ -14,7 +14,7 @@ import streamlit as st
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
-from core.i18n import LANGUAGES, resolve_language, t
+from core.i18n import LANGUAGES, format_amount, resolve_language, t
 from core.parser import NotAPdfError, ReceiptReadError
 from core.text import escape_markdown
 from integrations import db
@@ -35,17 +35,17 @@ class DataUnavailable(Exception):
 def load(fetch, *args, what):
     """Read from the database, or show an error with a "Try again" button.
 
-    `what` names the data for the message and the button key, e.g. "your
-    history". On a database error the message and button are shown and
-    DataUnavailable is raised, so the rest of the section is skipped.
-    Clicking the button reruns the page, which tries again.
+    `what` is the translation key naming the data, e.g. "what_history"; it is
+    also used in the log and the button key. On a database error the message
+    and button are shown and DataUnavailable is raised, so the rest of the
+    section is skipped. Clicking the button reruns the page, which tries again.
     """
     try:
         return fetch(*args)
     except sqlite3.Error:
-        logger.exception("Database error while loading %s", what)
-        st.error(f"Could not load {what}. The database may be busy.")
-        st.button("🔄 Try again", key=f"retry_{what}")
+        logger.exception("Database error while loading %s", t(what, "en"))  # logs stay in English
+        st.error(t("load_failed", lang(), what=t(what, lang())))
+        st.button(t("try_again", lang()), key=f"retry_{what}")
         raise DataUnavailable from None
 
 
@@ -62,15 +62,16 @@ def write_errors(action):
     """Show a message instead of crashing when a database write fails.
 
     Wrap the write and everything that should only happen after it succeeds
-    (flash, reset, st.rerun). `action` completes "Could not ...". Writes run
-    in one transaction, so nothing is half-saved and the user's input stays
-    on the page for another try.
+    (flash, reset, st.rerun). `action` is the translation key completing
+    "Could not ...", e.g. "action_save_receipt". Writes run in one
+    transaction, so nothing is half-saved and the user's input stays on the
+    page for another try.
     """
     try:
         yield
     except sqlite3.Error:
-        logger.exception("Database error while trying to %s", action)
-        st.error(f"Could not {action}. The database may be busy; please try again.")
+        logger.exception("Database error while trying to %s", t(action, "en"))  # logs stay in English
+        st.error(t("write_failed", lang(), action=t(action, lang())))
 
 
 @st.cache_resource
@@ -199,29 +200,29 @@ def show_flash():
 def render_user_sidebar():
     """Sidebar for selecting an existing user or creating a new one."""
     with st.sidebar:
-        st.header("👤 User")
+        st.header(t("sidebar_user_header", lang()))
 
-        users = load(db.get_users, what="the list of users")
+        users = load(db.get_users, what="what_users")
         user_names = {user.id: user.name for user in users}
         user_ids = list(user_names)
         current = st.session_state.current_user
 
         selected = st.selectbox(
-            "Select user",
+            t("select_user", lang()),
             options=user_ids,
             format_func=user_names.get,
             index=user_ids.index(current) if current in user_ids else None,
-            placeholder="Choose a user..." if users else "No users yet",
+            placeholder=t("choose_user_placeholder" if users else "no_users_placeholder", lang()),
         )
         if selected != current:
             switch_user(selected)
             st.rerun()
 
         with st.form("create_user_form", clear_on_submit=True):
-            new_name = st.text_input("Create new user", max_chars=MAX_NAME_LENGTH)
-            submitted = st.form_submit_button("➕ Create user")
+            new_name = st.text_input(t("create_user_label", lang()), max_chars=MAX_NAME_LENGTH)
+            submitted = st.form_submit_button(t("create_user_button", lang()))
         if submitted:
-            with write_errors("create the user"):
+            with write_errors("action_create_user"):
                 try:
                     new_id = db.create_user(new_name)
                 except ValueError as error:
@@ -233,41 +234,41 @@ def render_user_sidebar():
 
 def render_category_manager(user_id, categories):
     """Expander with forms to add and remove the user's categories."""
-    with st.expander("⚙️ Manage categories"):
+    with st.expander(t("manage_categories", lang())):
         col_add, col_delete = st.columns(2)
 
         with col_add:
             with st.form("add_category_form", clear_on_submit=True):
-                new_category = st.text_input("New category", max_chars=MAX_NAME_LENGTH)
-                add_clicked = st.form_submit_button("➕ Add")
+                new_category = st.text_input(t("new_category", lang()), max_chars=MAX_NAME_LENGTH)
+                add_clicked = st.form_submit_button(t("add_button", lang()))
             if add_clicked:
-                with write_errors("add the category"):
+                with write_errors("action_add_category"):
                     if db.add_category(user_id, new_category):
-                        flash("success", f"Added category '{escape_markdown(new_category)}'.")
+                        flash("success", t("category_added", lang(), name=escape_markdown(new_category)))
                         st.rerun()
-                    st.error(f"Enter a name of 1–{MAX_NAME_LENGTH} characters that is not already in the list.")
+                    st.error(t("category_name_invalid", lang(), max=MAX_NAME_LENGTH))
 
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
             with st.form("delete_category_form"):
-                to_delete = st.selectbox("Category to remove", options=removable)
-                delete_clicked = st.form_submit_button("🗑️ Remove")
+                to_delete = st.selectbox(t("category_to_remove", lang()), options=removable)
+                delete_clicked = st.form_submit_button(t("remove_button", lang()))
             if delete_clicked and to_delete:
-                with write_errors("remove the category"):
+                with write_errors("action_remove_category"):
                     if db.delete_category(user_id, to_delete):
-                        flash("success", f"Removed category '{escape_markdown(to_delete)}'.")
+                        flash("success", t("category_removed", lang(), name=escape_markdown(to_delete)))
                         st.rerun()
-                    st.error(f"Category '{escape_markdown(to_delete)}' could not be removed.")
+                    st.error(t("category_not_removed", lang(), name=escape_markdown(to_delete)))
 
 
 def render_manual_entry(categories):
     """Form for adding a purchase by hand."""
-    with st.expander("✍️ Add a purchase manually"):
+    with st.expander(t("manual_entry", lang())):
         with st.form("manual_entry_form", clear_on_submit=True):
             col_item, col_price, col_category = st.columns([2, 1, 1])
-            item = col_item.text_input("Item", max_chars=MAX_ITEM_LENGTH)
+            item = col_item.text_input(t("col_item", lang()), max_chars=MAX_ITEM_LENGTH)
             price = col_price.number_input(
-                "Price (kr)",
+                t("col_price", lang()),
                 min_value=float(-MAX_PRICE),
                 max_value=float(MAX_PRICE),
                 value=0.0,
@@ -275,14 +276,14 @@ def render_manual_entry(categories):
                 format="%.2f",
             )
             category = col_category.selectbox(
-                "Category",
+                t("col_category", lang()),
                 options=categories,
                 index=categories.index(FALLBACK_CATEGORY) if FALLBACK_CATEGORY in categories else 0,
             )
-            submitted = st.form_submit_button("➕ Add to list")
+            submitted = st.form_submit_button(t("add_to_list", lang()))
         if submitted:
             if not item.strip():
-                st.error("Enter an item description.")
+                st.error(t("item_missing", lang()))
             else:
                 add_to_draft(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))
                 st.rerun()
@@ -291,7 +292,7 @@ def render_manual_entry(categories):
 def render_pdf_upload(user_id, categories):
     """Upload an ICA receipt, parse it and pre-fill categories from memory."""
     uploaded = st.file_uploader(
-        "Upload an ICA receipt (.pdf)",
+        t("upload_label", lang()),
         type="pdf",
         key=f"pdf_upload_{st.session_state.upload_version}",
     )
@@ -303,23 +304,23 @@ def render_pdf_upload(user_id, categories):
         # uploader and "Try again" imports it again.
         result = load(
             receipts.import_receipt, user_id, uploaded.getvalue(), categories,
-            what="your remembered categories",
+            what="what_memory",
         )
     except NotAPdfError:
-        st.error("The file is not a PDF. Upload the receipt as a PDF from ICA.")
+        st.error(t("not_a_pdf", lang()))
         return
     except ReceiptReadError:
         # The pypdf error is logged for debugging but not shown to the user.
         # Any other exception is a bug in our code and is left to Streamlit,
         # which logs the full traceback and shows a generic error.
         logger.warning("Could not read an uploaded PDF", exc_info=True)
-        st.error("Could not read the PDF. Check that it is an ICA receipt and try again.")
+        st.error(t("pdf_unreadable", lang()))
         return
 
     # A new key empties the uploader, so the same file is not imported again on rerun.
     st.session_state.upload_version += 1
     if result.items.empty:
-        flash("warning", "No items were found in the PDF.")
+        flash("warning", t("no_items_found", lang()))
     else:
         add_to_draft(result.items)
         if result.purchase_date:
@@ -330,10 +331,10 @@ def render_pdf_upload(user_id, categories):
 
 def import_message(result):
     """Text shown after a receipt PDF has been imported."""
-    message = f"Added {len(result.items)} items ({result.remembered} categorized from memory)."
+    added = t("import_added", lang(), count=len(result.items), remembered=result.remembered)
     if result.purchase_date:
-        return message + f" Purchase date set to {result.purchase_date:%Y-%m-%d} from the receipt."
-    return message + " No date found on the receipt; check the purchase date."
+        return f"{added} {t('import_date_set', lang(), date=f'{result.purchase_date:%Y-%m-%d}')}"
+    return f"{added} {t('import_no_date', lang())}"
 
 
 def render_receipt_editor(categories):
@@ -350,15 +351,17 @@ def render_receipt_editor(categories):
         hide_index=True,
         width="stretch",
         column_config={
-            "Item": st.column_config.TextColumn("Item", required=True, max_chars=MAX_ITEM_LENGTH),
+            "Item": st.column_config.TextColumn(t("col_item", lang()), required=True, max_chars=MAX_ITEM_LENGTH),
             "Price": st.column_config.NumberColumn(
-                "Price (kr)",
+                t("col_price", lang()),
                 format="%.2f",
                 required=True,
                 min_value=-MAX_PRICE,
                 max_value=MAX_PRICE,
             ),
-            "Category": st.column_config.SelectboxColumn("Category", options=options, required=True),
+            "Category": st.column_config.SelectboxColumn(
+                t("col_category", lang()), options=options, required=True
+            ),
         },
     )
 
@@ -369,26 +372,27 @@ def render_save_section(user_id):
 
     col_date, col_save, col_clear = st.columns([2, 1, 1], vertical_alignment="bottom")
     purchase_date = col_date.date_input(
-        "Purchase date",
+        t("purchase_date", lang()),
         value=st.session_state.purchase_date,
         key=date_key(),
         on_change=remember_picked_date,
         format="YYYY-MM-DD",
     )
 
-    if col_save.button("💾 Save", type="primary", width="stretch"):
-        with write_errors("save the receipt"):
+    if col_save.button(t("save_button", lang()), type="primary", width="stretch"):
+        with write_errors("action_save_receipt"):
             try:
                 saved = receipts.save_receipt(user_id, purchase_date, draft)
             except receipts.InvalidReceipt as error:
-                st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in error.problems))
+                problems = "\n".join(f"- {p}" for p in error.problems)
+                st.error(f"{t('not_saved', lang())}\n\n{problems}")
                 return
             set_draft(draft_ops.empty_receipt())
             set_purchase_date(date.today())
-            flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
+            flash("success", t("saved_rows", lang(), count=saved, date=f"{purchase_date:%Y-%m-%d}"))
             st.rerun()
 
-    if col_clear.button("🗑️ Clear list", width="stretch"):
+    if col_clear.button(t("clear_list", lang()), width="stretch"):
         set_draft(draft_ops.empty_receipt())
         set_purchase_date(date.today())
         st.rerun()
@@ -397,40 +401,40 @@ def render_save_section(user_id):
 def render_current_receipt_tab():
     """Tab 1: build the current receipt and save it to history."""
     user_id = st.session_state.current_user
-    categories = load(db.get_categories, user_id, what="your categories")
+    categories = load(db.get_categories, user_id, what="what_categories")
 
     render_category_manager(user_id, categories)
     render_manual_entry(categories)
     render_pdf_upload(user_id, categories)
 
     if st.session_state.receipt_df.empty:
-        st.info("Add a purchase manually or upload a receipt to get started.")
+        st.info(t("empty_draft_info", lang()))
         return
 
-    st.subheader("Current list")
+    st.subheader(t("current_list", lang()))
     render_receipt_editor(categories)
-    st.metric("Total", f"{total_cost(st.session_state.receipt_df):.2f} kr")
+    st.metric(t("total", lang()), format_amount(total_cost(st.session_state.receipt_df), lang()))
     render_save_section(user_id)
 
 
 def render_delete_date(user_id):
     """Expander for removing everything saved on one date."""
-    saved_dates = load(db.get_history_dates, user_id, what="your saved dates")
+    saved_dates = load(db.get_history_dates, user_id, what="what_saved_dates")
     if not saved_dates:
         return
 
-    with st.expander("🗑️ Delete a saved receipt"):
+    with st.expander(t("delete_receipt_expander", lang())):
         with st.form("delete_date_form"):
-            to_delete = st.selectbox("Date", options=saved_dates)
-            confirmed = st.checkbox("Yes, delete every purchase saved on this date")
-            delete_clicked = st.form_submit_button("Delete")
+            to_delete = st.selectbox(t("col_date", lang()), options=saved_dates)
+            confirmed = st.checkbox(t("confirm_delete", lang()))
+            delete_clicked = st.form_submit_button(t("delete_button", lang()))
         if delete_clicked:
             if not confirmed:
-                st.error("Tick the box to confirm.")
+                st.error(t("tick_to_confirm", lang()))
             else:
-                with write_errors("delete the receipt"):
+                with write_errors("action_delete_receipt"):
                     removed = db.delete_history_date(user_id, to_delete)
-                    flash("success", f"Deleted {removed} rows from {to_delete}.")
+                    flash("success", t("deleted_rows", lang(), count=removed, date=to_delete))
                     st.rerun()
 
 
@@ -440,31 +444,40 @@ def render_history_tab():
     today = date.today()
 
     col_start, col_end = st.columns(2)
-    start_date = col_start.date_input("Start date", value=today.replace(day=1), format="YYYY-MM-DD")
-    end_date = col_end.date_input("End date", value=today, format="YYYY-MM-DD")
+    start_date = col_start.date_input(t("start_date", lang()), value=today.replace(day=1), format="YYYY-MM-DD")
+    end_date = col_end.date_input(t("end_date", lang()), value=today, format="YYYY-MM-DD")
 
     if start_date > end_date:
-        st.error("The start date must be on or before the end date.")
+        st.error(t("start_after_end", lang()))
         return
 
-    history = load(db.get_history, user_id, start_date, end_date, what="your history")
+    history = load(db.get_history, user_id, start_date, end_date, what="what_history")
     if history.empty:
-        st.info("No purchases saved in this period.")
+        st.info(t("no_purchases_period", lang()))
     else:
         col_total, col_count = st.columns(2)
-        col_total.metric("Total spent", f"{total_cost(history):.2f} kr")
-        col_count.metric("Purchases", len(history))
+        col_total.metric(t("total_spent", lang()), format_amount(total_cost(history), lang()))
+        col_count.metric(t("purchases", lang()), len(history))
 
         by_category = sum_by_category(history)
-        st.subheader("Spending per category")
-        st.bar_chart(by_category, y="Price", y_label="kr", horizontal=True, sort="-Price")
+        st.subheader(t("spending_per_category", lang()))
+        st.bar_chart(
+            # y is the value column ("kr"), also when the bars are horizontal.
+            by_category, y="Price", x_label=t("col_category", lang()), y_label="kr",
+            horizontal=True, sort="-Price",
+        )
 
-        with st.expander("Show all purchases"):
+        with st.expander(t("show_all_purchases", lang())):
             st.dataframe(
                 history.drop(columns="Id"),
                 hide_index=True,
                 width="stretch",
-                column_config={"Price": st.column_config.NumberColumn("Price (kr)", format="%.2f")},
+                column_config={
+                    "Date": st.column_config.TextColumn(t("col_date", lang())),
+                    "Item": st.column_config.TextColumn(t("col_item", lang())),
+                    "Price": st.column_config.NumberColumn(t("col_price", lang()), format="%.2f"),
+                    "Category": st.column_config.TextColumn(t("col_category", lang())),
+                },
             )
 
     render_delete_date(user_id)
@@ -478,21 +491,21 @@ def main():
     st.title(t("app_title", lang()))
 
     try:
-        load(setup_database, what="the database")
+        load(setup_database, what="what_database")
         render_user_sidebar()
         user_id = st.session_state.current_user
-        user = load(db.get_user, user_id, what="the selected user") if user_id else None
+        user = load(db.get_user, user_id, what="what_selected_user") if user_id else None
     except DataUnavailable:
         return  # Without users nothing else can be shown; "Try again" reruns.
 
     if user is None:
-        st.info("Select or create a user in the sidebar to get started.")
+        st.info(t("select_or_create_user", lang()))
         return
 
-    st.caption(f"Showing data for **{escape_markdown(user.name)}**")
+    st.caption(t("showing_data_for", lang(), name=escape_markdown(user.name)))
     show_flash()
 
-    tab_receipt, tab_history = st.tabs(["🛒 Current Receipt", "📜 History"])
+    tab_receipt, tab_history = st.tabs([t("tab_receipt", lang()), t("tab_history", lang())])
     with tab_receipt:
         render_section(render_current_receipt_tab)
     with tab_history:

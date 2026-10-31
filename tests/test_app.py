@@ -12,9 +12,16 @@ from streamlit.testing.v1 import AppTest
 APP_PATH = str(Path(__file__).resolve().parent.parent / "app.py")
 
 
+def start_app(lang="en"):
+    """Run the app headless in the given language (?lang=)."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.query_params["lang"] = lang
+    return at.run()
+
+
 @pytest.fixture
 def app(temp_db):
-    return AppTest.from_file(APP_PATH, default_timeout=30).run()
+    return start_app()
 
 
 def create_user(at, name):

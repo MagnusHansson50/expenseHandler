@@ -7,10 +7,9 @@ that raise sqlite3.OperationalError ("database is locked").
 import sqlite3
 
 import pytest
-from streamlit.testing.v1 import AppTest
 
 from integrations import db
-from test_app import APP_PATH, add_manual_purchase, create_user
+from test_app import add_manual_purchase, create_user, start_app
 
 
 def locked(*_args, **_kwargs):
@@ -33,7 +32,7 @@ def fail_once(monkeypatch, name):
 
 @pytest.fixture
 def anna_app(temp_db):
-    at = AppTest.from_file(APP_PATH, default_timeout=30).run()
+    at = start_app()
     create_user(at, "Anna")
     return at
 
@@ -67,7 +66,7 @@ def test_failed_save_keeps_the_receipt_and_retry_saves_once(anna_app, temp_db, m
 
 
 def test_failed_create_user_shows_message(temp_db, monkeypatch):
-    at = AppTest.from_file(APP_PATH, default_timeout=30).run()
+    at = start_app()
     monkeypatch.setattr(db, "create_user", locked)
     create_user(at, "Anna")
     assert not at.exception
@@ -107,7 +106,7 @@ def test_failed_user_list_stops_page_until_retry(temp_db, monkeypatch):
     temp_db.create_user("Anna")
     real_get_users = db.get_users
     monkeypatch.setattr(db, "get_users", locked)
-    at = AppTest.from_file(APP_PATH, default_timeout=30).run()
+    at = start_app()
 
     assert not at.exception
     assert "Could not load the list of users" in at.sidebar.error[0].value

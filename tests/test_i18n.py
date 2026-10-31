@@ -92,3 +92,40 @@ def test_format_amount_per_language(value, swedish, english):
 
 def test_format_amount_unknown_language_uses_default():
     assert format_amount(10, "xx") == format_amount(10, DEFAULT_LANGUAGE)
+
+
+# --- Keys used by the UI -------------------------------------------------
+
+
+def ui_keys_used_in_app():
+    """Translation keys used in app.py: t("key", ...), load(..., what="key") and write_errors("key")."""
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse((Path(__file__).resolve().parent.parent / "app.py").read_text(encoding="utf-8"))
+    keys = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        name = getattr(node.func, "id", None)
+        if name in ("t", "write_errors") and node.args and isinstance(node.args[0], ast.Constant):
+            keys.add(node.args[0].value)
+        if name == "t" and node.args and isinstance(node.args[0], ast.IfExp):
+            keys.update(branch.value for branch in (node.args[0].body, node.args[0].orelse))
+        for keyword in node.keywords:
+            if name == "load" and keyword.arg == "what" and isinstance(keyword.value, ast.Constant):
+                keys.add(keyword.value.value)
+    return keys
+
+
+def test_every_key_used_in_app_exists_in_every_language():
+    used = ui_keys_used_in_app()
+    assert len(used) > 50  # sanity check that the scan finds the keys
+    for lang, table in TRANSLATIONS.items():
+        missing = used - set(table)
+        assert not missing, f"{lang} is missing {sorted(missing)}"
+
+
+def test_no_unused_keys():
+    unused = set(TRANSLATIONS[DEFAULT_LANGUAGE]) - ui_keys_used_in_app()
+    assert not unused, f"unused translation keys: {sorted(unused)}"

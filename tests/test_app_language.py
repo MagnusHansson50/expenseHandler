@@ -59,13 +59,51 @@ def test_switching_language_updates_label_and_url(temp_db):
 
 
 def test_switching_language_keeps_user_and_unsaved_receipt(temp_db):
-    at = run_app()
+    at = run_app("en")
     create_user(at, "Anna")
-    add_manual_purchase(at, "Coffee", 45.0)
+    add_manual_purchase(at, "Coffee", 45.0)  # uses the English labels
 
-    language_box(at).set_value("en").run()
+    language_box(at).set_value("sv").run()
     assert not at.exception
     assert at.session_state["current_user"] is not None
     assert at.session_state["receipt_df"].to_dict("records") == [
         {"Item": "Coffee", "Price": 45.0, "Category": "Other"}
     ]
+
+
+# --- The UI in Swedish ---------------------------------------------------
+
+
+def test_main_screens_in_swedish(temp_db):
+    at = run_app("sv")
+    assert "Välj eller skapa en användare" in at.info[0].value
+    assert at.sidebar.header[0].value == "👤 Användare"
+
+    create_user(at, "Anna")
+    assert at.caption[0].value == "Visar data för **Anna**"
+    assert [tab.label for tab in at.tabs] == ["🛒 Aktuellt kvitto", "📜 Historik"]
+    assert any("Lägg till ett köp manuellt" in i.value for i in at.info)
+
+
+def test_swedish_messages_and_amounts(temp_db):
+    at = run_app("sv")
+    create_user(at, "Anna")
+    next(w for w in at.text_input if w.label == "Vara").input("Kaffe")
+    next(w for w in at.number_input if w.label == "Pris (kr)").set_value(1234.5)
+    next(b for b in at.button if "Lägg till i listan" in b.label).click().run()
+
+    assert at.metric[0].label == "Totalt"
+    assert at.metric[0].value == "1 234,50 kr"
+
+    next(b for b in at.button if "Spara" in b.label).click().run()
+    assert not at.exception
+    assert at.success[0].value.startswith("1 rader sparades för ")
+
+
+def test_same_screen_in_english_uses_english_amounts(temp_db):
+    at = run_app("en")
+    create_user(at, "Anna")
+    next(w for w in at.text_input if w.label == "Item").input("Coffee")
+    next(w for w in at.number_input if w.label == "Price (kr)").set_value(1234.5)
+    next(b for b in at.button if "Add to list" in b.label).click().run()
+    assert at.metric[0].value == "1,234.50 kr"
