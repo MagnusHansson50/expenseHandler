@@ -241,7 +241,8 @@ Known limitations
   these Streamlit widgets only accept printf-style formats. Totals and messages are localized.
 - Streamlit's own widget texts ("Press Enter to submit form", "Upload", "… per file") are English and
   cannot be translated. The date picker's month names follow the browser's language.
-- Switching language changes the tab labels, so Streamlit may show the first tab again.
+- Switching language changes the tab labels, so Streamlit shows the first tab again (checked in the
+  browser: switching while on History opens "Current Receipt").
 
 Project structure
 /
