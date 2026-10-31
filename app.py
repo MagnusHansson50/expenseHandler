@@ -14,9 +14,10 @@ import streamlit as st
 from core import receipt as receipt_logic
 from core.calculator import sum_by_category, total_cost
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
-from core.parser import NotAPdfError, ReceiptReadError, read_receipt
+from core.parser import NotAPdfError, ReceiptReadError
 from core.text import escape_markdown
 from integrations import db
+from services import receipts
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +264,12 @@ def render_pdf_upload(user_id, categories):
         return
 
     try:
-        items, receipt_date = read_receipt(uploaded.getvalue())
+        # A database error here goes through load(): the file stays in the
+        # uploader and "Try again" imports it again.
+        result = load(
+            receipts.import_receipt, user_id, uploaded.getvalue(), categories,
+            what="your remembered categories",
+        )
     except NotAPdfError:
         st.error("The file is not a PDF. Upload the receipt as a PDF from ICA.")
         return
@@ -275,25 +281,24 @@ def render_pdf_upload(user_id, categories):
         st.error("Could not read the PDF. Check that it is an ICA receipt and try again.")
         return
 
-    # Loaded before the uploader is emptied: if this fails, the file stays and
-    # "Try again" parses it again.
-    memory = load(db.load_memory, user_id, what="your remembered categories")
-
-    # A new key empties the uploader, so the same file is not parsed again on rerun.
+    # A new key empties the uploader, so the same file is not imported again on rerun.
     st.session_state.upload_version += 1
-    if items.empty:
+    if result.items.empty:
         flash("warning", "No items were found in the PDF.")
     else:
-        items, remembered = receipt_logic.categorize(items, memory, categories)
-        add_to_receipt(items)
-        message = f"Added {len(items)} items ({remembered} categorized from memory)."
-        if receipt_date:
-            set_purchase_date(receipt_date)
-            message += f" Purchase date set to {receipt_date:%Y-%m-%d} from the receipt."
-        else:
-            message += " No date found on the receipt; check the purchase date."
-        flash("success", message)
+        add_to_receipt(result.items)
+        if result.purchase_date:
+            set_purchase_date(result.purchase_date)
+        flash("success", import_message(result))
     st.rerun()
+
+
+def import_message(result):
+    """Text shown after a receipt PDF has been imported."""
+    message = f"Added {len(result.items)} items ({result.remembered} categorized from memory)."
+    if result.purchase_date:
+        return message + f" Purchase date set to {result.purchase_date:%Y-%m-%d} from the receipt."
+    return message + " No date found on the receipt; check the purchase date."
 
 
 def render_receipt_editor(categories):
@@ -337,14 +342,12 @@ def render_save_section(user_id):
     )
 
     if col_save.button("💾 Save", type="primary", width="stretch"):
-        problems = receipt_logic.validate_receipt(receipt)
-        if problems:
-            st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in problems))
-            return
         with write_errors("save the receipt"):
-            saved = db.save_receipt(
-                user_id, purchase_date, receipt, receipt_logic.memory_from_receipt(receipt)
-            )
+            try:
+                saved = receipts.save_receipt(user_id, purchase_date, receipt)
+            except receipts.InvalidReceipt as error:
+                st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in error.problems))
+                return
             set_receipt(receipt_logic.empty_receipt())
             set_purchase_date(date.today())
             flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")

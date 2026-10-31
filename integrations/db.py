@@ -256,19 +256,29 @@ def save_history(user_id, purchase_date, items_df):
         return _write_history(conn, user_id, purchase_date, items_df)
 
 
-def _write_history(conn, user_id, purchase_date, items_df):
-    """Write history rows on an open connection (see save_history)."""
-    iso_date = _to_iso(purchase_date)
-    candidates = [
+def _checked_history_rows(items_df):
+    """Return (item, price, category) for the rows to save, after the last-guard checks.
+
+    Rows without an item or a price are dropped. Raises ValueError if an item
+    is too long or a price is out of range.
+    """
+    rows = [
         (str(row.Item).strip(), float(row.Price), row.Category)
         for row in items_df.itertuples(index=False)
         if pd.notna(row.Item) and str(row.Item).strip() and pd.notna(row.Price)
     ]
-    for item, price, _ in candidates:
+    for item, price, _ in rows:
         if len(item) > MAX_ITEM_LENGTH:
             raise ValueError(f"Item names can be at most {MAX_ITEM_LENGTH} characters.")
         if not -MAX_PRICE <= price <= MAX_PRICE:
             raise ValueError(f"Prices must be between -{MAX_PRICE} and {MAX_PRICE} kr.")
+    return rows
+
+
+def _write_history(conn, user_id, purchase_date, items_df):
+    """Write history rows on an open connection (see save_history)."""
+    iso_date = _to_iso(purchase_date)
+    candidates = _checked_history_rows(items_df)
     if not candidates:
         return 0
 
