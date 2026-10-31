@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import date
 
 import pandas as pd
@@ -209,6 +210,64 @@ def test_save_history_accepts_limits_exactly(two_users):
     assert db.save_history(anna, "2026-10-01", rows) == 2
 
 
+# --- Saving a receipt (history + memory together) ------------------------
+
+
+def test_save_receipt_writes_history_and_memory(two_users):
+    anna, _ = two_users
+    rows = receipt(("Milk", 15.0, "Dairy"), ("Chips", 31.0, "Snacks"))
+    saved = db.save_receipt(anna, "2026-10-01", rows, {"Milk": "Dairy", "Chips": "Snacks"})
+
+    assert saved == 2
+    assert db.get_history(anna, "2026-10-01", "2026-10-01")["Item"].tolist() == ["Milk", "Chips"]
+    assert db.load_memory(anna) == {"Milk": "Dairy", "Chips": "Snacks"}
+
+
+def test_save_receipt_saves_nothing_when_memory_write_fails(two_users, monkeypatch):
+    anna, _ = two_users
+
+    def locked(*_args):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(db, "_write_memory", locked)
+    with pytest.raises(sqlite3.OperationalError):
+        db.save_receipt(anna, "2026-10-01", receipt(("Milk", 15.0, "Dairy")), {"Milk": "Dairy"})
+
+    assert db.get_history_dates(anna) == []
+    assert db.load_memory(anna) == {}
+
+
+def test_retrying_after_a_failed_save_does_not_duplicate(two_users, monkeypatch):
+    anna, _ = two_users
+    rows = receipt(("Coffee", 45.0, "Drinks"))
+    real_write_memory = db._write_memory
+    calls = {"count": 0}
+
+    def fails_once(*args):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise sqlite3.OperationalError("database is locked")
+        return real_write_memory(*args)
+
+    monkeypatch.setattr(db, "_write_memory", fails_once)
+    with pytest.raises(sqlite3.OperationalError):
+        db.save_receipt(anna, "2026-10-01", rows, {"Coffee": "Drinks"})
+    db.save_receipt(anna, "2026-10-01", rows, {"Coffee": "Drinks"})
+
+    assert len(db.get_history(anna, "2026-10-01", "2026-10-01")) == 1
+    assert db.load_memory(anna) == {"Coffee": "Drinks"}
+
+
+def test_save_receipt_with_invalid_row_saves_neither_history_nor_memory(two_users):
+    anna, _ = two_users
+    rows = receipt(("Milk", 15.0, "Dairy"), ("Too expensive", MAX_PRICE + 1, "Other"))
+    with pytest.raises(ValueError):
+        db.save_receipt(anna, "2026-10-01", rows, {"Milk": "Dairy"})
+
+    assert db.get_history_dates(anna) == []
+    assert db.load_memory(anna) == {}
+
+
 # --- User isolation ------------------------------------------------------
 
 
@@ -244,6 +303,15 @@ def test_another_users_category_is_not_accepted(two_users):
 
     assert db.load_memory(anna) == {}
     assert db.get_history(anna, "2026-10-01", "2026-10-01")["Category"].tolist() == [FALLBACK_CATEGORY]
+
+
+def test_save_receipt_only_affects_that_user(two_users):
+    anna, bo = two_users
+    db.save_memory(bo, {"Milk": "Drinks"})
+    db.save_receipt(anna, "2026-10-01", receipt(("Milk", 15.0, "Dairy")), {"Milk": "Dairy"})
+
+    assert db.get_history_dates(bo) == []
+    assert db.load_memory(bo) == {"Milk": "Drinks"}
 
 
 def test_deleting_category_only_affects_that_users_memory(two_users):

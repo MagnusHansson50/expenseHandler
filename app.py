@@ -276,8 +276,9 @@ def render_save_section(user_id):
         if problems:
             st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in problems))
             return
-        saved = db.save_history(user_id, purchase_date, receipt)
-        db.save_memory(user_id, receipt_logic.memory_from_receipt(receipt))
+        saved = db.save_receipt(
+            user_id, purchase_date, receipt, receipt_logic.memory_from_receipt(receipt)
+        )
         set_receipt(receipt_logic.empty_receipt())
         set_purchase_date(date.today())
         flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")

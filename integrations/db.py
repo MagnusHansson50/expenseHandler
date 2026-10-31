@@ -220,14 +220,18 @@ def save_memory(user_id, mapping):
     is not one of the user's categories.
     """
     with transaction() as conn:
-        categories = _category_names(conn, user_id)
-        rows = [
-            (item, category, user_id)
-            for item, category in mapping.items()
-            if item and len(item) <= MAX_ITEM_LENGTH and category in categories
-        ]
-        if not rows:
-            return
+        _write_memory(conn, user_id, mapping)
+
+
+def _write_memory(conn, user_id, mapping):
+    """Write memory rows on an open connection (see save_memory)."""
+    categories = _category_names(conn, user_id)
+    rows = [
+        (item, category, user_id)
+        for item, category in mapping.items()
+        if item and len(item) <= MAX_ITEM_LENGTH and category in categories
+    ]
+    if rows:
         conn.executemany(
             """
             INSERT INTO memory (item, category, user_id) VALUES (?, ?, ?)
@@ -248,6 +252,12 @@ def save_history(user_id, purchase_date, items_df):
     and saves nothing, if an item is too long or a price is out of range.
     Returns the number of rows saved.
     """
+    with transaction() as conn:
+        return _write_history(conn, user_id, purchase_date, items_df)
+
+
+def _write_history(conn, user_id, purchase_date, items_df):
+    """Write history rows on an open connection (see save_history)."""
     iso_date = _to_iso(purchase_date)
     candidates = [
         (str(row.Item).strip(), float(row.Price), row.Category)
@@ -262,17 +272,33 @@ def save_history(user_id, purchase_date, items_df):
     if not candidates:
         return 0
 
-    with transaction() as conn:
-        categories = _category_names(conn, user_id)
-        rows = [
-            (iso_date, item, price, category if category in categories else FALLBACK_CATEGORY, user_id)
-            for item, price, category in candidates
-        ]
-        conn.executemany(
-            "INSERT INTO history (date, item, price, category, user_id) VALUES (?, ?, ?, ?, ?)",
-            rows,
-        )
+    categories = _category_names(conn, user_id)
+    rows = [
+        (iso_date, item, price, category if category in categories else FALLBACK_CATEGORY, user_id)
+        for item, price, category in candidates
+    ]
+    conn.executemany(
+        "INSERT INTO history (date, item, price, category, user_id) VALUES (?, ?, ?, ?, ?)",
+        rows,
+    )
     return len(rows)
+
+
+# --- Saving a receipt ----------------------------------------------------
+
+
+def save_receipt(user_id, purchase_date, items_df, memory):
+    """Save a receipt to history and learn its categories, all or nothing.
+
+    `items_df` is written as in save_history and `memory` (item -> category)
+    as in save_memory, in one transaction: if anything fails, neither history
+    nor memory is changed, so saving again cannot create duplicates.
+    Returns the number of history rows saved.
+    """
+    with transaction() as conn:
+        saved = _write_history(conn, user_id, purchase_date, items_df)
+        _write_memory(conn, user_id, memory)
+    return saved
 
 
 def get_history(user_id, start_date, end_date):
