@@ -1,6 +1,6 @@
 import pandas as pd
 
-from core.constants import FALLBACK_CATEGORY, RECEIPT_COLUMNS
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
 from core.receipt import (
     add_rows,
     apply_editor_changes,
@@ -8,6 +8,7 @@ from core.receipt import (
     empty_receipt,
     memory_from_receipt,
     normalize_receipt,
+    validate_receipt,
 )
 
 
@@ -102,3 +103,32 @@ def test_memory_from_receipt_skips_blanks_and_last_row_wins():
         ("Milk", 15.0, "Drinks"),
     )
     assert memory_from_receipt(df) == {"Milk": "Drinks", "Coffee": "Drinks"}
+
+
+# --- Validation before saving --------------------------------------------
+
+
+def test_valid_receipt_has_no_problems():
+    df = receipt(
+        ("Milk", 15.0, "Dairy"),
+        ("x" * MAX_ITEM_LENGTH, MAX_PRICE, "Other"),
+        ("Refund", -MAX_PRICE, "Other"),
+        (None, None, None),  # empty row is ignored
+    )
+    assert validate_receipt(df) == []
+
+
+def test_validate_receipt_reports_each_problem_with_row_number():
+    df = receipt(
+        ("Milk", 15.0, "Dairy"),
+        ("x" * (MAX_ITEM_LENGTH + 1), 1.0, "Other"),
+        ("Too expensive", MAX_PRICE + 1, "Other"),
+        ("", 5.0, "Other"),
+        ("No price", None, "Other"),
+    )
+    assert validate_receipt(df) == [
+        f"Row 2: the item description is longer than {MAX_ITEM_LENGTH} characters.",
+        f"Row 3: the price must be between -{MAX_PRICE} and {MAX_PRICE} kr.",
+        "Row 4: the item description is missing.",
+        "Row 5: the price is missing.",
+    ]

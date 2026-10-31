@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from core.constants import FALLBACK_CATEGORY
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
 
 # EXPENSES_DB_PATH lets tests and local experiments use a separate database file.
 DB_PATH = Path(
@@ -94,11 +94,13 @@ def _to_iso(value):
 def create_user(name):
     """Create a user, seed default categories and return the new id.
 
-    Raises ValueError if the name is empty or already taken.
+    Raises ValueError if the name is empty, too long or already taken.
     """
     name = name.strip()
     if not name:
         raise ValueError("User name cannot be empty.")
+    if len(name) > MAX_NAME_LENGTH:
+        raise ValueError(f"User name can be at most {MAX_NAME_LENGTH} characters.")
 
     with closing(get_connection()) as conn, conn:
         try:
@@ -143,9 +145,9 @@ def get_categories(user_id):
 
 
 def add_category(user_id, name):
-    """Add a category. Returns False if it is empty or already exists."""
+    """Add a category. Returns False if it is empty, too long or already exists."""
     name = name.strip()
-    if not name:
+    if not name or len(name) > MAX_NAME_LENGTH:
         return False
     with closing(get_connection()) as conn, conn:
         cursor = conn.execute(
@@ -190,16 +192,26 @@ def load_memory(user_id):
     return dict(rows)
 
 
+def _category_names(conn, user_id):
+    rows = conn.execute("SELECT name FROM categories WHERE user_id = ?", (user_id,)).fetchall()
+    return {row[0] for row in rows}
+
+
 def save_memory(user_id, mapping):
-    """Remember item -> category choices, overwriting earlier ones."""
-    rows = [
-        (item, category, user_id)
-        for item, category in mapping.items()
-        if item and category
-    ]
-    if not rows:
-        return
+    """Remember item -> category choices, overwriting earlier ones.
+
+    Choices are skipped if the item is empty or too long, or if the category
+    is not one of the user's categories.
+    """
     with closing(get_connection()) as conn, conn:
+        categories = _category_names(conn, user_id)
+        rows = [
+            (item, category, user_id)
+            for item, category in mapping.items()
+            if item and len(item) <= MAX_ITEM_LENGTH and category in categories
+        ]
+        if not rows:
+            return
         conn.executemany(
             """
             INSERT INTO memory (item, category, user_id) VALUES (?, ?, ?)
@@ -215,17 +227,31 @@ def save_memory(user_id, mapping):
 def save_history(user_id, purchase_date, items_df):
     """Save rows from a DataFrame with columns Item, Price, Category.
 
+    Rows without an item or a price are skipped. A category that is not one of
+    the user's categories is saved as FALLBACK_CATEGORY. Raises ValueError,
+    and saves nothing, if an item is too long or a price is out of range.
     Returns the number of rows saved.
     """
     iso_date = _to_iso(purchase_date)
-    rows = [
-        (iso_date, row.Item, float(row.Price), row.Category, user_id)
+    candidates = [
+        (str(row.Item).strip(), float(row.Price), row.Category)
         for row in items_df.itertuples(index=False)
         if pd.notna(row.Item) and str(row.Item).strip() and pd.notna(row.Price)
     ]
-    if not rows:
+    for item, price, _ in candidates:
+        if len(item) > MAX_ITEM_LENGTH:
+            raise ValueError(f"Item names can be at most {MAX_ITEM_LENGTH} characters.")
+        if not -MAX_PRICE <= price <= MAX_PRICE:
+            raise ValueError(f"Prices must be between -{MAX_PRICE} and {MAX_PRICE} kr.")
+    if not candidates:
         return 0
+
     with closing(get_connection()) as conn, conn:
+        categories = _category_names(conn, user_id)
+        rows = [
+            (iso_date, item, price, category if category in categories else FALLBACK_CATEGORY, user_id)
+            for item, price, category in candidates
+        ]
         conn.executemany(
             "INSERT INTO history (date, item, price, category, user_id) VALUES (?, ?, ?, ?, ?)",
             rows,

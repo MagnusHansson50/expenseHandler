@@ -4,7 +4,7 @@ import pytest
 
 from core.text import escape_markdown
 
-WJ = "⁠"  # invisible WORD JOINER inserted to stop automatic links
+WJ = "\u2060"  # invisible WORD JOINER inserted to stop automatic links
 
 
 @pytest.mark.parametrize("text", ["Anna", "Bröd Levain 3", "Mjölk åäö ÅÄÖ", ""])

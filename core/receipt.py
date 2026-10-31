@@ -6,7 +6,7 @@ No Streamlit and no database access: the UI passes in what it has loaded.
 
 import pandas as pd
 
-from core.constants import FALLBACK_CATEGORY, RECEIPT_COLUMNS
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
 
 
 def normalize_receipt(df):
@@ -58,6 +58,30 @@ def categorize(items, memory, categories):
     remembered = items["Item"].map(valid)
     categorized = items.assign(Category=remembered.fillna(FALLBACK_CATEGORY))
     return categorized, int(remembered.notna().sum())
+
+
+def validate_receipt(receipt):
+    """Return a list of problems that stop the receipt from being saved.
+
+    Rows are numbered from 1 as shown to the user. An empty list means the
+    receipt can be saved. Rows with neither item nor price are ignored, as
+    they are when saving.
+    """
+    problems = []
+    for number, row in enumerate(receipt.itertuples(index=False), 1):
+        has_item = pd.notna(row.Item) and str(row.Item).strip() != ""
+        has_price = pd.notna(row.Price)
+        if not has_item and not has_price:
+            continue
+        if not has_item:
+            problems.append(f"Row {number}: the item description is missing.")
+        elif len(str(row.Item).strip()) > MAX_ITEM_LENGTH:
+            problems.append(f"Row {number}: the item description is longer than {MAX_ITEM_LENGTH} characters.")
+        if not has_price:
+            problems.append(f"Row {number}: the price is missing.")
+        elif not -MAX_PRICE <= float(row.Price) <= MAX_PRICE:
+            problems.append(f"Row {number}: the price must be between -{MAX_PRICE} and {MAX_PRICE} kr.")
+    return problems
 
 
 def memory_from_receipt(receipt):

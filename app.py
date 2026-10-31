@@ -10,7 +10,7 @@ import streamlit as st
 
 from core import receipt as receipt_logic
 from core.calculator import sum_by_category, total_cost
-from core.constants import FALLBACK_CATEGORY
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
 from core.parser import read_receipt
 from core.text import escape_markdown
 from integrations import db
@@ -127,7 +127,7 @@ def render_user_sidebar():
             st.rerun()
 
         with st.form("create_user_form", clear_on_submit=True):
-            new_name = st.text_input("Create new user")
+            new_name = st.text_input("Create new user", max_chars=MAX_NAME_LENGTH)
             submitted = st.form_submit_button("➕ Create user")
         if submitted:
             try:
@@ -146,13 +146,13 @@ def render_category_manager(user_id, categories):
 
         with col_add:
             with st.form("add_category_form", clear_on_submit=True):
-                new_category = st.text_input("New category")
+                new_category = st.text_input("New category", max_chars=MAX_NAME_LENGTH)
                 add_clicked = st.form_submit_button("➕ Add")
             if add_clicked:
                 if db.add_category(user_id, new_category):
                     flash("success", f"Added category '{escape_markdown(new_category)}'.")
                     st.rerun()
-                st.error("Enter a name that is not already in the list.")
+                st.error(f"Enter a name of 1–{MAX_NAME_LENGTH} characters that is not already in the list.")
 
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
@@ -171,8 +171,15 @@ def render_manual_entry(categories):
     with st.expander("✍️ Add a purchase manually"):
         with st.form("manual_entry_form", clear_on_submit=True):
             col_item, col_price, col_category = st.columns([2, 1, 1])
-            item = col_item.text_input("Item")
-            price = col_price.number_input("Price (kr)", step=1.0, format="%.2f")
+            item = col_item.text_input("Item", max_chars=MAX_ITEM_LENGTH)
+            price = col_price.number_input(
+                "Price (kr)",
+                min_value=float(-MAX_PRICE),
+                max_value=float(MAX_PRICE),
+                value=0.0,
+                step=1.0,
+                format="%.2f",
+            )
             category = col_category.selectbox(
                 "Category",
                 options=categories,
@@ -234,8 +241,14 @@ def render_receipt_editor(categories):
         hide_index=True,
         width="stretch",
         column_config={
-            "Item": st.column_config.TextColumn("Item", required=True),
-            "Price": st.column_config.NumberColumn("Price (kr)", format="%.2f", required=True),
+            "Item": st.column_config.TextColumn("Item", required=True, max_chars=MAX_ITEM_LENGTH),
+            "Price": st.column_config.NumberColumn(
+                "Price (kr)",
+                format="%.2f",
+                required=True,
+                min_value=-MAX_PRICE,
+                max_value=MAX_PRICE,
+            ),
             "Category": st.column_config.SelectboxColumn("Category", options=options, required=True),
         },
     )
@@ -255,6 +268,10 @@ def render_save_section(user_id):
     )
 
     if col_save.button("💾 Save", type="primary", width="stretch"):
+        problems = receipt_logic.validate_receipt(receipt)
+        if problems:
+            st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in problems))
+            return
         saved = db.save_history(user_id, purchase_date, receipt)
         db.save_memory(user_id, receipt_logic.memory_from_receipt(receipt))
         set_receipt(receipt_logic.empty_receipt())

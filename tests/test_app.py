@@ -105,11 +105,10 @@ def test_tabs_keep_their_position_when_a_flash_message_comes_and_goes(app):
     assert tabs_position(app) == without_message
 
 
-MARKDOWN_NAME = "Eve ![x](http://evil.test/p.png) [Click](https://evil.test)"
-WJ = "⁠"  # invisible WORD JOINER inserted to stop automatic links
-ESCAPED_NAME = (
-    rf"Eve \!\[x\]\(http\:{WJ}\/\/evil\.test\/p\.png\) \[Click\]\(https\:{WJ}\/\/evil\.test\)"
-)
+# At most MAX_NAME_LENGTH (50) characters, so the sidebar field accepts it.
+MARKDOWN_NAME = "E ![x](http://e.test/p.png) [C](https://e.test)"
+WJ = "\u2060"  # invisible WORD JOINER inserted to stop automatic links
+ESCAPED_NAME = rf"E \!\[x\]\(http\:{WJ}\/\/e\.test\/p\.png\) \[C\]\(https\:{WJ}\/\/e\.test\)"
 
 
 def test_user_name_is_shown_literally_not_as_markdown(app):
