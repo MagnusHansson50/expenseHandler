@@ -91,13 +91,15 @@ def register(name, password, default_categories):
     return db.get_user(user_id)
 
 
-def authenticate(name, password, throttle=login_throttle):
+def authenticate(name, password, throttle=None):
     """Return the db.User if name and password match, otherwise None.
 
     Raises LoginLocked while the name is locked after too many failures
     (the password is not checked then). A wrong password and an unknown
-    name give the same result and take about the same time.
+    name give the same result and take about the same time. `throttle`
+    defaults to the shared login_throttle (looked up at call time).
     """
+    throttle = throttle or login_throttle
     seconds_left = throttle.seconds_left(name)
     if seconds_left:
         raise LoginLocked(seconds_left)

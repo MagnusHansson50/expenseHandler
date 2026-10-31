@@ -1,6 +1,13 @@
 import pytest
 
 from integrations import db
+from services import auth
+
+
+@pytest.fixture(autouse=True)
+def fresh_login_throttle(monkeypatch):
+    """The login throttle lives in server memory; give each test its own."""
+    monkeypatch.setattr(auth, "login_throttle", auth.LoginThrottle())
 
 
 @pytest.fixture

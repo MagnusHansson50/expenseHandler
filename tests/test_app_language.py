@@ -4,7 +4,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from core.i18n import DEFAULT_LANGUAGE
-from test_app import APP_PATH, add_manual_purchase, create_user
+from test_app import APP_PATH, add_manual_purchase, create_user, log_out, logged_in_caption
 
 
 def run_app(lang_param=None):
@@ -76,11 +76,13 @@ def test_switching_language_keeps_user_and_unsaved_receipt(temp_db):
 
 def test_main_screens_in_swedish(temp_db):
     at = run_app("sv")
-    assert "Välj eller skapa en användare" in at.info[0].value
-    assert at.sidebar.header[0].value == "👤 Användare"
+    assert [tab.label for tab in at.tabs] == ["🔐 Logga in", "➕ Skapa konto"]
+    assert at.text_input(key="login_name").label == "Användarnamn"
+    assert at.text_input(key="login_password").label == "Lösenord"
 
     create_user(at, "Anna")
-    assert at.caption[0].value == "Visar data för **Anna**"
+    assert logged_in_caption(at) == "Inloggad som **Anna**"
+    assert at.sidebar.button(key="log_out").label == "🚪 Logga ut"
     assert [tab.label for tab in at.tabs] == ["🛒 Aktuellt kvitto", "📜 Historik"]
     assert any("Lägg till ett köp manuellt" in i.value for i in at.info)
 
@@ -112,12 +114,13 @@ def test_same_screen_in_english_uses_english_amounts(temp_db):
 def test_user_name_errors_are_translated(temp_db):
     at = run_app("sv")
     create_user(at, "Anna")
+    log_out(at)
     create_user(at, "Anna")
-    assert at.sidebar.error[0].value == "Det finns redan en användare som heter 'Anna'."
+    assert at.error[0].value == "Det finns redan en användare som heter 'Anna'."
 
     language_box(at).set_value("en").run()
     create_user(at, "Anna")
-    assert at.sidebar.error[0].value == "A user named 'Anna' already exists."
+    assert at.error[0].value == "A user named 'Anna' already exists."
 
 
 def test_save_problems_are_translated(temp_db):
@@ -152,6 +155,7 @@ def test_new_user_gets_categories_in_selected_language(temp_db):
     removable = next(w for w in at.selectbox if w.label == "Kategori att ta bort").options
     assert sorted(removable) == sorted(DEFAULT_CATEGORIES["sv"])
 
+    log_out(at)
     language_box(at).set_value("en").run()
     create_user(at, "Bo")
     removable = next(w for w in at.selectbox if w.label == "Category to remove").options

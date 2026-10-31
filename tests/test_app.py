@@ -24,9 +24,29 @@ def app(temp_db):
     return start_app()
 
 
-def create_user(at, name):
-    at.sidebar.text_input[0].input(name)
-    at.sidebar.button[0].click().run()
+TEST_PASSWORD = "test-password-1"
+
+
+def create_user(at, name, password=TEST_PASSWORD, repeated=None):
+    """Register through the "Create account" form (which also logs in)."""
+    at.text_input(key="register_name").input(name)
+    at.text_input(key="register_password").input(password)
+    at.text_input(key="register_password_repeat").input(password if repeated is None else repeated)
+    at.button(key="register_submit").click().run()
+
+
+def log_in(at, name, password=TEST_PASSWORD):
+    at.text_input(key="login_name").input(name)
+    at.text_input(key="login_password").input(password)
+    at.button(key="login_submit").click().run()
+
+
+def log_out(at):
+    at.sidebar.button(key="log_out").click().run()
+
+
+def logged_in_caption(at):
+    return at.sidebar.caption[0].value if at.sidebar.caption else None
 
 
 def widget(widgets, label):
@@ -39,17 +59,18 @@ def add_manual_purchase(at, item, price):
     next(b for b in at.button if "Add to list" in b.label).click().run()
 
 
-def test_nothing_but_sidebar_until_user_selected(app):
+def test_only_the_login_page_is_shown_until_logged_in(app):
     assert not app.exception
-    assert "Select or create a user" in app.info[0].value
-    assert len(app.tabs) == 0
+    assert [tab.label for tab in app.tabs] == ["🔐 Log in", "➕ Create account"]
+    assert not any("Add to list" in b.label for b in app.button)
+    assert logged_in_caption(app) is None
 
 
-def test_create_user_selects_it(app):
+def test_registering_logs_in(app):
     create_user(app, "Anna")
     assert not app.exception
-    assert "Anna" in app.caption[0].value
-    assert len(app.tabs) == 2
+    assert logged_in_caption(app) == "Logged in as **Anna**"
+    assert [tab.label for tab in app.tabs] == ["🛒 Current Receipt", "📜 History"]
 
 
 def test_manual_purchase_is_added_and_saved(app, temp_db):
@@ -67,11 +88,16 @@ def test_manual_purchase_is_added_and_saved(app, temp_db):
     assert app.session_state["receipt_df"].empty
 
 
-def test_switching_user_clears_unsaved_receipt(app):
+def test_logging_out_clears_the_unsaved_receipt(app):
     create_user(app, "Anna")
     add_manual_purchase(app, "Coffee", 45.0)
+    log_out(app)
+    assert app.session_state["current_user"] is None
+    assert app.session_state["receipt_df"].empty
+    assert logged_in_caption(app) is None
+
     create_user(app, "Bo")
-    assert "Bo" in app.caption[0].value
+    assert logged_in_caption(app) == "Logged in as **Bo**"
     assert app.session_state["receipt_df"].empty
 
 
@@ -120,13 +146,14 @@ ESCAPED_NAME = rf"E \!\[x\]\(http\:{WJ}\/\/e\.test\/p\.png\) \[C\]\(https\:{WJ}\
 
 def test_user_name_is_shown_literally_not_as_markdown(app):
     create_user(app, MARKDOWN_NAME)
-    assert app.caption[0].value == f"Showing data for **{ESCAPED_NAME}**"
+    assert logged_in_caption(app) == f"Logged in as **{ESCAPED_NAME}**"
 
 
 def test_duplicate_user_error_shows_name_literally(app):
     create_user(app, MARKDOWN_NAME)
+    log_out(app)
     create_user(app, MARKDOWN_NAME)
-    assert ESCAPED_NAME in app.sidebar.error[0].value
+    assert ESCAPED_NAME in app.error[0].value
 
 
 def test_category_names_in_messages_are_shown_literally(app):

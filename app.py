@@ -13,7 +13,13 @@ import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import sum_by_category, total_cost
-from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
+from core.constants import (
+    FALLBACK_CATEGORY,
+    MAX_ITEM_LENGTH,
+    MAX_NAME_LENGTH,
+    MAX_PASSWORD_LENGTH,
+    MAX_PRICE,
+)
 from core.i18n import (
     DEFAULT_CATEGORIES,
     LANGUAGES,
@@ -27,7 +33,7 @@ from core.i18n import (
 from core.parser import NotAPdfError, ReceiptReadError
 from core.text import escape_markdown
 from integrations import db
-from services import receipts
+from services import auth, receipts
 
 logger = logging.getLogger(__name__)
 
@@ -215,40 +221,137 @@ def show_flash():
             st.session_state.flash = None
 
 
-def render_user_sidebar():
-    """Sidebar for selecting an existing user or creating a new one."""
-    with st.sidebar:
-        st.header(t("sidebar_user_header", lang()))
+# --- Login ---------------------------------------------------------------
+# st.session_state.current_user is only ever set by log_in(), after a
+# successful login or registration. The forms are handled in on_click
+# callbacks, which run before the page is drawn: they read the password once
+# and empty the password fields straight away, so a password never stays in
+# session state. Passwords are never put in the URL or logged. The outcome is
+# kept as a translation key in st.session_state.auth_message for display.
 
-        users = load(db.get_users, what="what_users")
-        user_names = {user.id: user.name for user in users}
-        user_ids = list(user_names)
-        current = st.session_state.current_user
 
-        selected = st.selectbox(
-            t("select_user", lang()),
-            options=user_ids,
-            format_func=user_names.get,
-            index=user_ids.index(current) if current in user_ids else None,
-            placeholder=t("choose_user_placeholder" if users else "no_users_placeholder", lang()),
+def log_in(user_id):
+    """Start a session for this user, with an empty draft."""
+    switch_user(user_id)
+
+
+def log_out():
+    """End the session: forget the user and everything they had on screen (not the language)."""
+    st.session_state.current_user = None
+    set_draft(draft_ops.empty_receipt())
+    set_purchase_date(date.today())
+    st.session_state.flash = None
+
+
+def render_login_page():
+    """Shown instead of the app when nobody is logged in: log in or create an account."""
+    st.write(t("login_intro", lang()))
+    tab_login, tab_register = st.tabs([t("login_tab", lang()), t("register_tab", lang())])
+    with tab_login:
+        render_login_form()
+    with tab_register:
+        render_register_form()
+
+
+def set_auth_message(form, key, **params):
+    """Remember a message for the login or register form, shown on the next draw."""
+    st.session_state.auth_message = (form, key, params)
+
+
+def show_auth_message(form):
+    message = st.session_state.get("auth_message")
+    if message and message[0] == form:
+        _, key, params = message
+        if "action" in params:  # database error: translate the action too
+            params = {**params, "action": t(params["action"], lang())}
+        st.error(t(key, lang(), **params))
+        st.session_state.auth_message = None
+
+
+def take_password(key):
+    """Read a password field and empty it at once (callbacks only)."""
+    password = st.session_state.get(key, "")
+    st.session_state[key] = ""
+    return password
+
+
+def on_login_submit():
+    name = st.session_state.get("login_name", "")
+    password = take_password("login_password")
+    try:
+        user = auth.authenticate(name, password)
+    except auth.LoginLocked as locked:
+        set_auth_message("login", "login_locked", seconds=locked.seconds_left)
+        return
+    except sqlite3.Error:
+        logger.exception("Database error while trying to %s", t("action_log_in", "en"))
+        set_auth_message("login", "write_failed", action="action_log_in")
+        return
+    if user is None:
+        # The same message for an unknown name and a wrong password.
+        set_auth_message("login", "login_failed")
+        return
+    log_in(user.id)
+
+
+def on_register_submit():
+    name = st.session_state.get("register_name", "")
+    password = take_password("register_password")
+    repeated = take_password("register_password_repeat")
+    if password != repeated:
+        set_auth_message("register", "passwords_differ")
+        return
+    try:
+        user = auth.register(name, password, DEFAULT_CATEGORIES[lang()])
+    except auth.InvalidPassword as error:
+        set_auth_message("register", error.problem.key, **error.problem.params)
+        return
+    except db.UserNameError as error:
+        params = {key: escape_markdown(value) for key, value in error.params.items()}
+        set_auth_message("register", error.key, **params)
+        return
+    except sqlite3.Error:
+        logger.exception("Database error while trying to %s", t("action_create_user", "en"))
+        set_auth_message("register", "write_failed", action="action_create_user")
+        return
+    log_in(user.id)
+
+
+def render_login_form():
+    with st.form("login_form"):
+        st.text_input(t("user_name_label", lang()), max_chars=MAX_NAME_LENGTH, key="login_name")
+        st.text_input(
+            t("password_label", lang()), type="password", max_chars=MAX_PASSWORD_LENGTH,
+            autocomplete="current-password", key="login_password",
         )
-        if selected != current:
-            switch_user(selected)
-            st.rerun()
+        st.form_submit_button(t("log_in_button", lang()), key="login_submit", on_click=on_login_submit)
+    show_auth_message("login")
 
-        with st.form("create_user_form", clear_on_submit=True):
-            new_name = st.text_input(t("create_user_label", lang()), max_chars=MAX_NAME_LENGTH)
-            submitted = st.form_submit_button(t("create_user_button", lang()))
-        if submitted:
-            with write_errors("action_create_user"):
-                try:
-                    new_id = db.create_user(new_name, DEFAULT_CATEGORIES[lang()])
-                except db.UserNameError as error:
-                    params = {name: escape_markdown(value) for name, value in error.params.items()}
-                    st.error(t(error.key, lang(), **params))
-                else:
-                    switch_user(new_id)
-                    st.rerun()
+
+def render_register_form():
+    with st.form("register_form"):
+        st.text_input(t("user_name_label", lang()), max_chars=MAX_NAME_LENGTH, key="register_name")
+        st.text_input(
+            t("password_label", lang()), type="password", max_chars=MAX_PASSWORD_LENGTH,
+            autocomplete="new-password", key="register_password",
+        )
+        st.text_input(
+            t("repeat_password_label", lang()), type="password", max_chars=MAX_PASSWORD_LENGTH,
+            autocomplete="new-password", key="register_password_repeat",
+        )
+        st.form_submit_button(
+            t("create_account_button", lang()), key="register_submit", on_click=on_register_submit
+        )
+    show_auth_message("register")
+
+
+def render_account_sidebar(user):
+    """Who is logged in, and a button to log out."""
+    with st.sidebar:
+        st.caption(t("logged_in_as", lang(), name=escape_markdown(user.name)))
+        if st.button(t("log_out_button", lang()), key="log_out"):
+            log_out()
+            st.rerun()
 
 
 def render_category_manager(user_id, categories):
@@ -517,17 +620,18 @@ def main():
 
     try:
         load(setup_database, what="what_database")
-        render_user_sidebar()
         user_id = st.session_state.current_user
         user = load(db.get_user, user_id, what="what_selected_user") if user_id else None
     except DataUnavailable:
-        return  # Without users nothing else can be shown; "Try again" reruns.
+        return  # Nothing else can be shown without the database; "Try again" reruns.
 
     if user is None:
-        st.info(t("select_or_create_user", lang()))
+        if user_id is not None:
+            log_out()  # the logged-in user no longer exists
+        render_login_page()
         return
 
-    st.caption(t("showing_data_for", lang(), name=escape_markdown(user.name)))
+    render_account_sidebar(user)
     show_flash()
 
     tab_receipt, tab_history = st.tabs([t("tab_receipt", lang()), t("tab_history", lang())])

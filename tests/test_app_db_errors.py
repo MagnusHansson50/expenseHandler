@@ -9,7 +9,7 @@ import sqlite3
 import pytest
 
 from integrations import db
-from test_app import add_manual_purchase, create_user, start_app
+from test_app import add_manual_purchase, create_user, log_in, log_out, logged_in_caption, start_app
 
 
 def locked(*_args, **_kwargs):
@@ -67,10 +67,22 @@ def test_failed_save_keeps_the_receipt_and_retry_saves_once(anna_app, temp_db, m
 
 def test_failed_create_user_shows_message(temp_db, monkeypatch):
     at = start_app()
-    monkeypatch.setattr(db, "create_user", locked)
+    monkeypatch.setattr(db, "create_user_with_password", locked)
     create_user(at, "Anna")
     assert not at.exception
-    assert "Could not create the user" in at.sidebar.error[0].value
+    assert "Could not create the user" in at.error[0].value
+    assert logged_in_caption(at) is None
+
+
+def test_failed_login_lookup_shows_message(temp_db, monkeypatch):
+    at = start_app()
+    create_user(at, "Anna")
+    log_out(at)
+    monkeypatch.setattr(db, "get_login", locked)
+    log_in(at, "Anna")
+    assert not at.exception
+    assert "Could not log in" in at.error[0].value
+    assert logged_in_caption(at) is None
 
 
 def test_failed_add_category_shows_message(anna_app, monkeypatch):
@@ -102,21 +114,19 @@ def test_failed_history_load_shows_retry_and_receipt_tab_still_works(anna_app, m
     assert any("No purchases saved in this period" in i.value for i in anna_app.info)
 
 
-def test_failed_user_list_stops_page_until_retry(temp_db, monkeypatch):
-    temp_db.create_user("Anna")
-    real_get_users = db.get_users
-    monkeypatch.setattr(db, "get_users", locked)
-    at = start_app()
+def test_failed_user_load_stops_page_until_retry(anna_app, monkeypatch):
+    real_get_user = db.get_user
+    monkeypatch.setattr(db, "get_user", locked)
+    anna_app.run()
 
-    assert not at.exception
-    assert "Could not load the list of users" in at.sidebar.error[0].value
-    assert len(at.tabs) == 0
+    assert not anna_app.exception
+    assert "Could not load the selected user" in anna_app.error[0].value
+    assert len(anna_app.tabs) == 0
 
-    monkeypatch.setattr(db, "get_users", real_get_users)
-    retry_buttons(at)[0].click().run()
-    assert not at.exception
-    assert not at.sidebar.error
-    assert "Select or create a user" in at.info[0].value
+    monkeypatch.setattr(db, "get_user", real_get_user)
+    retry_buttons(anna_app)[0].click().run()
+    assert not anna_app.exception
+    assert logged_in_caption(anna_app) == "Logged in as **Anna**"
 
 
 def test_database_errors_are_logged_without_receipt_data(anna_app, monkeypatch, caplog):
