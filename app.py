@@ -3,6 +3,9 @@
 Run with: python -m streamlit run app.py
 """
 
+import logging
+import sqlite3
+from contextlib import contextmanager
 from datetime import date
 
 import pandas as pd
@@ -14,6 +17,58 @@ from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, 
 from core.parser import NotAPdfError, read_receipt
 from core.text import escape_markdown
 from integrations import db
+
+logger = logging.getLogger(__name__)
+
+
+# --- Database error handling ---------------------------------------------
+# Database errors (e.g. "database is locked") are caught here, at the UI
+# boundary, logged without any receipt data and shown as a short message.
+
+
+class DataUnavailable(Exception):
+    """Raised by load() after it has shown an error; stops one page section."""
+
+
+def load(fetch, *args, what):
+    """Read from the database, or show an error with a "Try again" button.
+
+    `what` names the data for the message and the button key, e.g. "your
+    history". On a database error the message and button are shown and
+    DataUnavailable is raised, so the rest of the section is skipped.
+    Clicking the button reruns the page, which tries again.
+    """
+    try:
+        return fetch(*args)
+    except sqlite3.Error:
+        logger.exception("Database error while loading %s", what)
+        st.error(f"Could not load {what}. The database may be busy.")
+        st.button("🔄 Try again", key=f"retry_{what}")
+        raise DataUnavailable from None
+
+
+def render_section(render, *args):
+    """Run a render function; a failed load() only stops that section."""
+    try:
+        render(*args)
+    except DataUnavailable:
+        pass
+
+
+@contextmanager
+def write_errors(action):
+    """Show a message instead of crashing when a database write fails.
+
+    Wrap the write and everything that should only happen after it succeeds
+    (flash, reset, st.rerun). `action` completes "Could not ...". Writes run
+    in one transaction, so nothing is half-saved and the user's input stays
+    on the page for another try.
+    """
+    try:
+        yield
+    except sqlite3.Error:
+        logger.exception("Database error while trying to %s", action)
+        st.error(f"Could not {action}. The database may be busy; please try again.")
 
 
 @st.cache_resource
@@ -110,7 +165,7 @@ def render_user_sidebar():
     with st.sidebar:
         st.header("👤 User")
 
-        users = db.get_users()
+        users = load(db.get_users, what="the list of users")
         user_names = dict(users)
         user_ids = list(user_names)
         current = st.session_state.current_user
@@ -130,13 +185,14 @@ def render_user_sidebar():
             new_name = st.text_input("Create new user", max_chars=MAX_NAME_LENGTH)
             submitted = st.form_submit_button("➕ Create user")
         if submitted:
-            try:
-                new_id = db.create_user(new_name)
-            except ValueError as error:
-                st.error(escape_markdown(error))
-            else:
-                switch_user(new_id)
-                st.rerun()
+            with write_errors("create the user"):
+                try:
+                    new_id = db.create_user(new_name)
+                except ValueError as error:
+                    st.error(escape_markdown(error))
+                else:
+                    switch_user(new_id)
+                    st.rerun()
 
 
 def render_category_manager(user_id, categories):
@@ -149,10 +205,11 @@ def render_category_manager(user_id, categories):
                 new_category = st.text_input("New category", max_chars=MAX_NAME_LENGTH)
                 add_clicked = st.form_submit_button("➕ Add")
             if add_clicked:
-                if db.add_category(user_id, new_category):
-                    flash("success", f"Added category '{escape_markdown(new_category)}'.")
-                    st.rerun()
-                st.error(f"Enter a name of 1–{MAX_NAME_LENGTH} characters that is not already in the list.")
+                with write_errors("add the category"):
+                    if db.add_category(user_id, new_category):
+                        flash("success", f"Added category '{escape_markdown(new_category)}'.")
+                        st.rerun()
+                    st.error(f"Enter a name of 1–{MAX_NAME_LENGTH} characters that is not already in the list.")
 
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
@@ -160,10 +217,11 @@ def render_category_manager(user_id, categories):
                 to_delete = st.selectbox("Category to remove", options=removable)
                 delete_clicked = st.form_submit_button("🗑️ Remove")
             if delete_clicked and to_delete:
-                if db.delete_category(user_id, to_delete):
-                    flash("success", f"Removed category '{escape_markdown(to_delete)}'.")
-                    st.rerun()
-                st.error(f"Category '{escape_markdown(to_delete)}' could not be removed.")
+                with write_errors("remove the category"):
+                    if db.delete_category(user_id, to_delete):
+                        flash("success", f"Removed category '{escape_markdown(to_delete)}'.")
+                        st.rerun()
+                    st.error(f"Category '{escape_markdown(to_delete)}' could not be removed.")
 
 
 def render_manual_entry(categories):
@@ -214,12 +272,16 @@ def render_pdf_upload(user_id, categories):
         st.error("Could not read the PDF. Check that it is an ICA receipt and try again.")
         return
 
+    # Loaded before the uploader is emptied: if this fails, the file stays and
+    # "Try again" parses it again.
+    memory = load(db.load_memory, user_id, what="your remembered categories")
+
     # A new key empties the uploader, so the same file is not parsed again on rerun.
     st.session_state.upload_version += 1
     if items.empty:
         flash("warning", "No items were found in the PDF.")
     else:
-        items, remembered = receipt_logic.categorize(items, db.load_memory(user_id), categories)
+        items, remembered = receipt_logic.categorize(items, memory, categories)
         add_to_receipt(items)
         message = f"Added {len(items)} items ({remembered} categorized from memory)."
         if receipt_date:
@@ -276,13 +338,14 @@ def render_save_section(user_id):
         if problems:
             st.error("The receipt was not saved:\n\n" + "\n".join(f"- {p}" for p in problems))
             return
-        saved = db.save_receipt(
-            user_id, purchase_date, receipt, receipt_logic.memory_from_receipt(receipt)
-        )
-        set_receipt(receipt_logic.empty_receipt())
-        set_purchase_date(date.today())
-        flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
-        st.rerun()
+        with write_errors("save the receipt"):
+            saved = db.save_receipt(
+                user_id, purchase_date, receipt, receipt_logic.memory_from_receipt(receipt)
+            )
+            set_receipt(receipt_logic.empty_receipt())
+            set_purchase_date(date.today())
+            flash("success", f"Saved {saved} rows for {purchase_date:%Y-%m-%d}.")
+            st.rerun()
 
     if col_clear.button("🗑️ Clear list", width="stretch"):
         set_receipt(receipt_logic.empty_receipt())
@@ -293,7 +356,7 @@ def render_save_section(user_id):
 def render_current_receipt_tab():
     """Tab 1: build the current receipt and save it to history."""
     user_id = st.session_state.current_user
-    categories = db.get_categories(user_id)
+    categories = load(db.get_categories, user_id, what="your categories")
 
     render_category_manager(user_id, categories)
     render_manual_entry(categories)
@@ -311,7 +374,7 @@ def render_current_receipt_tab():
 
 def render_delete_date(user_id):
     """Expander for removing everything saved on one date."""
-    saved_dates = db.get_history_dates(user_id)
+    saved_dates = load(db.get_history_dates, user_id, what="your saved dates")
     if not saved_dates:
         return
 
@@ -324,9 +387,10 @@ def render_delete_date(user_id):
             if not confirmed:
                 st.error("Tick the box to confirm.")
             else:
-                removed = db.delete_history_date(user_id, to_delete)
-                flash("success", f"Deleted {removed} rows from {to_delete}.")
-                st.rerun()
+                with write_errors("delete the receipt"):
+                    removed = db.delete_history_date(user_id, to_delete)
+                    flash("success", f"Deleted {removed} rows from {to_delete}.")
+                    st.rerun()
 
 
 def render_history_tab():
@@ -342,7 +406,7 @@ def render_history_tab():
         st.error("The start date must be on or before the end date.")
         return
 
-    history = db.get_history(user_id, start_date, end_date)
+    history = load(db.get_history, user_id, start_date, end_date, what="your history")
     if history.empty:
         st.info("No purchases saved in this period.")
     else:
@@ -367,26 +431,29 @@ def render_history_tab():
 
 def main():
     st.set_page_config(page_title="ExpenseHandler", page_icon="🧾", layout="centered")
-    setup_database()
     init_session_state()
-
-    render_user_sidebar()
-
     st.title("🧾 ExpenseHandler")
 
-    user = db.get_user(st.session_state.current_user) if st.session_state.current_user else None
+    try:
+        load(setup_database, what="the database")
+        render_user_sidebar()
+        user_id = st.session_state.current_user
+        user = load(db.get_user, user_id, what="the selected user") if user_id else None
+    except DataUnavailable:
+        return  # Without users nothing else can be shown; "Try again" reruns.
+
     if user is None:
         st.info("Select or create a user in the sidebar to get started.")
-        st.stop()
+        return
 
     st.caption(f"Showing data for **{escape_markdown(user[1])}**")
     show_flash()
 
     tab_receipt, tab_history = st.tabs(["🛒 Current Receipt", "📜 History"])
     with tab_receipt:
-        render_current_receipt_tab()
+        render_section(render_current_receipt_tab)
     with tab_history:
-        render_history_tab()
+        render_section(render_history_tab)
 
 
 main()
