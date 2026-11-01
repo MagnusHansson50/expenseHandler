@@ -7,8 +7,8 @@ The app supports MULTIPLE USERS, and each user's data is COMPLETELY ISOLATED fro
 "Isolated" means all data is user-specific: categories, which category an item belongs to (memory),
 and history. No function may read or change another user's rows, and an action by one user
 (e.g. deleting a category) never affects another user's data.
-It does NOT mean authentication: there is no login, and anyone who opens the app can pick any user.
-That is why the app only listens on localhost (see Security).
+Every user logs in with a name and password (see Authentication), so nobody can open another
+user's receipts from the app. The app still only listens on localhost (see Security).
 
 Code location
 All code lives in this repository. The repository is public on GitHub (see Security).
@@ -36,6 +36,7 @@ Code conventions
   for anything the user will read: `core.receipt.Problem(key, params)` and `db.UserNameError` (with
   `key` and `params`). The UI turns them into text with `t()`.
 - Return named types, not bare tuples, when a result has several parts: `db.User(id, name)`,
+  `db.Login(user, password_hash, salt)`,
   `core.parser.ParsedReceipt(items, purchase_date)`, `services.receipts.ImportResult(items,
   remembered, purchase_date)`. Use the field names (`user.name`), never positions (`user[1]`).
 - "Draft" is the receipt being edited before it is saved: `st.session_state.receipt_df`, the local
@@ -49,6 +50,7 @@ Architecture
   `st.session_state` and calls `services/`, `core/` and `integrations/db.py`; business rules and
   multi-step flows do not belong here. Every `db` call goes through `load(...)` or `write_errors(...)`
   (see Error handling).
+- `services/auth.py`: `register`, `authenticate` (with the login throttle) and `reset_password`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
   `import_receipt` (parse PDF, load memory, categorize -> `ImportResult`) and `save_receipt`
   (validate -> `InvalidReceipt(problems)`, or save history and memory in one transaction).
@@ -59,6 +61,10 @@ Architecture
   changes, categorize from memory, validate before saving, decide what to remember on save).
 - `core/calculator.py`: totals and per-category summaries.
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
+- `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
+  rules (`password_problem`).
+- `scripts/reset_password.py`: command-line tool for whoever runs the app to set a new password
+  (see Authentication). Not imported by the app.
 - `core/i18n.py`: translations (`TRANSLATIONS`, `t`), number and amount formatting per language,
   default categories per language and the fallback category label (see Languages).
 - Dependency direction: `app.py` -> `services/`, `core/`, `integrations/`;
@@ -71,8 +77,14 @@ Architecture
 - State management: rely on `st.session_state` to prevent UI freezes and data loss on re-render.
   - `language`: "sv" or "en", bound to the language selector and mirrored in the URL as `?lang=`.
     Changing it keeps the user and the unsaved receipt.
-  - `current_user`: id of the selected user. Nothing but the sidebar is shown until a user is selected.
-    Switching user clears the unsaved receipt.
+  - `current_user`: id of the logged-in user, or `None`. Set ONLY by `log_in` (via `switch_user`)
+    after `authenticate` or `register` succeeded, and cleared by `log_out`;
+    `tests/test_auth_guards.py` checks this. Nothing but the language selector and the login page
+    is shown while it is `None`. Logging in or out clears the unsaved receipt.
+  - `auth_message`: (form, translation key, params) for the login or register form, shown once.
+  - `login_name`, `login_password`, `register_name`, `register_password`, `register_password_repeat`:
+    the login form fields. The password fields are emptied in the submit callback (`take_password`),
+    so a password never stays in session state.
   - `receipt_df`: the receipt currently being edited (single source of truth for the table).
   - `table_version`: part of the `st.data_editor` key (together with the language). Edits are folded
     into `receipt_df` in the editor's `on_change`, then the version is bumped so the table is rebuilt
@@ -87,13 +99,21 @@ Architecture
 
 Database (`expenses.db`)
 Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
-1. `users` (id, name) - name is unique.
+1. `users` (id, name) - name is unique, regardless of letter case ("Anna" / "anna", "Åsa" / "åsa";
+   checked in Python with `casefold()` because SQLite's `NOCASE` only folds A-Z).
 2. `categories` (name, user_id) - unique on (name, user_id).
 3. `memory` (item, category, user_id) - unique on (item, user_id); remembers the last category chosen for an item.
 4. `history` (id, date, item, price, category, user_id) - date stored as `YYYY-MM-DD` text.
+5. `credentials` (user_id, password_hash, salt) - one row per user, removed with the user.
+   Only the scrypt hash and salt are stored, never the password.
 - `create_user(name, default_categories)` seeds the user's starting categories (the app passes
   `core.i18n.DEFAULT_CATEGORIES[language]`) and always adds `FALLBACK_CATEGORY`. Name errors are
   `UserNameEmpty`, `UserNameTooLong`, `UserNameTaken` (all `UserNameError`, a `ValueError`).
+  `create_user_with_password` does the same and stores the credentials in the same transaction;
+  the app only uses this one (through `services.auth.register`).
+- `get_login(name)` returns `Login(user, password_hash, salt)`, or `None` for an unknown name or a
+  user without a password. The name must match exactly (surrounding spaces ignored, case not).
+  `set_password(user_id, ...)` adds or replaces a password and returns `False` for an unknown user.
 - `FALLBACK_CATEGORY` is stored as "Other" in every language and can never be deleted;
   `delete_category` refuses it. Its labels in every language ("Övrigt", "Other") are reserved:
   `add_category` rejects them in any letter case.
@@ -127,9 +147,31 @@ PDF parsing
 - The purchase date is the first valid `YYYY-MM-DD` in the text; text extraction may glue it to a label
   (e.g. `Kassör2026-09-26`).
 
+Authentication
+- Login is by user name and password; there is open registration (anyone who can open the app can
+  create an account). Passwords are 8-128 characters (`MIN_PASSWORD_LENGTH`, `MAX_PASSWORD_LENGTH`).
+- Hashing (`core/auth.py`): scrypt (n=2**14, r=8, p=1, 64-byte hash, random 16-byte salt per
+  password), NFKC-normalized before hashing, compared with `hmac.compare_digest`. Passwords longer
+  than the maximum are rejected without hashing.
+- `services.auth.authenticate(name, password)` returns the `User` or `None`. A wrong password and an
+  unknown name give the same result and message ("Wrong user name or password.") and take about
+  the same time (an unknown name is checked against a dummy hash).
+- Throttle: after `MAX_FAILED_LOGINS` (5) failures in a row a name is locked for `LOCK_SECONDS` (30),
+  even for the right password (`LoginLocked(seconds_left)`). Kept per name (case-insensitive) in
+  `services.auth.login_throttle`, in server memory; a success resets it. Tests get a fresh throttle
+  from an autouse fixture in `tests/conftest.py`.
+- Passwords are never logged, printed, put in the URL or kept in session state; only the hash and
+  salt are stored. `tests/test_auth_guards.py` checks that no log or print call in the login code
+  mentions a password or salt.
+- Forgotten password: the app cannot send e-mail, so whoever runs it sets a new one on the same
+  computer: `python scripts/reset_password.py "<user name>"` (asks twice with `getpass`; uses
+  `EXPENSES_DB_PATH` if set). Its messages are in English (admin tool).
+- The session lasts while the browser tab is open; a reload or a new tab starts logged out.
+
 UI
-- Sidebar: language selector (Svenska / English) at the top, then a dropdown to select an existing
-  user and a text field to create a new one.
+- Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
+  "Create account". Nothing about other users (not even their names) is shown.
+- Logged in: the sidebar shows the language selector, "Logged in as <name>" and a "Log out" button.
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price, category), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
@@ -202,7 +244,10 @@ Rules
 - Do not break Streamlit's reactive loop. Use `st.form` for input and `st.session_state` for anything
   that triggers heavy updates.
 - All file operations on uploaded PDFs must use `io.BytesIO`.
-- Never read or write another user's rows: every function in `db.py` except the `users` functions takes `user_id`.
+- Never read or write another user's rows: every function in `db.py` except the `users` functions
+  (create, look up by id or name, `get_login`) takes `user_id`.
+- Never put a password in a log, the URL, session state or the database; only `core/auth.py` hashes
+  and checks passwords, and only `log_in` / `log_out` change `current_user`.
 - New logic goes in `core/` with tests; flows that also need the database go in `services/`;
   `app.py` only wires them to the UI.
 - Follow the Security section for anything that renders user text, accepts input or adds a dependency,
@@ -216,6 +261,14 @@ Testing
 - `tests/test_parser.py`, `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
+- `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
+  hashing, credential storage, registration, login and the throttle (with a fake clock).
+- `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
+  lockout, registration rules, logout, isolation between users, no password left in session state).
+- `tests/test_reset_password_script.py`: the reset script with scripted password answers.
+- `tests/test_auth_guards.py`: no password in logs; `current_user` only set by `switch_user`/`log_out`.
+- Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
+  and log in through the forms with the helpers in `tests/test_app.py`.
 - `tests/test_app.py`: headless UI tests with Streamlit's `AppTest` (including that user text is shown
   literally). PDF upload and `st.data_editor` interactions are not supported by `AppTest`; check those
   in a browser.
@@ -232,7 +285,14 @@ Testing
   "Betalat" amount, e.g. `1122.17`) to run it; it is skipped otherwise.
 
 Known limitations
-- No authentication (see Project); the app is protected only by listening on localhost.
+- Login protects users from each other inside the app; anyone on the computer can still read
+  `expenses.db` directly. The app also only listens on localhost.
+- Registration reveals whether a user name is taken.
+- Anyone can lock a name for 30 seconds by entering a wrong password five times. There is no limit
+  across different names, and the throttle starts over when the app restarts.
+- No idle timeout: a session lasts as long as the browser tab stays open.
+- Login names are case-sensitive ("anna" does not log in "Anna"), although registration treats
+  them as the same name. Unicode look-alike names (e.g. Latin "a" vs Cyrillic "а") count as different.
 - `expenses.db` is not encrypted.
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
@@ -250,10 +310,15 @@ Project structure
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
 ├── services/
+│   ├── auth.py         # Register, log in (with throttle), reset password
 │   └── receipts.py     # Import and save flows (core + database, no Streamlit)
+├── scripts/
+│   ├── __init__.py
+│   └── reset_password.py  # Set a new password from the command line
 ├── integrations/
 │   └── db.py
 ├── core/
+│   ├── auth.py         # Password hashing and rules
 │   ├── constants.py
 │   ├── parser.py
 │   ├── receipt.py
@@ -265,15 +330,21 @@ Project structure
 │   ├── test_app.py
 │   ├── test_app_db_errors.py
 │   ├── test_app_language.py
+│   ├── test_app_login.py
 │   ├── test_architecture.py
+│   ├── test_auth.py
+│   ├── test_auth_guards.py
 │   ├── test_calculator.py
 │   ├── test_db.py
+│   ├── test_db_credentials.py
 │   ├── test_i18n.py
 │   ├── test_no_personal_data.py
 │   ├── test_parser.py
 │   ├── test_receipt.py
 │   ├── test_requirements.py
+│   ├── test_reset_password_script.py
 │   ├── test_services.py
+│   ├── test_services_auth.py
 │   ├── test_streamlit_config.py
 │   └── test_text.py
 ├── requirements.txt
@@ -284,8 +355,8 @@ Project structure
 Commits
 - Commit messages are in English: a short summary line, a blank line, then what changed and why.
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
-  `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...` or
-  `Language Step 5: ...`.
+  `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
+  `Language Step 5: ...` or `Login Step 4: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
