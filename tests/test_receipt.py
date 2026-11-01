@@ -9,6 +9,8 @@ from core.receipt import (
     empty_receipt,
     memory_from_receipt,
     normalize_receipt,
+    set_item_category,
+    uncategorized_items,
     validate_receipt,
 )
 
@@ -90,6 +92,48 @@ def test_categorize_ignores_remembered_category_that_was_removed():
     result, remembered = categorize(items, {"Candy bar": "Candy"}, ["Snacks", FALLBACK_CATEGORY])
     assert result["Category"].tolist() == [FALLBACK_CATEGORY]
     assert remembered == 0
+
+
+# --- Items that need a category -----------------------------------------
+
+CATEGORIES = ["Dairy", "Fruit", FALLBACK_CATEGORY]
+
+
+def test_fallback_items_need_a_category_in_receipt_order():
+    draft = receipt(
+        ("Milk", 15.9, "Dairy"), ("Drill", 799.0, FALLBACK_CATEGORY), ("Gloves", 99.0, FALLBACK_CATEGORY)
+    )
+    assert uncategorized_items(draft, {}, CATEGORIES) == ["Drill", "Gloves"]
+
+
+def test_item_filed_under_fallback_on_purpose_is_not_asked_about():
+    draft = receipt(("Gift card", 200.0, FALLBACK_CATEGORY), ("Drill", 799.0, FALLBACK_CATEGORY))
+    memory = {"Gift card": FALLBACK_CATEGORY, "Drill": "Tools"}  # Tools was deleted since
+    assert uncategorized_items(draft, memory, CATEGORIES) == ["Drill"]
+
+
+def test_missing_or_deleted_category_needs_a_category():
+    draft = receipt(("Bread", 25.0, None), ("Saw", 199.0, "Tools"), ("Milk", 15.9, "Dairy"))
+    assert uncategorized_items(draft, {}, CATEGORIES) == ["Bread", "Saw"]
+
+
+def test_repeated_and_blank_items_are_listed_once_or_not_at_all():
+    draft = receipt(
+        ("Drill", 799.0, FALLBACK_CATEGORY), (" Drill ", 799.0, FALLBACK_CATEGORY), ("  ", 5.0, None), (None, 5.0, None)
+    )
+    assert uncategorized_items(draft, {}, CATEGORIES) == ["Drill"]
+
+
+def test_empty_receipt_has_nothing_to_categorize():
+    assert uncategorized_items(empty_receipt(), {}, CATEGORIES) == []
+
+
+def test_set_item_category_changes_every_row_with_that_name_only():
+    draft = receipt(("Drill", 799.0, FALLBACK_CATEGORY), ("Milk", 15.9, "Dairy"), (" Drill", 10.0, FALLBACK_CATEGORY))
+    result = set_item_category(draft, "Drill", "Tools")
+    assert result["Category"].tolist() == ["Tools", "Dairy", "Tools"]
+    assert draft["Category"].tolist() == [FALLBACK_CATEGORY, "Dairy", FALLBACK_CATEGORY]  # input unchanged
+    assert uncategorized_items(result, {}, [*CATEGORIES, "Tools"]) == []
 
 
 # --- Memory to learn -----------------------------------------------------

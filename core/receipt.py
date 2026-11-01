@@ -102,6 +102,34 @@ def categorize(items, memory, categories):
     return categorized, int(remembered.notna().sum())
 
 
+def uncategorized_items(receipt, memory, categories):
+    """Return the names of items that still need a category, in receipt order, each once.
+
+    An item needs one when its category is missing or no longer one of the
+    user's `categories`, or when it is FALLBACK_CATEGORY although the user has
+    not chosen that for the item before (`memory`): an item the user filed
+    under FALLBACK_CATEGORY on purpose is not asked about again.
+    """
+    names = []
+    for item, category in zip(receipt["Item"], receipt["Category"]):
+        name = str(item).strip() if isinstance(item, str) else ""
+        if not name or name in names:
+            continue
+        if category not in categories:
+            names.append(name)
+        elif category == FALLBACK_CATEGORY and memory.get(name) != FALLBACK_CATEGORY:
+            names.append(name)
+    return names
+
+
+def set_item_category(receipt, item, category):
+    """Give every row of the receipt named `item` the category `category`."""
+    df = normalize_receipt(receipt)
+    same_item = df["Item"].map(lambda name: isinstance(name, str) and name.strip() == item)
+    df.loc[same_item, "Category"] = category
+    return df
+
+
 def validate_receipt(receipt):
     """Return a list of Problem that stop the receipt from being saved.
 
