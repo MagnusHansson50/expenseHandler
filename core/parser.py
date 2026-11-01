@@ -20,6 +20,9 @@ Discounts are merged into the preceding item so its price is what was actually p
 Back-to-back lines with the same article number (e.g. the same product at two
 prices) are combined into one row, since a multi-buy discount after them covers both.
 
+The total paid is read from the "Betalat" line, so callers can check that the
+items add up to it.
+
 The purchase date is the first YYYY-MM-DD in the header. Text extraction may glue
 it to the preceding label (e.g. "Kassör2026-09-26"), so it is not matched on word
 boundaries.
@@ -86,6 +89,15 @@ DISCOUNT_LINE = re.compile(
     r"""
     ^.+\s                          # description, separated from the amount by whitespace
     (?P<discount>-\d+,\d{2})$      # negative amount with two decimals at the end
+    """,
+    re.VERBOSE,
+)
+
+# The total paid, e.g. "Betalat 519,84" or "Betalat 5 297,00" (thousands may be grouped).
+PAID_LINE = re.compile(
+    r"""
+    ^Betalat\s+                    # label, at the start of the (stripped) line
+    (?P<amount>\d[\d\ .]*,\d{2})$  # amount; spaces or dots may group thousands
     """,
     re.VERBOSE,
 )
@@ -192,11 +204,21 @@ def parse_receipt_date(text):
     return None
 
 
+def parse_paid_total(text):
+    """Return the "Betalat" amount from receipt text, or None if there is none."""
+    for line in text.splitlines():
+        match = PAID_LINE.match(line.strip())
+        if match:
+            return _to_float(re.sub(r"[ .]", "", match["amount"]))
+    return None
+
+
 class ParsedReceipt(NamedTuple):
     """What read_receipt finds in an ICA receipt PDF."""
 
     items: pd.DataFrame  # columns Item and Price
     purchase_date: date | None  # date printed on the receipt, None if not found
+    paid_total: float | None  # "Betalat" amount printed on the receipt, None if not found
 
 
 def read_receipt(file_bytes):
@@ -205,4 +227,4 @@ def read_receipt(file_bytes):
     Raises NotAPdfError or ReceiptReadError if the file cannot be read.
     """
     text = extract_text(file_bytes)
-    return ParsedReceipt(parse_receipt_text(text), parse_receipt_date(text))
+    return ParsedReceipt(parse_receipt_text(text), parse_receipt_date(text), parse_paid_total(text))

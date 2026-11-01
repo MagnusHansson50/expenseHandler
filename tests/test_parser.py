@@ -10,6 +10,7 @@ from core.parser import (
     NotAPdfError,
     ParsedReceipt,
     ReceiptReadError,
+    parse_paid_total,
     parse_receipt_date,
     parse_receipt_text,
     read_receipt,
@@ -177,20 +178,42 @@ def test_receipt_without_date_returns_none():
     assert parse_receipt_date("No date on this receipt") is None
 
 
+# --- Total paid ----------------------------------------------------------
+
+
+def test_paid_total_is_read_and_matches_the_items():
+    assert parse_paid_total(SAMPLE_RECEIPT) == 151.42
+    assert round(parse_receipt_text(SAMPLE_RECEIPT)["Price"].sum(), 2) == 151.42
+    assert parse_paid_total(WRAPPED_RECEIPT) == 3317.84
+
+
+@pytest.mark.parametrize("line", [" Betalat 5297,00", "Betalat 5 297,00", "Betalat 5.297,00"])
+def test_paid_total_with_grouped_thousands(line):
+    assert parse_paid_total(f"Moms 25,00\n{line}\nKort 5297,00") == 5297.0
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["No total here", "Betalat", "Betalat kort", "Ej betalat 10,00", "Betalat -5,00", "Totalt: SEK 519,84"],
+)
+def test_receipt_without_paid_total_returns_none(text):
+    assert parse_paid_total(text) is None
+
+
 # --- PDF -----------------------------------------------------------------
 
 
 def test_read_receipt_from_pdf_matches_text_parsing():
-    items, purchase_date = read_receipt(make_pdf(SAMPLE_RECEIPT))
-    assert items.equals(parse_receipt_text(SAMPLE_RECEIPT))
-    assert purchase_date == date(2026, 10, 20)
+    parsed = read_receipt(make_pdf(SAMPLE_RECEIPT))
+    assert parsed.items.equals(parse_receipt_text(SAMPLE_RECEIPT))
+    assert parsed.purchase_date == date(2026, 10, 20)
+    assert parsed.paid_total == 151.42
 
 
 def test_read_receipt_returns_named_fields():
     parsed = read_receipt(make_pdf(SAMPLE_RECEIPT))
     assert isinstance(parsed, ParsedReceipt)
-    assert parsed.items.equals(parse_receipt_text(SAMPLE_RECEIPT))
-    assert parsed.purchase_date == date(2026, 10, 20)
+    assert parsed._fields == ("items", "purchase_date", "paid_total")
 
 
 @pytest.mark.parametrize(
@@ -239,11 +262,11 @@ def test_unmaintained_pypdf2_is_not_imported():
 # to also check the parsed sum against the receipt's "Betalat" amount.
 @pytest.mark.skipif(not os.environ.get("ICA_SAMPLE_PDF"), reason="ICA_SAMPLE_PDF not set")
 def test_real_ica_receipt():
-    items, purchase_date = read_receipt(Path(os.environ["ICA_SAMPLE_PDF"]).read_bytes())
-    assert not items.empty
-    assert items["Item"].str.len().gt(0).all()
-    assert purchase_date is not None
+    parsed = read_receipt(Path(os.environ["ICA_SAMPLE_PDF"]).read_bytes())
+    assert not parsed.items.empty
+    assert parsed.items["Item"].str.len().gt(0).all()
+    assert parsed.purchase_date is not None
 
     expected_total = os.environ.get("ICA_SAMPLE_TOTAL")
     if expected_total:
-        assert round(items["Price"].sum(), 2) == float(expected_total)
+        assert round(parsed.items["Price"].sum(), 2) == float(expected_total)
