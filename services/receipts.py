@@ -23,6 +23,7 @@ class ImportResult(NamedTuple):
     items: pd.DataFrame  # columns Item, Price, Category (empty if nothing was found)
     remembered: int  # how many items got their category from the user's memory
     purchase_date: date | None  # date printed on the receipt, None if not found
+    paid_total: float | None  # "Betalat" amount printed on the receipt, None if not found
 
 
 class InvalidReceipt(ValueError):
@@ -41,9 +42,9 @@ def import_receipt(user_id, pdf_bytes, categories):
     """
     parsed = read_receipt(pdf_bytes)
     if parsed.items.empty:
-        return ImportResult(parsed.items, 0, parsed.purchase_date)
+        return ImportResult(parsed.items, 0, parsed.purchase_date, parsed.paid_total)
     categorized_items, remembered = categorize(parsed.items, db.load_memory(user_id), categories)
-    return ImportResult(categorized_items, remembered, parsed.purchase_date)
+    return ImportResult(categorized_items, remembered, parsed.purchase_date, parsed.paid_total)
 
 
 def save_receipt(user_id, purchase_date, draft):

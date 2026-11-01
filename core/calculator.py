@@ -15,6 +15,18 @@ def total_cost(df):
     return round(float(pd.to_numeric(df["Price"], errors="coerce").sum()), 2)
 
 
+def paid_difference(df, paid_total):
+    """Return how much the receipt's paid total exceeds the summed items, or None if they match.
+
+    A positive amount usually means items were not found; a negative one that an
+    amount was read wrong. None also when the receipt had no paid total to compare with.
+    """
+    if paid_total is None:
+        return None
+    difference = round(paid_total - total_cost(df), 2)
+    return difference or None
+
+
 def sum_by_category(df):
     """Return total Price per Category, largest first.
 

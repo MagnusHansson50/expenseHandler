@@ -29,6 +29,14 @@ def test_import_receipt_parses_and_categorizes_from_memory(two_users):
     assert result.items["Category"].tolist() == ["Dairy"] + [FALLBACK_CATEGORY] * 3
     assert result.remembered == 1
     assert result.purchase_date == date(2026, 10, 20)
+    assert result.paid_total == 151.42
+
+
+def test_import_receipt_passes_the_paid_total_on_even_without_items(two_users):
+    anna, _ = two_users
+    result = receipts.import_receipt(anna, make_pdf("No items here\n Betalat 99,00"), [])
+    assert result.items.empty
+    assert result.paid_total == 99.0
 
 
 def test_import_receipt_uses_only_that_users_memory(two_users):

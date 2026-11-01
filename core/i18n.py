@@ -69,6 +69,10 @@ TRANSLATIONS = {
         "import_added": "{count} varor har lagts till ({remembered} fick kategori från minnet).",
         "import_date_set": "Köpdatumet är satt till {date} från kvittot.",
         "import_no_date": "Inget datum hittades på kvittot; kontrollera köpdatumet.",
+        "import_total_mismatch": (
+            "Varorna summerar till {items_total}, men kvittot anger Betalat {paid_total}. "
+            "Kontrollera att inga varor saknas eller har fel pris."
+        ),
         # Draft receipt table and saving
         "empty_draft_info": "Lägg till ett köp manuellt eller ladda upp ett kvitto för att komma igång.",
         "current_list": "Aktuell lista",
@@ -167,6 +171,10 @@ TRANSLATIONS = {
         "import_added": "Added {count} items ({remembered} categorized from memory).",
         "import_date_set": "Purchase date set to {date} from the receipt.",
         "import_no_date": "No date found on the receipt; check the purchase date.",
+        "import_total_mismatch": (
+            "The items add up to {items_total}, but the receipt says Betalat (paid) {paid_total}. "
+            "Check that no items are missing or have the wrong price."
+        ),
         # Draft receipt table and saving
         "empty_draft_info": "Add a purchase manually or upload a receipt to get started.",
         "current_list": "Current list",

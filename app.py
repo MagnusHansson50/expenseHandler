@@ -12,7 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
-from core.calculator import sum_by_category, total_cost
+from core.calculator import paid_difference, sum_by_category, total_cost
 from core.constants import (
     FALLBACK_CATEGORY,
     MAX_ITEM_LENGTH,
@@ -451,16 +451,29 @@ def render_pdf_upload(user_id, categories):
         add_to_draft(result.items)
         if result.purchase_date:
             set_purchase_date(result.purchase_date)
-        flash("success", import_message(result))
+        flash(*import_message(result))
     st.rerun()
 
 
 def import_message(result):
-    """Text shown after a receipt PDF has been imported."""
-    added = t("import_added", lang(), count=len(result.items), remembered=result.remembered)
+    """(kind, text) shown after a receipt PDF has been imported.
+
+    A warning instead of a success when the items do not add up to the
+    receipt's paid total, so missing or misread items are noticed.
+    """
+    parts = [t("import_added", lang(), count=len(result.items), remembered=result.remembered)]
     if result.purchase_date:
-        return f"{added} {t('import_date_set', lang(), date=f'{result.purchase_date:%Y-%m-%d}')}"
-    return f"{added} {t('import_no_date', lang())}"
+        parts.append(t("import_date_set", lang(), date=f"{result.purchase_date:%Y-%m-%d}"))
+    else:
+        parts.append(t("import_no_date", lang()))
+    if paid_difference(result.items, result.paid_total) is None:
+        return "success", " ".join(parts)
+    parts.append(t(
+        "import_total_mismatch", lang(),
+        items_total=format_amount(total_cost(result.items), lang()),
+        paid_total=format_amount(result.paid_total, lang()),
+    ))
+    return "warning", " ".join(parts)
 
 
 def render_receipt_editor(categories):
