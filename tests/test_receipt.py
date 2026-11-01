@@ -7,6 +7,7 @@ from core.receipt import (
     apply_editor_changes,
     categorize,
     empty_receipt,
+    item_total,
     memory_from_receipt,
     normalize_receipt,
     set_item_category,
@@ -136,6 +137,12 @@ def test_set_item_category_changes_every_row_with_that_name_only():
     assert uncategorized_items(result, {}, [*CATEGORIES, "Tools"]) == []
 
 
+def test_item_total_sums_every_row_with_that_name():
+    draft = receipt(("Drill", 799.0, None), ("Milk", 15.9, "Dairy"), (" Drill", 0.1, None))
+    assert item_total(draft, "Drill") == 799.1
+    assert item_total(draft, "Nothing") == 0.0
+
+
 # --- Memory to learn -----------------------------------------------------
 
 
@@ -148,6 +155,11 @@ def test_memory_from_receipt_skips_blanks_and_last_row_wins():
         ("Milk", 15.0, "Drinks"),
     )
     assert memory_from_receipt(df) == {"Milk": "Drinks", "Coffee": "Drinks"}
+
+
+def test_memory_from_receipt_leaves_out_undecided_items():
+    df = receipt(("Milk", 15.9, "Dairy"), ("Drill", 799.0, FALLBACK_CATEGORY), ("Gift card", 200.0, FALLBACK_CATEGORY))
+    assert memory_from_receipt(df, {"Drill"}) == {"Milk": "Dairy", "Gift card": FALLBACK_CATEGORY}
 
 
 # --- Validation before saving --------------------------------------------

@@ -13,7 +13,7 @@ from typing import NamedTuple
 import pandas as pd
 
 from core.parser import read_receipt
-from core.receipt import categorize, memory_from_receipt, validate_receipt
+from core.receipt import categorize, memory_from_receipt, uncategorized_items, validate_receipt
 from integrations import db
 
 
@@ -47,13 +47,19 @@ def import_receipt(user_id, pdf_bytes, categories):
     return ImportResult(categorized_items, remembered, parsed.purchase_date, parsed.paid_total)
 
 
-def save_receipt(user_id, purchase_date, draft):
+def save_receipt(user_id, purchase_date, draft, kept_in_fallback=()):
     """Validate the draft receipt, then save it to history and memory at once.
 
+    Items that still need a category are saved to history as they are but not
+    remembered, so they are asked about again next time. `kept_in_fallback`
+    names items the user put in FALLBACK_CATEGORY on purpose; those are
+    remembered.
     Raises InvalidReceipt (nothing saved) if the draft has problems.
     Returns the number of history rows saved.
     """
     problems = validate_receipt(draft)
     if problems:
         raise InvalidReceipt(problems)
-    return db.save_receipt(user_id, purchase_date, draft, memory_from_receipt(draft))
+    undecided = set(uncategorized_items(draft, db.load_memory(user_id), db.get_categories(user_id)))
+    memory = memory_from_receipt(draft, undecided - set(kept_in_fallback))
+    return db.save_receipt(user_id, purchase_date, draft, memory)

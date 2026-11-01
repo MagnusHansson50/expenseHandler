@@ -84,7 +84,8 @@ def test_manual_purchase_is_added_and_saved(app, temp_db):
     assert not app.exception
     anna = temp_db.get_users()[0].id
     assert temp_db.get_history_dates(anna)
-    assert temp_db.load_memory(anna) == {"Coffee": "Other"}
+    # "Other" was only the form's default, not a choice: not remembered, asked about next time.
+    assert temp_db.load_memory(anna) == {}
     assert app.session_state["receipt_df"].empty
 
 

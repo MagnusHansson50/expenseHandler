@@ -122,12 +122,20 @@ def uncategorized_items(receipt, memory, categories):
     return names
 
 
+def _rows_named(df, item):
+    return df["Item"].map(lambda name: isinstance(name, str) and name.strip() == item)
+
+
 def set_item_category(receipt, item, category):
     """Give every row of the receipt named `item` the category `category`."""
     df = normalize_receipt(receipt)
-    same_item = df["Item"].map(lambda name: isinstance(name, str) and name.strip() == item)
-    df.loc[same_item, "Category"] = category
+    df.loc[_rows_named(df, item), "Category"] = category
     return df
+
+
+def item_total(receipt, item):
+    """The summed price of every row of the receipt named `item`, rounded to öre."""
+    return round(float(receipt.loc[_rows_named(receipt, item), "Price"].sum()), 2)
 
 
 def validate_receipt(receipt):
@@ -154,14 +162,17 @@ def validate_receipt(receipt):
     return problems
 
 
-def memory_from_receipt(receipt):
+def memory_from_receipt(receipt, undecided=()):
     """Return the item -> category choices to remember when a receipt is saved.
 
-    If an item appears more than once, the last row wins.
+    If an item appears more than once, the last row wins. Items in `undecided`
+    (still without a real category, see uncategorized_items) are not
+    remembered: remembering them as FALLBACK_CATEGORY would read as a choice
+    and they would never be asked about again.
     """
     rows = receipt.dropna(subset=["Item", "Category"])
     return {
         str(item).strip(): category
         for item, category in zip(rows["Item"], rows["Category"])
-        if str(item).strip() and str(category).strip()
+        if str(item).strip() and str(category).strip() and str(item).strip() not in undecided
     }

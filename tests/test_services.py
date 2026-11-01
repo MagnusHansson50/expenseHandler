@@ -97,3 +97,20 @@ def test_invalid_receipt_is_rejected_with_problems_and_nothing_saved(two_users):
     assert caught.value.problems == [Problem("problem_price_out_of_range", {"row": 2, "max": MAX_PRICE})]
     assert db.get_history_dates(anna) == []
     assert db.load_memory(anna) == {}
+
+
+def test_items_still_without_a_category_are_saved_but_not_remembered(two_users):
+    anna, _ = two_users
+    db.save_memory(anna, {"Gift card": FALLBACK_CATEGORY})
+    rows = draft(
+        ("Milk", 15.0, "Dairy"), ("Drill", 799.0, FALLBACK_CATEGORY), ("Gift card", 200.0, FALLBACK_CATEGORY)
+    )
+    assert receipts.save_receipt(anna, date(2026, 10, 1), rows) == 3
+    assert db.load_memory(anna) == {"Milk": "Dairy", "Gift card": FALLBACK_CATEGORY}
+
+
+def test_items_kept_in_the_fallback_category_on_purpose_are_remembered(two_users):
+    anna, _ = two_users
+    rows = draft(("Drill", 799.0, FALLBACK_CATEGORY), ("Saw", 199.0, FALLBACK_CATEGORY))
+    receipts.save_receipt(anna, date(2026, 10, 1), rows, kept_in_fallback=["Drill"])
+    assert db.load_memory(anna) == {"Drill": FALLBACK_CATEGORY}

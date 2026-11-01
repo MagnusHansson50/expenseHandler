@@ -114,6 +114,10 @@ def init_session_state():
         "flash": None,
         "review_active": False,
         "review_dismissed": [],
+        "review_handled": [],
+        "review_skipped": [],
+        "review_error": False,
+        "review_kept_fallback": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -185,6 +189,7 @@ def set_draft(df):
         # ongoing review or a "Not now" answer.
         st.session_state.review_active = False
         st.session_state.review_dismissed = []
+        st.session_state.review_kept_fallback = []
 
 
 def add_to_draft(rows):
@@ -569,7 +574,9 @@ def render_save_section(user_id):
     if col_save.button(t("save_button", lang()), type="primary", width="stretch"):
         with write_errors("action_save_receipt"):
             try:
-                saved = receipts.save_receipt(user_id, purchase_date, draft)
+                saved = receipts.save_receipt(
+                    user_id, purchase_date, draft, st.session_state.review_kept_fallback
+                )
             except receipts.InvalidReceipt as error:
                 problems = "\n".join(f"- {t(p.key, lang(), **p.params)}" for p in error.problems)
                 st.error(f"{t('not_saved', lang())}\n\n{problems}")
@@ -589,23 +596,59 @@ def render_save_section(user_id):
 # After an upload most items are in the fallback category. The app asks once
 # whether to go through them; "Not now" is remembered for exactly those items,
 # so the question comes back only when new uncategorized items are added.
+# The review shows one item at a time. review_handled lists the items dealt
+# with in this review (given a category, kept in the fallback category on
+# purpose, or skipped); review_skipped is the subset that was skipped.
+# review_kept_fallback lists items put in the fallback category on purpose:
+# only those are remembered as such when the receipt is saved, so items
+# nobody decided on are asked about again next time.
 
 
 def start_review():
     st.session_state.review_active = True
+    st.session_state.review_handled = []
+    st.session_state.review_skipped = []
+    st.session_state.review_error = False
 
 
 def dismiss_review(names):
     st.session_state.review_dismissed = names
 
 
+def stop_review(names):
+    """End the review; the question is not asked again for the items left."""
+    st.session_state.review_active = False
+    st.session_state.review_dismissed = names
+
+
+def review_choose(name, widget_key):
+    shown = st.session_state.get(widget_key)
+    if shown is None:
+        st.session_state.review_error = True
+        return
+    st.session_state.review_error = False
+    category = category_value(shown, lang())
+    set_draft(draft_ops.set_item_category(st.session_state.receipt_df, name, category))
+    st.session_state.review_handled.append(name)
+    if category == FALLBACK_CATEGORY:
+        st.session_state.review_kept_fallback.append(name)  # a choice: remember it on save
+
+
+def review_skip(name):
+    st.session_state.review_error = False
+    st.session_state.review_handled.append(name)
+    st.session_state.review_skipped.append(name)
+
+
 def render_review(user_id, categories):
-    """Ask whether to go through the draft's items that still need a category."""
+    """Ask whether to go through the draft's items that still need a category, and do it."""
     memory = load(db.load_memory, user_id, what="what_memory")
     names = draft_ops.uncategorized_items(st.session_state.receipt_df, memory, categories)
-    if not names or st.session_state.review_active:
+
+    if st.session_state.review_active:
+        render_review_step(names, categories)
         return
-    if set(names) <= set(st.session_state.review_dismissed):
+    if not names or set(names) <= set(st.session_state.review_dismissed):
         return
 
     with st.container(border=True):
@@ -615,6 +658,48 @@ def render_review(user_id, categories):
         col_dismiss.button(
             t("review_dismiss_button", lang()), key="review_dismiss", on_click=dismiss_review, args=(names,)
         )
+
+
+def render_review_step(names, categories):
+    """One item of the review: pick its category, skip it, or stop."""
+    handled = st.session_state.review_handled
+    pending = [name for name in names if name not in handled]
+    if not pending:
+        st.session_state.review_active = False
+        st.session_state.review_dismissed = names
+        skipped = [name for name in st.session_state.review_skipped if name in names]
+        if skipped:
+            st.info(t("review_done_skipped", lang(), count=len(skipped)))
+        else:
+            st.success(t("review_done", lang()))
+        return
+
+    name = pending[0]
+    amount = draft_ops.item_total(st.session_state.receipt_df, name)
+    position = len(handled) + 1
+    widget_key = f"review_category_{position}"  # a new widget per item, so no choice carries over
+
+    with st.container(border=True):
+        st.markdown(t(
+            "review_progress", lang(), position=position, total=len(handled) + len(pending),
+            name=escape_markdown(name), amount=format_amount(amount, lang()),
+        ))
+        st.selectbox(
+            t("col_category", lang()),
+            options=[category_label(category, lang()) for category in categories],
+            index=None,
+            placeholder=t("review_placeholder", lang()),
+            key=widget_key,
+        )
+        if st.session_state.review_error:
+            st.error(t("review_choose_category", lang()))
+        col_save, col_skip, col_stop = st.columns(3)
+        col_save.button(
+            t("review_save_button", lang()), type="primary", key="review_save",
+            on_click=review_choose, args=(name, widget_key),
+        )
+        col_skip.button(t("review_skip_button", lang()), key="review_skip", on_click=review_skip, args=(name,))
+        col_stop.button(t("review_stop_button", lang()), key="review_stop", on_click=stop_review, args=(names,))
 
 
 def render_current_receipt_tab():

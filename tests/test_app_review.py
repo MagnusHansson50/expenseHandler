@@ -92,3 +92,113 @@ def test_logging_out_forgets_the_review_state(temp_db):
     log_out(at)
     assert at.session_state["review_active"] is False
     assert at.session_state["review_dismissed"] == []
+
+
+# --- The review, one item at a time --------------------------------------
+
+
+def review_text(at):
+    texts = [md.value for md in at.markdown if md.value.startswith("Item ")]
+    return texts[0] if texts else None
+
+
+def category_choice(at):
+    return next(box for box in at.selectbox if box.key and box.key.startswith("review_category_"))
+
+
+def draft_categories(at):
+    return dict(zip(at.session_state["receipt_df"]["Item"], at.session_state["receipt_df"]["Category"]))
+
+
+def start_with(at, *items):
+    for item, price in items:
+        add_manual_purchase(at, item, price)
+    at.button(key="review_start").click().run()
+
+
+def test_review_shows_one_item_at_a_time_and_sets_its_category(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0))
+    assert review_text(at) == "Item 1 of 2: **Drill** (799.00 kr)"
+
+    category_choice(at).set_value("Dairy")
+    at.button(key="review_save").click().run()
+    assert draft_categories(at)["Drill"] == "Dairy"
+    assert review_text(at) == "Item 2 of 2: **Gloves** (99.00 kr)"
+    assert category_choice(at).value is None  # no choice carried over
+
+    category_choice(at).set_value("Other")
+    at.button(key="review_save").click().run()
+    assert review_text(at) is None
+    assert at.success[0].value.startswith("Every item now has a category.")
+    assert at.session_state["review_active"] is False
+    assert prompt(at) is None
+
+
+def test_saving_without_a_choice_asks_for_one(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    at.button(key="review_save").click().run()
+    assert at.error[0].value == "Choose a category first, or skip the item."
+    assert review_text(at) == "Item 1 of 1: **Drill** (799.00 kr)"
+    assert draft_categories(at)["Drill"] == FALLBACK_CATEGORY
+
+
+def test_skipped_items_are_counted_and_not_asked_about_again(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0))
+    at.button(key="review_skip").click().run()
+    category_choice(at).set_value("Dairy")
+    at.button(key="review_save").click().run()
+    assert at.info[0].value == "The review is done. Items you skipped that still have no category: 1."
+    assert draft_categories(at) == {"Drill": FALLBACK_CATEGORY, "Gloves": "Dairy"}
+    assert prompt(at) is None
+
+
+def test_stop_ends_the_review_and_keeps_what_was_chosen(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0), ("Saw", 199.0))
+    category_choice(at).set_value("Dairy")
+    at.button(key="review_save").click().run()
+    at.button(key="review_stop").click().run()
+    assert review_text(at) is None
+    assert prompt(at) is None
+    assert draft_categories(at) == {"Drill": "Dairy", "Gloves": FALLBACK_CATEGORY, "Saw": FALLBACK_CATEGORY}
+
+
+def test_choices_are_remembered_for_the_next_receipt(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    category_choice(at).set_value("Dairy")
+    at.button(key="review_save").click().run()
+    next(b for b in at.button if "Save" in b.label and b.key != "review_save").click().run()
+    anna = temp_db.get_user_by_name("Anna").id
+    assert temp_db.load_memory(anna) == {"Drill": "Dairy"}
+
+
+def test_item_names_are_shown_literally(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("![x](http://example.com/a.png)", 1.0))
+    assert r"\!\[x\]" in review_text(at)
+
+
+def test_skipped_items_are_asked_about_again_on_the_next_receipt(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gift card", 200.0))
+    at.button(key="review_skip").click().run()
+    category_choice(at).set_value("Other")  # on purpose
+    at.button(key="review_save").click().run()
+    next(b for b in at.button if "Save" in b.label and b.key != "review_save").click().run()
+
+    anna = temp_db.get_user_by_name("Anna").id
+    assert temp_db.load_memory(anna) == {"Gift card": FALLBACK_CATEGORY}
+    add_manual_purchase(at, "Drill", 799.0)
+    add_manual_purchase(at, "Gift card", 200.0)
+    assert prompt(at) == "Items without a category: 1. Do you want to go through them now?"
