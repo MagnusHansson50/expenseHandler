@@ -265,6 +265,20 @@ def set_password(user_id, password_hash, salt):
     return True
 
 
+def delete_user(user_id):
+    """Delete a user and everything they own. Returns False if the user does not exist.
+
+    Categories, memory, history and credentials go with the user through
+    ON DELETE CASCADE, in the same transaction. secure_delete makes SQLite
+    overwrite the freed pages with zeros, so the data cannot be read back from
+    the database file afterwards.
+    """
+    with transaction() as conn:
+        conn.execute("PRAGMA secure_delete = ON")
+        cursor = conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    return cursor.rowcount == 1
+
+
 def _write_password(conn, user_id, password_hash, salt):
     conn.execute(
         """
