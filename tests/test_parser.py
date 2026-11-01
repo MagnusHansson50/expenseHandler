@@ -99,6 +99,62 @@ def test_parsing_stops_at_payment_section():
     assert "Kaffe" not in items["Item"].tolist()
 
 
+# Mirrors the layout of a receipt copy where long names wrap (made-up items).
+WRAPPED_RECEIPT = """Testbutiken
+Storgatan 1
+123 45 Teststad
+Beskrivning Artikelnummer Pris Mängd Summa(SEK)
+Laddare 65W 22581 319,92 1,00 st 399,90
+Rabatt  -79,98
+Kabel USB-C 2m, vit - flätad,
+upp till 60W
+24411 199,92 1,00 st 249,90
+Rabatt  -49,98
+ARBETSBÄNK 120CM 024777 1999,00 1,00 st 1999,00
+GROVDAMMSUGARE DXV20SE
+DEWALT
+033409 799,00 1,00 st 799,00
+ Betalat 3317,84
+"""
+
+
+def test_name_on_lines_above_the_columns_is_joined():
+    items = parse_receipt_text(WRAPPED_RECEIPT)
+    assert items["Item"].tolist() == [
+        "Laddare 65W",
+        "Kabel USB-C 2m, vit - flätad, upp till 60W",
+        "ARBETSBÄNK 120CM",
+        "GROVDAMMSUGARE DXV20SE DEWALT",
+    ]
+
+
+def test_discount_after_a_wrapped_item_applies_to_that_item():
+    items = parse_receipt_text(WRAPPED_RECEIPT)
+    assert items["Price"].tolist() == [319.92, 199.92, 1999.0, 799.0]
+    assert round(items["Price"].sum(), 2) == 3317.84
+
+
+def test_header_lines_are_not_used_as_an_item_name():
+    items = parse_receipt_text(
+        "Testbutiken\nStorgatan 1\nBeskrivning Artikelnummer Pris Mängd Summa(SEK)\n"
+        "LÅNG VARA\n033409 799,00 1,00 st 799,00"
+    )
+    assert items["Item"].tolist() == ["LÅNG VARA"]
+
+
+def test_columns_without_any_name_keep_the_amount():
+    items = parse_receipt_text("Rabatt  -5,00\n033409 799,00 1,00 st 799,00")
+    assert items.to_dict("records") == [{"Item": "033409", "Price": 799.0}]
+
+
+def test_wrapped_items_with_the_same_article_are_combined():
+    items = parse_receipt_text(
+        "Choklad Kexchoklad\n8x60 g\n991616650101 53,90 1,00 st 53,90\n"
+        "Choklad Kexchoklad\n8x60 g\n991616650101 53,90 1,00 st 53,90"
+    )
+    assert items.to_dict("records") == [{"Item": "Choklad Kexchoklad 8x60 g", "Price": 107.8}]
+
+
 def test_no_items_gives_empty_frame_with_columns():
     items = parse_receipt_text("Nothing here\nRabatt -5,00")
     assert items.empty

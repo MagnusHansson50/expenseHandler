@@ -5,6 +5,13 @@ An ICA item line ends with five fixed columns after the item name:
     <name> <article no> <unit price> <quantity> <st|kg> <total>
     Mjölk 3% 7310865004703 15,90 2,00 st 31,80
 
+A name too long for one line is printed on the line(s) above, and the columns
+come alone on the last line; the name lines are joined:
+
+    GROVDAMMSUGARE DXV20SE
+    DEWALT
+    033409 799,00 1,00 st 799,00
+
 Discount lines follow the item they apply to and end in a negative amount:
 
     Rabatt: 2 för 25 -6,80
@@ -56,6 +63,22 @@ ITEM_LINE = re.compile(
     """,
     re.VERBOSE,
 )
+
+# The columns of an item whose name did not fit: the name is on the line(s) above.
+# "033409 799,00 1,00 st 799,00" after "GROVDAMMSUGARE DXV20SE" and "DEWALT".
+COLUMNS_ONLY_LINE = re.compile(
+    rf"""
+    ^(?P<article>\S+)              # article number, first on the line
+    \s+(?P<unit_price>{AMOUNT})    # price per piece or per kg
+    \s+(?P<quantity>{QUANTITY})    # number of pieces or weight
+    \s+(?P<unit>st|kg)             # unit: st = pieces, kg = kilograms
+    \s+(?P<total>{AMOUNT})$        # amount for the whole line (what is parsed)
+    """,
+    re.VERBOSE,
+)
+
+# The column header above the items: "Beskrivning Artikelnummer Pris Mängd Summa(SEK)".
+COLUMN_HEADER_MARKER = "Artikelnummer"
 
 # A discount line, e.g. "Rabatt: 2 för 25 -6,80" or "Juice 2f65kr  -20,04".
 # It applies to the item above it; summary lines are skipped before this is tried.
@@ -113,6 +136,7 @@ def parse_receipt_text(text):
     """Parse ICA receipt text into a DataFrame with the columns Item and Price."""
     items = []
     previous_article = None  # Article number of the line just before, if it was an item
+    name_lines = []  # Unmatched lines since the last item: the name of a wrapped item
 
     for line in text.splitlines():
         line = line.strip()
@@ -122,23 +146,38 @@ def parse_receipt_text(text):
             break
         if line.startswith(SKIP_PREFIXES):
             continue
-
-        item_match = ITEM_LINE.match(line)
-        if item_match:
-            total = _to_float(item_match["total"])
-            if item_match["article"] == previous_article:
-                items[-1]["Price"] = round(items[-1]["Price"] + total, 2)
-            else:
-                name = item_match["name"].replace("*", "").strip()
-                items.append({"Item": name, "Price": total})
-            previous_article = item_match["article"]
+        if COLUMN_HEADER_MARKER in line:
+            name_lines = []  # store address and other header lines are never part of a name
             continue
 
-        previous_article = None
+        item_match = ITEM_LINE.match(line)
+        columns_match = None if item_match else COLUMNS_ONLY_LINE.match(line)
+        if item_match or columns_match:
+            match = item_match or columns_match
+            if item_match:
+                name = item_match["name"]
+            else:
+                # Fall back to the article number so the amount is never lost.
+                name = " ".join(name_lines) or columns_match["article"]
+            name_lines = []
+            total = _to_float(match["total"])
+            if match["article"] == previous_article:
+                items[-1]["Price"] = round(items[-1]["Price"] + total, 2)
+            else:
+                items.append({"Item": name.replace("*", "").strip(), "Price": total})
+            previous_article = match["article"]
+            continue
+
         discount_match = DISCOUNT_LINE.match(line)
-        if discount_match and items:
-            discounted = items[-1]["Price"] + _to_float(discount_match["discount"])
-            items[-1]["Price"] = round(discounted, 2)
+        if discount_match:
+            previous_article = None  # a discount ends a run of the same article
+            name_lines = []
+            if items:
+                discounted = items[-1]["Price"] + _to_float(discount_match["discount"])
+                items[-1]["Price"] = round(discounted, 2)
+            continue
+
+        name_lines.append(line)
 
     return pd.DataFrame(items, columns=COLUMNS)
 
