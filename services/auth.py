@@ -1,4 +1,4 @@
-"""Login, registration and password reset flows (core.auth + database, no Streamlit).
+"""Login, registration, password reset and account deletion flows (core.auth + database, no Streamlit).
 
 Errors for the UI to handle:
 - InvalidPassword(problem) when a new password breaks the rules
@@ -131,3 +131,19 @@ def reset_password(name, new_password):
         return False
     password_hash, salt = hash_password(new_password)
     return db.set_password(user.id, password_hash, salt)
+
+
+def delete_account(user_id, password, throttle=None):
+    """Delete the user and all their data, after checking their password again.
+
+    Returns True when the account was deleted, False if the password is wrong
+    (or the user no longer exists); nothing is deleted then. A wrong password
+    counts as a failed login for the throttle, so this cannot be used to guess
+    passwords past the lock, and LoginLocked is raised while the name is locked.
+    """
+    user = db.get_user(user_id)
+    if user is None:
+        return False
+    if authenticate(user.name, password, throttle) != user:
+        return False
+    return db.delete_user(user_id)

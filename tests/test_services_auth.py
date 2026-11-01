@@ -154,3 +154,36 @@ def test_reset_password_for_unknown_user_or_bad_password(anna):
     assert auth.reset_password("Nobody", "new-test-password") is False
     with pytest.raises(auth.InvalidPassword):
         auth.reset_password("Anna", "short")
+
+
+# --- delete_account ------------------------------------------------------
+
+
+def test_delete_account_with_the_right_password_deletes_everything(anna, temp_db, throttle):
+    bo = auth.register("Bo", PASSWORD, ["Mejeri"])
+    assert auth.delete_account(anna.id, PASSWORD, throttle) is True
+    assert temp_db.get_user(anna.id) is None
+    assert temp_db.get_categories(anna.id) == []
+    assert auth.authenticate("Anna", PASSWORD, throttle) is None
+    assert auth.authenticate("Bo", PASSWORD, throttle) == bo
+
+
+def test_delete_account_with_a_wrong_password_deletes_nothing(anna, temp_db, throttle):
+    assert auth.delete_account(anna.id, "wrong-password", throttle) is False
+    assert temp_db.get_user(anna.id) == anna
+    assert auth.authenticate("Anna", PASSWORD, throttle) == anna
+
+
+def test_delete_account_for_an_unknown_user_returns_false(temp_db, throttle):
+    assert auth.delete_account(9999, PASSWORD, throttle) is False
+
+
+def test_wrong_passwords_when_deleting_count_towards_the_lock(anna, temp_db, throttle, clock):
+    for _ in range(MAX_FAILED_LOGINS - 1):
+        auth.delete_account(anna.id, "wrong-password", throttle)
+    auth.authenticate("Anna", "wrong-password", throttle)  # login and delete share the count
+    with pytest.raises(LoginLocked):
+        auth.delete_account(anna.id, PASSWORD, throttle)  # even the right password
+    assert temp_db.get_user(anna.id) == anna
+    clock.now += LOCK_SECONDS
+    assert auth.delete_account(anna.id, PASSWORD, throttle) is True
