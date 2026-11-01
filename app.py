@@ -416,7 +416,7 @@ def render_manual_entry(categories):
 
 
 def render_pdf_upload(user_id, categories):
-    """Upload an ICA receipt, parse it and pre-fill categories from memory."""
+    """Upload a Kivra receipt copy, parse it and pre-fill categories from memory."""
     uploaded = st.file_uploader(
         t("upload_label", lang()),
         type="pdf",

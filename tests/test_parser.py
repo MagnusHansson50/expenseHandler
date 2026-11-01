@@ -16,7 +16,7 @@ from core.parser import (
     read_receipt,
 )
 
-# Mirrors the item layout extracted from a real ICA receipt.
+# Mirrors the item layout extracted from a real receipt copy of an ICA purchase.
 SAMPLE_RECEIPT = """ICA Supermarket Testbutiken
 Kassör2026-10-20
 08:27
@@ -258,15 +258,17 @@ def test_unmaintained_pypdf2_is_not_imported():
 
 
 # Real receipts contain personal data and are never committed. To run this test,
-# point ICA_SAMPLE_PDF at a local receipt; set ICA_SAMPLE_TOTAL (e.g. "1122.17")
-# to also check the parsed sum against the receipt's "Betalat" amount.
-@pytest.mark.skipif(not os.environ.get("ICA_SAMPLE_PDF"), reason="ICA_SAMPLE_PDF not set")
-def test_real_ica_receipt():
-    parsed = read_receipt(Path(os.environ["ICA_SAMPLE_PDF"]).read_bytes())
+# point SAMPLE_RECEIPT_PDF at one or more local receipt copies from Kivra,
+# separated by os.pathsep (";" on Windows, ":" elsewhere).
+SAMPLE_RECEIPT_PDFS = [path for path in os.environ.get("SAMPLE_RECEIPT_PDF", "").split(os.pathsep) if path]
+
+
+@pytest.mark.skipif(not SAMPLE_RECEIPT_PDFS, reason="SAMPLE_RECEIPT_PDF not set")
+@pytest.mark.parametrize("path", SAMPLE_RECEIPT_PDFS, ids=lambda path: Path(path).stem)
+def test_real_receipt(path):
+    parsed = read_receipt(Path(path).read_bytes())
     assert not parsed.items.empty
     assert parsed.items["Item"].str.len().gt(0).all()
     assert parsed.purchase_date is not None
-
-    expected_total = os.environ.get("ICA_SAMPLE_TOTAL")
-    if expected_total:
-        assert round(parsed.items["Price"].sum(), 2) == float(expected_total)
+    assert parsed.paid_total is not None
+    assert round(parsed.items["Price"].sum(), 2) == parsed.paid_total

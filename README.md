@@ -1,6 +1,6 @@
 # ExpenseHandler
 
-En webbapp för att hålla koll på vad du handlar för. Ladda upp kvitton från ICA (PDF)
+En webbapp för att hålla koll på vad du handlar för. Ladda upp kvittokopior från Kivra (PDF)
 eller lägg in köp för hand, sortera varorna i kategorier och följ upp utgifterna över tid.
 Flera personer kan använda samma app; var och en loggar in och ser bara sina egna kvitton.
 
@@ -46,9 +46,11 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 
 ## Användning
 
-- **Aktuellt kvitto:** ladda upp ett ICA-kvitto (PDF, högst 5 MB) eller lägg till köp för hand.
-  Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen kommer
-  ihåg vilken kategori du valde för en vara till nästa gång.
+- **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra (PDF, högst 5 MB) eller lägg till köp
+  för hand. Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen
+  kommer ihåg vilken kategori du valde för en vara till nästa gång.
+  Om varorna inte summerar till kvittots "Betalat" visas en gul varning; kontrollera då att alla
+  varor finns med och har rätt pris innan du sparar.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
   Här kan du också ta bort allt som sparats ett visst datum.
 
@@ -62,7 +64,9 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 - **Ingen säkerhetskopia.** Försvinner eller skadas `expenses.db` är all historik borta.
   Kopiera filen till en säker plats då och då (när appen är stängd).
 - **Inget byte av lösenord eller borttagning av konto i appen.** Lösenord byts med skriptet ovan.
-- **Bara ICA-kvitton** kan läsas in från PDF. Andra kvitton får läggas in för hand.
+- **Bara kvittokopior från Kivra** kan läsas in från PDF, oavsett butik (till exempel ICA, Jula,
+  Kjell & Co, Rusta och Stadium). Ladda ner kvittot som PDF i Kivra. Andra kvitton får läggas in
+  för hand.
 - **Registreringen visar om ett namn redan är upptaget**, och vem som helst kan låsa ett namn i
   30 sekunder genom att skriva fel lösenord fem gånger.
 - **Ingen automatisk utloggning** så länge fliken är öppen. Logga ut om andra använder datorn.

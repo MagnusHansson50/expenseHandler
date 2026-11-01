@@ -35,7 +35,7 @@ class InvalidReceipt(ValueError):
 
 
 def import_receipt(user_id, pdf_bytes, categories):
-    """Read an ICA receipt PDF and pre-fill categories from the user's memory.
+    """Read a Kivra receipt copy (PDF) and pre-fill categories from the user's memory.
 
     `categories` are the user's current category names; remembered categories
     the user no longer has fall back to FALLBACK_CATEGORY.

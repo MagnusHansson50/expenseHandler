@@ -6,7 +6,7 @@
 # must not be reachable from the local network or the internet.
 address = "localhost"
 
-# ICA receipts are ~0.1 MB; the Streamlit default is 200 MB.
+# Kivra receipt copies are ~0.05 MB; the Streamlit default is 200 MB.
 maxUploadSize = 5
 
 [client]

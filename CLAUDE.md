@@ -1,6 +1,6 @@
 Project
 ExpenseHandler: a Streamlit web application for tracking personal spending.
-Users upload grocery receipts (ICA PDFs, to begin with), add manual purchases,
+Users upload receipts (receipt copies downloaded as PDF from Kivra), add manual purchases,
 categorize items, and save them to a history so they can follow up on their expenses.
 
 The app supports MULTIPLE USERS, and each user's data is COMPLETELY ISOLATED from every other user's.
@@ -37,8 +37,8 @@ Code conventions
   `key` and `params`). The UI turns them into text with `t()`.
 - Return named types, not bare tuples, when a result has several parts: `db.User(id, name)`,
   `db.Login(user, password_hash, salt)`,
-  `core.parser.ParsedReceipt(items, purchase_date)`, `services.receipts.ImportResult(items,
-  remembered, purchase_date)`. Use the field names (`user.name`), never positions (`user[1]`).
+  `core.parser.ParsedReceipt(items, purchase_date, paid_total)`, `services.receipts.ImportResult(items,
+  remembered, purchase_date, paid_total)`. Use the field names (`user.name`), never positions (`user[1]`).
 - "Draft" is the receipt being edited before it is saved: `st.session_state.receipt_df`, the local
   name `draft`, `set_draft` / `add_to_draft`, and `core/receipt.py` imported as `draft_ops` in `app.py`.
   "Receipt" alone means the purchase as a whole (the PDF, or what is saved to history).
@@ -56,10 +56,10 @@ Architecture
   (validate -> `InvalidReceipt(problems)`, or save history and memory in one transaction).
 - `integrations/db.py`: all SQLite access, and the data rules that must always hold (see Database).
 - `core/constants.py`: shared constants and input limits. Imports nothing, so every module may depend on it.
-- `core/parser.py`: ICA PDF parsing.
+- `core/parser.py`: parsing of Kivra receipt copies (PDF).
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
   changes, categorize from memory, validate before saving, decide what to remember on save).
-- `core/calculator.py`: totals and per-category summaries.
+- `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
   rules (`password_problem`).
@@ -136,16 +136,24 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 
 PDF parsing
 - `read_receipt(file_bytes)` reads the upload via `io.BytesIO` and pypdf and returns
-  `ParsedReceipt(items, purchase_date)` - a DataFrame with `Item` and `Price`, and the date printed on
-  the receipt (`None` if not found). The app calls it through `services.receipts.import_receipt`.
+  `ParsedReceipt(items, purchase_date, paid_total)` - a DataFrame with `Item` and `Price`, the date
+  printed on the receipt and its `Betalat` amount (each `None` if not found). The app calls it through `services.receipts.import_receipt`.
 - Bytes that do not start with `%PDF-` raise `NotAPdfError` before pypdf sees them. Any error raised by
   pypdf itself becomes `ReceiptReadError` (the pypdf exception is kept as `__cause__`).
-- Designed specifically for the ICA receipt format: process line by line, pick up item lines ending in
-  `st` or `kg`, parse the price, and capture discounts (negative amounts), which are merged into the
-  item above. Back-to-back lines with the same article number are combined into one row.
+- Designed for Kivra's receipt copies, which print every store's receipt (ICA, Jula, Kjell & Co, Rusta,
+  Stadium, ...) with the same columns: name, article number, unit price, quantity, `st`/`kg`, total.
+  Process line by line, pick up item lines ending in those columns, parse the total, and capture
+  discounts (negative amounts), which are merged into the item above. Back-to-back lines with the
+  same article number are combined into one row.
+- A name too long for one line is printed on the line(s) above, with the columns alone on the last
+  line; those name lines are joined. The column header (`Beskrivning Artikelnummer ...`) and
+  discounts clear the collected lines, so store and address lines never become a name.
   Parsing stops at the payment section (`Delavstämning`, `Betalat`, `Betalningsinformation`).
 - The purchase date is the first valid `YYYY-MM-DD` in the text; text extraction may glue it to a label
   (e.g. `Kassör2026-09-26`).
+- After an upload the app compares the items with the `Betalat` amount (`paid_difference`); if they
+  differ, the import message is a warning showing both amounts, so missing or misread items are
+  noticed before saving.
 
 Authentication
 - Login is by user name and password; there is open registration (anyone who can open the app can
@@ -281,8 +289,9 @@ Testing
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
-- Optional real-receipt test: set `ICA_SAMPLE_PDF` to a local receipt (and `ICA_SAMPLE_TOTAL` to its
-  "Betalat" amount, e.g. `1122.17`) to run it; it is skipped otherwise.
+- Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local Kivra receipt copies
+  (separated by `;` on Windows, `:` elsewhere) to check that their items add up to `Betalat`;
+  it is skipped otherwise. Never commit those files.
 
 Known limitations
 - Login protects users from each other inside the app; anyone on the computer can still read
@@ -298,7 +307,9 @@ Known limitations
   the app. Accounts cannot be deleted from the app either.
 - No backup: if `expenses.db` is lost or damaged, all users and history are gone. Copy the file
   while the app is stopped to back it up.
-- Only ICA PDF receipts can be imported; other receipts must be entered manually.
+- Only receipt copies from Kivra (PDF) can be imported; other receipts must be entered manually.
+  A layout Kivra changes or a line the parser does not recognize shows up as a warning that the
+  items do not add up to `Betalat`.
 - PDF upload and `st.data_editor` edits are not covered by the automated tests (`AppTest` does not
   support them); check them in a browser after changing that code.
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.

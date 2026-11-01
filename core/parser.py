@@ -1,6 +1,7 @@
-"""ICA receipt PDF parser.
+"""Parser for receipt copies (PDF) from Kivra.
 
-An ICA item line ends with five fixed columns after the item name:
+Kivra prints every store's receipt with the same columns (ICA, Jula, Kjell & Co,
+Rusta, Stadium, ...). An item line ends with five fixed columns after the item name:
 
     <name> <article no> <unit price> <quantity> <st|kg> <total>
     Mjölk 3% 7310865004703 15,90 2,00 st 31,80
@@ -145,7 +146,7 @@ def extract_text(file_bytes):
 
 
 def parse_receipt_text(text):
-    """Parse ICA receipt text into a DataFrame with the columns Item and Price."""
+    """Parse receipt text into a DataFrame with the columns Item and Price."""
     items = []
     previous_article = None  # Article number of the line just before, if it was an item
     name_lines = []  # Unmatched lines since the last item: the name of a wrapped item
@@ -195,7 +196,7 @@ def parse_receipt_text(text):
 
 
 def parse_receipt_date(text):
-    """Return the purchase date from ICA receipt text, or None if none is found."""
+    """Return the purchase date from receipt text, or None if none is found."""
     for match in ISO_DATE.finditer(text):
         try:
             return date.fromisoformat(match.group(1))
@@ -214,7 +215,7 @@ def parse_paid_total(text):
 
 
 class ParsedReceipt(NamedTuple):
-    """What read_receipt finds in an ICA receipt PDF."""
+    """What read_receipt finds in a receipt PDF."""
 
     items: pd.DataFrame  # columns Item and Price
     purchase_date: date | None  # date printed on the receipt, None if not found
@@ -222,7 +223,7 @@ class ParsedReceipt(NamedTuple):
 
 
 def read_receipt(file_bytes):
-    """Parse an uploaded ICA receipt PDF into a ParsedReceipt.
+    """Parse an uploaded receipt PDF into a ParsedReceipt.
 
     Raises NotAPdfError or ReceiptReadError if the file cannot be read.
     """
