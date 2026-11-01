@@ -345,13 +345,52 @@ def render_register_form():
     show_auth_message("register")
 
 
+def on_delete_account_submit():
+    password = take_password("delete_password")
+    if not st.session_state.get("delete_confirm"):
+        set_auth_message("delete", "delete_confirm_required")
+        return
+    try:
+        deleted = auth.delete_account(st.session_state.current_user, password)
+    except auth.LoginLocked as locked:
+        set_auth_message("delete", "login_locked", seconds=locked.seconds_left)
+        return
+    except sqlite3.Error:
+        logger.exception("Database error while trying to %s", t("action_delete_account", "en"))
+        set_auth_message("delete", "write_failed", action="action_delete_account")
+        return
+    if not deleted:
+        set_auth_message("delete", "delete_wrong_password")
+        return
+    log_out()
+    flash("success", t("account_deleted", lang()))  # after log_out, which clears the flash
+
+
+def render_delete_account_form():
+    """Delete the logged-in user and all their data, confirmed with the password."""
+    with st.expander(t("delete_account_header", lang())):
+        st.warning(t("delete_account_warning", lang()))
+        with st.form("delete_account_form"):
+            st.text_input(
+                t("password_label", lang()), type="password", max_chars=MAX_PASSWORD_LENGTH,
+                autocomplete="current-password", key="delete_password",
+            )
+            st.checkbox(t("delete_confirm_label", lang()), key="delete_confirm")
+            st.form_submit_button(
+                t("delete_account_button", lang()), type="primary",
+                key="delete_account_submit", on_click=on_delete_account_submit,
+            )
+        show_auth_message("delete")
+
+
 def render_account_sidebar(user):
-    """Who is logged in, and a button to log out."""
+    """Who is logged in, a button to log out, and the form to delete the account."""
     with st.sidebar:
         st.caption(t("logged_in_as", lang(), name=escape_markdown(user.name)))
         if st.button(t("log_out_button", lang()), key="log_out"):
             log_out()
             st.rerun()
+        render_delete_account_form()
 
 
 def render_category_manager(user_id, categories):
@@ -640,7 +679,8 @@ def main():
 
     if user is None:
         if user_id is not None:
-            log_out()  # the logged-in user no longer exists
+            log_out()  # the logged-in user no longer exists (e.g. deleted in another tab)
+        show_flash()  # e.g. "account deleted"
         render_login_page()
         return
 

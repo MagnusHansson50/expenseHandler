@@ -47,6 +47,14 @@ TRANSLATIONS = {
         "logged_in_as": "Inloggad som **{name}**",
         "log_out_button": "🚪 Logga ut",
         "action_log_in": "logga in",
+        "delete_account_header": "🗑️ Ta bort mitt konto",
+        "delete_account_warning": "Kontot, dina kategorier och hela din historik raderas för gott. Det går inte att ångra.",
+        "delete_confirm_label": "Jag förstår att allt raderas",
+        "delete_account_button": "Ta bort kontot",
+        "delete_confirm_required": "Kryssa i rutan för att bekräfta att allt ska raderas.",
+        "delete_wrong_password": "Fel lösenord. Kontot har inte tagits bort.",
+        "account_deleted": "Ditt konto och alla dina kvitton är borttagna.",
+        "action_delete_account": "ta bort kontot",
         # Sidebar: users
         # Categories
         "manage_categories": "⚙️ Hantera kategorier",
@@ -149,6 +157,14 @@ TRANSLATIONS = {
         "logged_in_as": "Logged in as **{name}**",
         "log_out_button": "🚪 Log out",
         "action_log_in": "log in",
+        "delete_account_header": "🗑️ Delete my account",
+        "delete_account_warning": "The account, your categories and your whole history are deleted for good. This cannot be undone.",
+        "delete_confirm_label": "I understand that everything is deleted",
+        "delete_account_button": "Delete the account",
+        "delete_confirm_required": "Tick the box to confirm that everything should be deleted.",
+        "delete_wrong_password": "Wrong password. The account was not deleted.",
+        "account_deleted": "Your account and all your receipts have been deleted.",
+        "action_delete_account": "delete the account",
         # Sidebar: users
         # Categories
         "manage_categories": "⚙️ Manage categories",
