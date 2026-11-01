@@ -53,13 +53,16 @@ Architecture
 - `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
   `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
-  `import_receipt` (parse PDF, load memory, categorize -> `ImportResult`) and `save_receipt`
-  (validate -> `InvalidReceipt(problems)`, or save history and memory in one transaction).
+  `import_receipt` (parse PDF, load memory, categorize -> `ImportResult`) and
+  `save_receipt(user_id, purchase_date, draft, kept_in_fallback)` (validate ->
+  `InvalidReceipt(problems)`, or save history and memory in one transaction; items that still need
+  a category are not remembered, see Reviewing items without a category).
 - `integrations/db.py`: all SQLite access, and the data rules that must always hold (see Database).
 - `core/constants.py`: shared constants and input limits. Imports nothing, so every module may depend on it.
 - `core/parser.py`: parsing of Kivra receipt copies (PDF).
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
-  changes, categorize from memory, validate before saving, decide what to remember on save).
+  changes, categorize from memory, validate before saving, decide what to remember on save, find
+  items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
@@ -98,6 +101,10 @@ Architecture
     (upload, save, clear, switch user) so the picker shows the new value.
   - `flash`: (kind, message) shown once after the next `st.rerun()`. It is rendered in a container that
     exists on every run, so the tabs below never move (moving them resets the selected tab).
+    It is also shown on the login page (e.g. after deleting an account).
+  - `review_active`, `review_dismissed`, `review_handled`, `review_skipped`, `review_error`,
+    `review_kept_fallback`: the review of items without a category (see below). All are reset when
+    the draft becomes empty (cleared, saved, logging in or out).
 
 Database (`expenses.db`)
 Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
@@ -198,6 +205,23 @@ UI
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
   choices into `memory`. Save is blocked with the per-row list of problems from `InvalidReceipt`.
+  Above the table: the question about items without a category, or the review itself.
+
+Reviewing items without a category
+- An item needs a category (`core.receipt.uncategorized_items`) when its category is missing or no
+  longer one of the user's, or when it is `FALLBACK_CATEGORY` although memory does not say the user
+  chose that for it. Items filed under "Other" on purpose are not asked about again.
+- When the draft has such items, a box asks "Items without a category: N. Do you want to go through
+  them now?" with "Go through them" and "Not now". "Not now" stores those names
+  (`review_dismissed`); the question returns only when another item needs a category. It never
+  blocks saving.
+- The review shows one item at a time ("Item 1 of 3: name (amount)") with a category list without a
+  preselected choice and "Save and next" / "Skip" / "Stop". A choice applies to every row with
+  that name. It ends with "Every item now has a category" or the number of skipped items.
+- Memory: items that still need a category when the receipt is saved are saved to history but not
+  remembered, so they are asked about next time. Choosing "Other" in the review is a choice
+  (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
+  form's default is not (it cannot be told apart from the default).
 - Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
   the list of purchases, and delete all purchases saved on a date (with confirmation).
 
@@ -286,6 +310,8 @@ Testing
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
+- `tests/test_app_review.py`: the question and the review of items without a category (counting,
+  "Not now", one item at a time, skip, stop, escaping, what is remembered on save).
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).
 - `tests/test_reset_password_script.py`: the reset script with scripted password answers.
@@ -371,6 +397,7 @@ Project structure
 │   ├── test_app_delete_account.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
+│   ├── test_app_review.py
 │   ├── test_architecture.py
 │   ├── test_auth.py
 │   ├── test_auth_guards.py
