@@ -50,7 +50,8 @@ Architecture
   `st.session_state` and calls `services/`, `core/` and `integrations/db.py`; business rules and
   multi-step flows do not belong here. Every `db` call goes through `load(...)` or `write_errors(...)`
   (see Error handling).
-- `services/auth.py`: `register`, `authenticate` (with the login throttle) and `reset_password`.
+- `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
+  `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
   `import_receipt` (parse PDF, load memory, categorize -> `ImportResult`) and `save_receipt`
   (validate -> `InvalidReceipt(problems)`, or save history and memory in one transaction).
@@ -81,9 +82,10 @@ Architecture
     after `authenticate` or `register` succeeded, and cleared by `log_out`;
     `tests/test_auth_guards.py` checks this. Nothing but the language selector and the login page
     is shown while it is `None`. Logging in or out clears the unsaved receipt.
-  - `auth_message`: (form, translation key, params) for the login or register form, shown once.
-  - `login_name`, `login_password`, `register_name`, `register_password`, `register_password_repeat`:
-    the login form fields. The password fields are emptied in the submit callback (`take_password`),
+  - `auth_message`: (form, translation key, params) for the login, register or delete-account form
+    (`"login"`, `"register"`, `"delete"`), shown once.
+  - `login_name`, `login_password`, `register_name`, `register_password`, `register_password_repeat`,
+    `delete_password`, `delete_confirm`: the login and account form fields. The password fields are emptied in the submit callback (`take_password`),
     so a password never stays in session state.
   - `receipt_df`: the receipt currently being edited (single source of truth for the table).
   - `table_version`: part of the `st.data_editor` key (together with the language). Edits are folded
@@ -114,6 +116,10 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 - `get_login(name)` returns `Login(user, password_hash, salt)`, or `None` for an unknown name or a
   user without a password. The name must match exactly (surrounding spaces ignored, case not).
   `set_password(user_id, ...)` adds or replaces a password and returns `False` for an unknown user.
+- `delete_user(user_id)` deletes the user; their categories, memory, history and credentials go with
+  them through `ON DELETE CASCADE` (foreign keys are on for every connection), in one transaction.
+  It turns on `PRAGMA secure_delete` so the freed pages are overwritten and the data cannot be read
+  back from the file. Returns `False` for an unknown user. The name can be registered again.
 - `FALLBACK_CATEGORY` is stored as "Other" in every language and can never be deleted;
   `delete_category` refuses it. Its labels in every language ("Övrigt", "Other") are reserved:
   `add_category` rejects them in any letter case.
@@ -175,11 +181,19 @@ Authentication
   computer: `python scripts/reset_password.py "<user name>"` (asks twice with `getpass`; uses
   `EXPENSES_DB_PATH` if set). Its messages are in English (admin tool).
 - The session lasts while the browser tab is open; a reload or a new tab starts logged out.
+- Deleting an account: `services.auth.delete_account(user_id, password)` checks the password again
+  through `authenticate`, so wrong passwords count towards the same lock as logins, and only then
+  calls `db.delete_user`. The UI also requires a ticked confirmation box. Afterwards the user is
+  logged out; other tabs of the same user are logged out on their next rerun (the user no longer
+  exists). There is no undo and no export first.
 
 UI
 - Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
   "Create account". Nothing about other users (not even their names) is shown.
-- Logged in: the sidebar shows the language selector, "Logged in as <name>" and a "Log out" button.
+- Logged in: the sidebar shows the language selector, "Logged in as <name>", a "Log out" button and
+  a collapsed "🗑️ Delete my account" ("🗑️ Ta bort mitt konto") section: a warning, the password, a
+  confirmation box and a delete button. The login page then shows "Your account and all your
+  receipts have been deleted."
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price, category), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
@@ -227,8 +241,9 @@ Error handling
   problems from `InvalidReceipt`, `NotAPdfError`, duplicate user name).
 
 Security
-- Network: `.streamlit/config.toml` sets `server.address = "localhost"`. The app has no login, so it
-  must never listen on other interfaces. Do not remove this or start the app with `--server.address`.
+- Network: `.streamlit/config.toml` sets `server.address = "localhost"`. The login is not hardened
+  for a network (no HTTPS, open registration, see Known limitations), so the app must never listen
+  on other interfaces. Do not remove this or start the app with `--server.address`.
   The config file is only read when the app is started from the repository root.
 - Error details: `client.showErrorDetails = "none"`. Never show exception or library error text to the
   user; show a short generic message instead (see the PDF upload handler).
@@ -274,6 +289,9 @@ Testing
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).
 - `tests/test_reset_password_script.py`: the reset script with scripted password answers.
+- `tests/test_db_delete_user.py`, `tests/test_app_delete_account.py`: deleting an account in the data
+  layer (nothing left in any table or in the file, other users untouched) and in the UI
+  (confirmation, wrong password, lock, logout, the name can be reused).
 - `tests/test_auth_guards.py`: no password in logs; `current_user` only set by `switch_user`/`log_out`.
 - Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
   and log in through the forms with the helpers in `tests/test_app.py`.
@@ -304,7 +322,9 @@ Known limitations
   them as the same name. Unicode look-alike names (e.g. Latin "a" vs Cyrillic "а") count as different.
 - `expenses.db` is not encrypted.
 - Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
-  the app. Accounts cannot be deleted from the app either.
+  the app. To delete an account whose password is forgotten, reset it first.
+- Deleting an account cannot be undone, and there is no export of the history before it.
+  Copies of `expenses.db` made earlier (backups) still contain the deleted data.
 - No backup: if `expenses.db` is lost or damaged, all users and history are gone. Copy the file
   while the app is stopped to back it up.
 - Only receipt copies from Kivra (PDF) can be imported; other receipts must be entered manually.
@@ -329,7 +349,7 @@ Project structure
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
 ├── services/
-│   ├── auth.py         # Register, log in (with throttle), reset password
+│   ├── auth.py         # Register, log in (with throttle), reset password, delete account
 │   └── receipts.py     # Import and save flows (core + database, no Streamlit)
 ├── scripts/
 │   ├── __init__.py
@@ -348,6 +368,7 @@ Project structure
 │   ├── conftest.py
 │   ├── test_app.py
 │   ├── test_app_db_errors.py
+│   ├── test_app_delete_account.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
 │   ├── test_architecture.py
@@ -356,6 +377,7 @@ Project structure
 │   ├── test_calculator.py
 │   ├── test_db.py
 │   ├── test_db_credentials.py
+│   ├── test_db_delete_user.py
 │   ├── test_i18n.py
 │   ├── test_no_personal_data.py
 │   ├── test_parser.py

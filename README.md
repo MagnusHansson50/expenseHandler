@@ -34,6 +34,12 @@ Kräver Python 3.12 eller senare.
 - Efter fem felaktiga lösenord i rad låses namnet i 30 sekunder.
 - Du loggas ut när du klickar **Logga ut**, laddar om sidan eller stänger fliken.
 
+### Ta bort ditt konto
+
+Öppna **🗑️ Ta bort mitt konto** i sidomenyn, skriv ditt lösenord, kryssa i rutan och klicka
+**Ta bort kontot**. Kontot, dina kategorier och hela din historik raderas för gott och kan inte
+återställas. Namnet blir ledigt och kan registreras igen.
+
 ### Glömt lösenord
 
 Appen kan inte skicka e-post. Den som kör appen sätter ett nytt lösenord på samma dator:
@@ -63,7 +69,10 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   Lösenorden sparas aldrig i klartext.
 - **Ingen säkerhetskopia.** Försvinner eller skadas `expenses.db` är all historik borta.
   Kopiera filen till en säker plats då och då (när appen är stängd).
-- **Inget byte av lösenord eller borttagning av konto i appen.** Lösenord byts med skriptet ovan.
+- **Inget byte av lösenord i appen.** Lösenord byts med skriptet ovan. Har du glömt lösenordet
+  och vill ta bort kontot sätter du först ett nytt lösenord med skriptet.
+- **En borttagning går inte att ångra**, och historiken kan inte exporteras först. Kopior av
+  `expenses.db` som du har sparat tidigare innehåller fortfarande det borttagna.
 - **Bara kvittokopior från Kivra** kan läsas in från PDF, oavsett butik (till exempel ICA, Jula,
   Kjell & Co, Rusta och Stadium). Ladda ner kvittot som PDF i Kivra. Andra kvitton får läggas in
   för hand.
