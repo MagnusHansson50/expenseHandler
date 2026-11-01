@@ -42,6 +42,17 @@ def test_create_user_with_password_rejects_taken_name(temp_db):
     assert temp_db.get_login("Anna").password_hash == HASH_A
 
 
+@pytest.mark.parametrize("existing, new", [("Anna", "anna"), ("Anna", "ANNA"), ("Åsa", "åsa"), ("ÖRJAN", "örjan")])
+def test_names_differing_only_in_case_are_taken(temp_db, existing, new):
+    temp_db.create_user_with_password(existing, HASH_A, SALT_A)
+    with pytest.raises(db.UserNameTaken) as error:
+        temp_db.create_user_with_password(new, HASH_B, SALT_B)
+    assert error.value.params == {"name": new}
+    with pytest.raises(db.UserNameTaken):
+        temp_db.create_user(new)
+    assert [user.name for user in temp_db.get_users()] == [existing]
+
+
 def test_get_login_for_unknown_user_or_user_without_password_is_none(temp_db):
     temp_db.create_user("NoPassword")
     assert temp_db.get_login("Nobody") is None

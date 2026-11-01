@@ -185,6 +185,12 @@ def _insert_user(conn, name, default_categories):
         raise UserNameEmpty("User name cannot be empty.")
     if len(name) > MAX_NAME_LENGTH:
         raise UserNameTooLong(f"User name can be at most {MAX_NAME_LENGTH} characters.", max=MAX_NAME_LENGTH)
+    # Names must be unique regardless of letter case ("Anna" / "anna" / "ANNA"),
+    # so nobody can register a look-alike of an existing user. Done in Python:
+    # SQLite's COLLATE NOCASE only folds A-Z, not Å/Ä/Ö.
+    taken = {row[0].casefold() for row in conn.execute("SELECT name FROM users")}
+    if name.casefold() in taken:
+        raise UserNameTaken(f"A user named '{name}' already exists.", name=name)
     try:
         cursor = conn.execute("INSERT INTO users (name) VALUES (?)", (name,))
     except sqlite3.IntegrityError:

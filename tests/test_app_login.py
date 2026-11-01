@@ -91,6 +91,15 @@ def test_registration_rejects_short_password(temp_db):
     assert temp_db.get_users() == []
 
 
+def test_registration_rejects_a_name_that_differs_only_in_case(temp_db):
+    auth.register("Anna", TEST_PASSWORD, [])
+    at = start_app()
+    create_user(at, "anna")
+    assert at.error[0].value == "A user named 'anna' already exists."
+    assert logged_in_caption(at) is None
+    assert [user.name for user in temp_db.get_users()] == ["Anna"]
+
+
 def test_registered_user_can_log_out_and_in_again(temp_db):
     at = start_app()
     create_user(at, "Anna")
