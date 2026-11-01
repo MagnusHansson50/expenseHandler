@@ -294,6 +294,13 @@ Known limitations
 - Login names are case-sensitive ("anna" does not log in "Anna"), although registration treats
   them as the same name. Unicode look-alike names (e.g. Latin "a" vs Cyrillic "а") count as different.
 - `expenses.db` is not encrypted.
+- Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
+  the app. Accounts cannot be deleted from the app either.
+- No backup: if `expenses.db` is lost or damaged, all users and history are gone. Copy the file
+  while the app is stopped to back it up.
+- Only ICA PDF receipts can be imported; other receipts must be entered manually.
+- PDF upload and `st.data_editor` edits are not covered by the automated tests (`AppTest` does not
+  support them); check them in a browser after changing that code.
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
 - The language is remembered per browser tab/URL, not per user.
@@ -307,6 +314,7 @@ Known limitations
 Project structure
 /
 ├── app.py
+├── README.md           # For users, in Swedish: run, log in, reset password, limitations
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
 ├── services/
