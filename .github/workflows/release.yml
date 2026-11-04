@@ -1,0 +1,44 @@
+# Builds the Windows desktop program and publishes it as a GitHub release when
+# a version tag is pushed:
+#
+#     git tag v1.0.0
+#     git push origin v1.0.0
+#
+# The tests run first, then the PyInstaller build, then a smoke test that
+# starts the built program and checks that it answers. Only then is the zip
+# attached to a new release. Actions are pinned to commit SHAs.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write  # to create the release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.ref_name }}  # used through $env:TAG, never pasted into scripts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: python -m pip install -r requirements-dev.txt -r requirements-build.txt
+      - run: python -m pytest
+      - run: python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm
+      - run: python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe
+      - name: Zip the program
+        shell: pwsh
+        run: Compress-Archive -Path dist/ExpenseHandler -DestinationPath "ExpenseHandler-$env:TAG-windows.zip"
+      - name: Create the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$env:TAG" "ExpenseHandler-$env:TAG-windows.zip"
+          --title "ExpenseHandler $env:TAG" --generate-notes
