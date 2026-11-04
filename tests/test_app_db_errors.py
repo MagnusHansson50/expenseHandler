@@ -136,3 +136,20 @@ def test_database_errors_are_logged_without_receipt_data(anna_app, monkeypatch, 
         click(anna_app, "Save")
     assert "Database error while trying to save the receipt" in caplog.text
     assert "Secret item" not in caplog.text
+
+
+def test_a_database_from_a_newer_version_is_reported_and_left_alone(temp_db):
+    import sqlite3
+    from contextlib import closing
+
+    with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
+        conn.execute("PRAGMA user_version = 7")
+        conn.commit()
+    import streamlit as st
+
+    st.cache_resource.clear()  # setup_database is cached per process; an earlier test already ran it
+    at = start_app()
+    assert at.error[0].value.startswith("The database was created by a newer version of ExpenseHandler")
+    assert not any(tab.label == "🔐 Log in" for tab in at.tabs)
+    with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7

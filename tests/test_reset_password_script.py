@@ -74,3 +74,16 @@ def test_user_without_password_can_be_given_one(temp_db):
     code, _, _ = run(["Old"], [NEW, NEW])
     assert code == reset_password.EXIT_OK
     assert auth.authenticate("Old", NEW).name == "Old"
+
+
+def test_a_database_from_a_newer_version_is_not_touched(temp_db):
+    import sqlite3
+    from contextlib import closing
+
+    with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
+        conn.execute("PRAGMA user_version = 7")
+        conn.commit()
+    code, output, prompts = run(["Anna"], [])
+    assert code == reset_password.EXIT_DATABASE_TOO_NEW
+    assert "newer" in output[0]
+    assert prompts == []

@@ -139,6 +139,10 @@ TRANSLATIONS = {
         "load_failed": "Kunde inte läsa in {what}. Databasen kan vara upptagen.",
         "try_again": "🔄 Försök igen",
         "write_failed": "Kunde inte {action}. Databasen kan vara upptagen – försök igen.",
+        "database_too_new": (
+            "Databasen har skapats av en nyare version av ExpenseHandler (databasversion {found}, "
+            "den här versionen klarar {supported}). Installera den senaste versionen. Inget har ändrats i dina data."
+        ),
         "what_database": "databasen",
         "what_selected_user": "den valda användaren",
         "what_categories": "dina kategorier",
@@ -264,6 +268,10 @@ TRANSLATIONS = {
         "load_failed": "Could not load {what}. The database may be busy.",
         "try_again": "🔄 Try again",
         "write_failed": "Could not {action}. The database may be busy; please try again.",
+        "database_too_new": (
+            "The database was created by a newer version of ExpenseHandler (database version {found}, "
+            "this version supports {supported}). Install the latest version. Nothing in your data was changed."
+        ),
         "what_database": "the database",
         "what_selected_user": "the selected user",
         "what_categories": "your categories",

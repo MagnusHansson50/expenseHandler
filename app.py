@@ -801,6 +801,10 @@ def main():
         user = load(db.get_user, user_id, what="what_selected_user") if user_id else None
     except DataUnavailable:
         return  # Nothing else can be shown without the database; "Try again" reruns.
+    except db.DatabaseTooNew as error:
+        # A newer version of the program wrote this file: leave it alone and say so.
+        st.error(t(error.key, lang(), **error.params))
+        return
 
     if user is None:
         if user_id is not None:

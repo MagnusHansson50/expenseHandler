@@ -24,6 +24,7 @@ from services import auth  # noqa: E402
 EXIT_OK = 0
 EXIT_UNKNOWN_USER = 1
 EXIT_BAD_INPUT = 2
+EXIT_DATABASE_TOO_NEW = 3
 
 
 def main(argv, ask_password=getpass.getpass, out=print):
@@ -33,7 +34,11 @@ def main(argv, ask_password=getpass.getpass, out=print):
         return EXIT_BAD_INPUT
     name = argv[0]
 
-    db.init_db()
+    try:
+        db.init_db()
+    except db.DatabaseTooNew as error:
+        out(f"{error} Install the latest version of ExpenseHandler. Nothing was changed.")
+        return EXIT_DATABASE_TOO_NEW
     if db.get_user_by_name(name) is None:
         out(f"No user named '{name.strip()}' in {db.DB_PATH}.")
         return EXIT_UNKNOWN_USER

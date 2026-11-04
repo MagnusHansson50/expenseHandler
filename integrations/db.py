@@ -77,6 +77,30 @@ class UserNameTaken(UserNameError):
     key = "user_name_taken"
 
 
+class DatabaseTooNew(Exception):
+    """The database was written by a newer version of the app; it is left untouched.
+
+    `key` and `params` let the UI show it translated.
+    """
+
+    key = "database_too_new"
+
+    def __init__(self, found, supported):
+        super().__init__(f"Database schema version {found} is newer than this app supports ({supported}).")
+        self.params = {"found": found, "supported": supported}
+
+
+# The schema version, kept in the database file itself (PRAGMA user_version), so
+# a database from an older version of the desktop program is upgraded and one
+# from a newer version is refused instead of damaged. 0 means "before
+# versioning": those files already have the version 1 tables.
+# To change the schema: leave the CREATE TABLE script in init_db as version 1,
+# add the change as _MIGRATIONS[n] (a function taking the open connection) and
+# set SCHEMA_VERSION = n.
+SCHEMA_VERSION = 1
+_MIGRATIONS = {}
+
+
 def get_connection():
     """Open a new connection. Read-only callers close it via `closing(...)`."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
@@ -101,8 +125,16 @@ def transaction():
 
 
 def init_db():
-    """Create all tables if they do not exist yet."""
+    """Create the tables if needed and bring the schema up to SCHEMA_VERSION.
+
+    Raises DatabaseTooNew, and changes nothing, if the file comes from a newer
+    version of the app.
+    """
     with transaction() as conn:
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise DatabaseTooNew(version, SCHEMA_VERSION)
+        # The version 1 schema; later changes are migrations (see SCHEMA_VERSION).
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -141,6 +173,11 @@ def init_db():
             );
             """
         )
+        conn.execute("BEGIN")  # executescript commits; the upgrade below is one transaction
+        for target in range(max(version, 1) + 1, SCHEMA_VERSION + 1):
+            _MIGRATIONS[target](conn)
+        # PRAGMA takes no ? parameters. SCHEMA_VERSION is an int constant, never user input.
+        conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
 
 
 def _to_iso(value):

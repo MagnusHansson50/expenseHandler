@@ -170,6 +170,7 @@ def test_keys_from_core_and_db_are_found():
         "user_name_empty",
         "user_name_too_long",
         "user_name_taken",
+        "database_too_new",
         "password_too_short",
         "password_too_long",
     }
