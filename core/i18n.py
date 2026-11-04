@@ -29,6 +29,10 @@ TRANSLATIONS = {
     "sv": {
         # Page and navigation
         "app_title": "🧾 ExpenseHandler",
+        "desktop_running": (
+            "ExpenseHandler körs på {url} och öppnas i webbläsaren. Dina kvitton sparas i {path}. "
+            "Stäng det här fönstret för att avsluta."
+        ),
         "language_label": "Språk",
         "tab_receipt": "🛒 Aktuellt kvitto",
         "tab_history": "📜 Historik",
@@ -150,6 +154,10 @@ TRANSLATIONS = {
     "en": {
         # Page and navigation
         "app_title": "🧾 ExpenseHandler",
+        "desktop_running": (
+            "ExpenseHandler is running at {url} and opens in your browser. Your receipts are saved in {path}. "
+            "Close this window to quit."
+        ),
         "language_label": "Language",
         "tab_receipt": "🛒 Current Receipt",
         "tab_history": "📜 History",
