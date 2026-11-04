@@ -5,3 +5,5 @@ __pycache__/
 *.db
 .claude/launch.json
 .pytest_cache/
+build/
+dist/

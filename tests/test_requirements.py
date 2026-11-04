@@ -17,13 +17,13 @@ def requirement_lines(filename):
             yield line
 
 
-@pytest.mark.parametrize("filename", ["requirements.txt", "requirements-dev.txt"])
+@pytest.mark.parametrize("filename", ["requirements.txt", "requirements-dev.txt", "requirements-build.txt"])
 def test_every_dependency_is_pinned_to_patch_releases(filename):
     unpinned = [line for line in requirement_lines(filename) if not PINNED.match(line)]
     assert not unpinned, f"{filename}: use 'name~=X.Y.Z' for {unpinned}"
 
 
-@pytest.mark.parametrize("filename", ["requirements.txt", "requirements-dev.txt"])
+@pytest.mark.parametrize("filename", ["requirements.txt", "requirements-dev.txt", "requirements-build.txt"])
 def test_installed_versions_satisfy_the_pins(filename):
     for line in requirement_lines(filename):
         match = PINNED.match(line)
