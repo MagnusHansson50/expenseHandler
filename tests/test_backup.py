@@ -10,6 +10,7 @@ from core.backup import (
     BACKUP_FORMAT,
     MAX_BACKUP_BYTES,
     InvalidBackup,
+    download_name,
     history_csv,
     make_backup,
     new_categories,
@@ -198,3 +199,15 @@ def test_identical_purchases_are_counted_not_merged():
     one_coffee = history(("2026-10-20", "Kaffe", 59.9, FALLBACK_CATEGORY))
     added = new_history_rows(one_coffee, backup)
     assert added["Item"].tolist() == ["Mjölk 3%", "Kaffe", "Rabatt"]  # the second coffee only
+
+
+# --- File names --------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [("Anna", "ExpenseHandler-Anna-2026-11-05.json"), ("Åsa Öberg", "ExpenseHandler-Åsa_Öberg-2026-11-05.json"),
+     ('a/b\\c:d*e?"f<g>h|',"ExpenseHandler-a_b_c_d_e__f_g_h_-2026-11-05.json"), ("   ", "ExpenseHandler-user-2026-11-05.json")],
+)
+def test_download_names_are_safe_file_names(name, expected):
+    assert download_name(name, date(2026, 11, 5), "json") == expected

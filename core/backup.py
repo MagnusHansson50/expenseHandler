@@ -115,6 +115,16 @@ def _defuse(text):
     return "'" + text if text.startswith(FORMULA_STARTS) else text
 
 
+def download_name(user_name, day, extension):
+    """A file name such as "ExpenseHandler-Anna-2026-11-05.json" that is safe on every system.
+
+    Letters (also å, ä, ö) and digits are kept; anything else in the user
+    name, such as slashes, colons, quotes, wildcards or spaces, becomes "_".
+    """
+    safe = "".join(char if char.isalnum() else "_" for char in user_name.strip())[:MAX_NAME_LENGTH] or "user"
+    return f"ExpenseHandler-{safe}-{day.isoformat()}.{extension}"
+
+
 # --- Reading -----------------------------------------------------------------
 
 
