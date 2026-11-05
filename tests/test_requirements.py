@@ -1,7 +1,7 @@
 """Dependencies must be pinned to tested versions, and PyPDF2 must not return."""
 
 import re
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import pytest
@@ -28,7 +28,13 @@ def test_installed_versions_satisfy_the_pins(filename):
     for line in requirement_lines(filename):
         match = PINNED.match(line)
         pinned = tuple(int(part) for part in match["version"].split("."))
-        installed = tuple(int(part) for part in version(match["name"]).split(".")[:3])
+        try:
+            installed_version = version(match["name"])
+        except PackageNotFoundError:
+            if filename == "requirements-build.txt":
+                continue  # build-only (PyInstaller): not installed where only the tests run
+            raise
+        installed = tuple(int(part) for part in installed_version.split(".")[:3])
         assert installed[:2] == pinned[:2] and installed >= pinned, (match["name"], installed)
 
 
