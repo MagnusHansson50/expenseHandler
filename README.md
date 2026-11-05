@@ -67,10 +67,11 @@ Kräver Python 3.12 eller senare.
 ### Glömt lösenord
 
 Appen kan inte skicka e-post. Du sätter ett nytt lösenord på samma dator. Med programmet:
-öppna en kommandotolk i mappen `ExpenseHandler` och skriv
+öppna mappen `ExpenseHandler` i Utforskaren, högerklicka och välj **Öppna i terminal**, och skriv
+(med `.\` först, annars hittar PowerShell inte programmet)
 
-```bash
-ExpenseHandler.exe --reset-password "Ditt namn"
+```powershell
+.\ExpenseHandler.exe --reset-password "Ditt namn"
 ```
 
 Från koden:
