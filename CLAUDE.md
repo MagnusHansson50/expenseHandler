@@ -204,7 +204,10 @@ Desktop program
   and fewer antivirus alarms). Streamlit has no PyInstaller hook: the spec collects its data files,
   metadata and submodules, copies `app.py` as a file and lists our packages as hidden imports
   (Streamlit runs `app.py` as a script, so PyInstaller cannot see its imports). A new top-level
-  package must be added to the spec. `build/` and `dist/` are ignored by git.
+  package must be added to the spec. `streamlit/.agents` (templates for AI assistants, unused) is
+  left out: its 138-character paths made unzipping fail under Windows' 260-character limit in a
+  deep folder; keep the longest path in the bundle near 100 characters. `build/` and `dist/` are
+  ignored by git.
 - Check a build: `python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe` (starts it with
   a throwaway database and waits for the health endpoint and the page). PDF upload and the data
   editor still need a manual check in the built program.

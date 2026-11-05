@@ -28,7 +28,10 @@ hiddenimports = [
 
 datas = [
     (str(REPO_ROOT / "app.py"), "."),
-    *collect_data_files("streamlit"),
+    # streamlit/.agents holds templates for AI coding assistants, not used at run
+    # time. Its paths are the longest in the bundle (138 characters) and made
+    # unzipping fail under Windows' 260-character limit in a deep folder.
+    *collect_data_files("streamlit", excludes=["**/.agents/**"]),
     *copy_metadata("streamlit"),
 ]
 
