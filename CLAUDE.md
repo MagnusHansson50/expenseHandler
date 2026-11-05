@@ -66,6 +66,9 @@ Architecture
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
   changes, categorize from memory, validate before saving, decide what to remember on save, find
   items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`).
+- `core/backup.py`: the backup file (write, read and check), the CSV export and the import merge
+  rules (see Backup and CSV export).
+- `services/backup.py`: `export_backup`, `export_history_csv`, `import_backup`.
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
@@ -103,6 +106,7 @@ Architecture
     and no edit is applied twice.
   - `upload_version`: part of the `st.file_uploader` key; bumped after a PDF is parsed so the same file
     is not parsed again on the next rerun.
+  - `backup_upload_version`: the same for the backup uploader.
   - `purchase_date`: the date that will be saved with the receipt (from the receipt, or picked by the user).
   - `date_version`: part of the date picker key; bumped when `purchase_date` is set from code
     (upload, save, clear, switch user) so the picker shows the new value.
@@ -130,6 +134,9 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 - `get_login(name)` returns `Login(user, password_hash, salt)`, or `None` for an unknown name or a
   user without a password. The name must match exactly (surrounding spaces ignored, case not).
   `set_password(user_id, ...)` adds or replaces a password and returns `False` for an unknown user.
+- `get_all_history(user_id)` returns all of a user's purchases, oldest first (for backups).
+  `import_user_data(user_id, categories, memory, history_df)` adds them in one transaction (see
+  Backup and CSV export).
 - `delete_user(user_id)` deletes the user; their categories, memory, history and credentials go with
   them through `ON DELETE CASCADE` (foreign keys are on for every connection), in one transaction.
   It turns on `PRAGMA secure_delete` so the freed pages are overwritten and the data cannot be read
@@ -183,6 +190,32 @@ PDF parsing
 - After an upload the app compares the items with the `Betalat` amount (`paid_difference`); if they
   differ, the import message is a warning showing both amounts, so missing or misread items are
   noticed before saving.
+
+Backup and CSV export
+- Only the logged-in user's own data. `services/backup.py`: `export_backup(user_id)` (JSON bytes),
+  `export_history_csv(user_id, lang)` and `import_backup(user_id, data)` -> `db.ImportCounts(categories,
+  memory, purchases)`, raising `core.backup.InvalidBackup(problems)` (nothing added) for a bad file.
+- File format (`core/backup.py`): JSON with `format` ("expensehandler-backup"), `version`
+  (`BACKUP_VERSION`, now 1), `exported`, `categories` (stored names), `memory` (item -> category) and
+  `history` (date, item, price, category). Never passwords. A newer version is refused
+  (`backup_too_new`); when the format changes, bump `BACKUP_VERSION` and keep reading older versions.
+- `read_backup` checks everything before anything is written and reports every problem at once as
+  `Problem` keys (`backup_*`, and the receipt's item/price problems with the entry's row number):
+  at most `MAX_BACKUP_BYTES` (5 MB), JSON that is not nested too deep, the format and version,
+  category names (length, reserved labels), memory, and each purchase's fields, types,
+  `YYYY-MM-DD` date and limits. Names in the problems come from the file: the UI escapes them.
+- Import merges (`new_categories`, `new_memory`, `new_history_rows`): missing categories are added,
+  the user's own remembered choices win, and purchases are compared on (date, item, price,
+  category) and counted, so identical purchases stay separate and importing the same file twice adds
+  nothing. `db.import_user_data` writes it all in one transaction with the usual rules (a category the
+  user does not have becomes `FALLBACK_CATEGORY`).
+- CSV: Swedish uses `;` and decimal commas, English `,` and points; UTF-8 with BOM; categories as
+  labels. Text cells starting with `=`, `+`, `-`, `@`, tab or CR get a leading `'` (CSV injection);
+  prices are written as numbers. It is for reading only; there is no CSV import.
+- UI: History tab, collapsed "💾 Backup" ("💾 Säkerhetskopia"), shown also without history: download
+  buttons (file names from `download_name`, e.g. `ExpenseHandler-Anna-2026-11-05.json`) and an
+  uploader keyed with `backup_upload_version` so a file is imported once. Success is a flash with the
+  counts; problems are listed (at most 20) next to the uploader.
 
 Desktop program
 - `desktop/launcher.py` starts the app: it sets `EXPENSES_DB_PATH` to the user's data folder
@@ -272,7 +305,8 @@ Reviewing items without a category
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
   form's default is not (it cannot be told apart from the default).
 - Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
-  the list of purchases, and delete all purchases saved on a date (with confirmation).
+  the list of purchases, delete all purchases saved on a date (with confirmation), and the backup
+  section (see Backup and CSV export).
 
 Languages
 - Supported: Swedish (`sv`, the default) and English (`en`), listed in `core.i18n.LANGUAGES`.
@@ -283,7 +317,7 @@ Languages
 - Adding or changing a text: add the same key to every language in `core.i18n.TRANSLATIONS`, with the
   same `{placeholders}`, and use it with `t("key", lang())`. `tests/test_i18n.py` fails if a key is
   missing in a language, has different placeholders, or is defined but never used (it scans `app.py`,
-  `desktop/launcher.py` and the keys produced in `core/` and `db.py`).
+  `desktop/launcher.py` and the keys produced in `core/` (receipt, auth, backup) and `db.py`).
 - `t()` formats numeric parameters for the language (`format_number`): "100 000" in Swedish,
   "100,000" in English. Amounts in kronor use `format_amount`: "1 122,17 kr" / "1,122.17 kr".
   Dates are shown as `YYYY-MM-DD` in both languages.
@@ -369,6 +403,10 @@ Testing
   layer (nothing left in any table or in the file, other users untouched) and in the UI
   (confirmation, wrong password, lock, logout, the name can be reused).
 - `tests/test_auth_guards.py`: no password in logs; `current_user` only set by `switch_user`/`log_out`.
+- `tests/test_backup.py`, `tests/test_services_backup.py`, `tests/test_app_backup.py`: the backup
+  format and its checks, the CSV export (also CSV injection), the merge rules, export and import
+  against a temporary database (one user's data only, twice adds nothing, all or nothing), and the
+  UI section. Uploading a backup is not supported by `AppTest`; check it in a browser.
 - `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing) and refusing
   a database from a newer version.
 - `tests/test_launcher.py`: the desktop launcher (data folders, port, flags matching `config.toml` and
@@ -403,10 +441,12 @@ Known limitations
 - `expenses.db` is not encrypted.
 - Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
   the app. To delete an account whose password is forgotten, reset it first.
-- Deleting an account cannot be undone, and there is no export of the history before it.
-  Copies of `expenses.db` made earlier (backups) still contain the deleted data.
-- No backup: if `expenses.db` is lost or damaged, all users and history are gone. Copy the file
-  while the app is stopped to back it up.
+- Deleting an account cannot be undone; download a backup first to keep the history. Backups and
+  copies of `expenses.db` made earlier still contain the deleted data.
+- Backups are not encrypted and cannot be protected with a password, and they are not made
+  automatically. There is no CSV import (only CSV export).
+- If `expenses.db` is lost or damaged, whatever is not in a downloaded backup is gone. Copying the
+  file while the app is stopped backs up all users at once.
 - Only receipt copies from Kivra (PDF) can be imported; other receipts must be entered manually.
   A layout Kivra changes or a line the parser does not recognize shows up as a warning that the
   items do not add up to `Betalat`.
@@ -443,6 +483,7 @@ Project structure
 │   └── smoke_test.py   # Check that a built program starts
 ├── services/
 │   ├── auth.py         # Register, log in (with throttle), reset password, delete account
+│   ├── backup.py       # Export and import of a user's own data
 │   └── receipts.py     # Import and save flows (core + database, no Streamlit)
 ├── scripts/
 │   ├── __init__.py
@@ -451,6 +492,7 @@ Project structure
 │   └── db.py
 ├── core/
 │   ├── auth.py         # Password hashing and rules
+│   ├── backup.py       # Backup file format, CSV export, import merge rules
 │   ├── constants.py
 │   ├── parser.py
 │   ├── receipt.py
@@ -460,6 +502,7 @@ Project structure
 ├── tests/
 │   ├── conftest.py
 │   ├── test_app.py
+│   ├── test_app_backup.py
 │   ├── test_app_db_errors.py
 │   ├── test_app_delete_account.py
 │   ├── test_app_language.py
@@ -468,6 +511,7 @@ Project structure
 │   ├── test_architecture.py
 │   ├── test_auth.py
 │   ├── test_auth_guards.py
+│   ├── test_backup.py
 │   ├── test_calculator.py
 │   ├── test_db.py
 │   ├── test_db_credentials.py
@@ -482,6 +526,7 @@ Project structure
 │   ├── test_reset_password_script.py
 │   ├── test_services.py
 │   ├── test_services_auth.py
+│   ├── test_services_backup.py
 │   ├── test_streamlit_config.py
 │   └── test_text.py
 ├── requirements.txt
@@ -493,7 +538,7 @@ Commits
 - Commit messages are in English: a short summary line, a blank line, then what changed and why.
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
-  `Language Step 5: ...`, `Login Step 4: ...` or `Desktop Step 2: ...`.
+  `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...` or `Backup Step 3: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

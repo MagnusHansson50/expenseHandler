@@ -96,6 +96,23 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
   Här kan du också ta bort allt som sparats ett visst datum.
 
+## Säkerhetskopiera och byta dator
+
+Under **Historik → 💾 Säkerhetskopia**:
+
+- **Ladda ner säkerhetskopia** ger en fil, till exempel `ExpenseHandler-Anna-2026-11-05.json`,
+  med dina kategorier, dina kategorival och hela din historik. Lösenordet följer inte med.
+  Filen är inte krypterad och innehåller alla dina köp, så förvara den säkert (till exempel på
+  ett USB-minne eller i din egen molnlagring).
+- **Ladda ner historiken som CSV (Excel)** ger alla köp som en tabell som går att öppna i Excel.
+  Den kan inte läsas in igen; använd säkerhetskopian till det.
+- **Läs in en säkerhetskopia** lägger till det som finns i filen och som du inte redan har.
+  Det du redan har lämnas orört, och läser du in samma fil två gånger läggs inget till andra gången.
+  Är något fel i filen läses ingenting in, och du får se vad som är fel.
+
+Byta dator: ladda ner en säkerhetskopia på den gamla datorn, installera programmet på den nya,
+skapa ett konto (eller logga in) och läs in filen.
+
 ## Begränsningar
 
 - **Bara på din egen dator.** Appen lyssnar bara på `localhost`, så den går inte att nå från
@@ -104,8 +121,8 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   med programmet, annars i kodmappen). Inloggningen
   skyddar användarna från varandra i appen, men den som kommer åt datorn kan läsa filen direkt.
   Lösenorden sparas aldrig i klartext.
-- **Ingen säkerhetskopia.** Försvinner eller skadas `expenses.db` är all historik borta.
-  Kopiera filen till en säker plats då och då (när appen är stängd). Öppnar du en databas som
+- **Säkerhetskopior görs inte automatiskt.** Försvinner eller skadas `expenses.db` är allt som
+  inte finns i en säkerhetskopia borta. Ladda ner en säkerhetskopia då och då. Öppnar du en databas som
   en nyare version av programmet har använt, säger en äldre version ifrån i stället för att
   ändra den; installera då den nyaste versionen.
 - **Bara Windows som färdigt program**, och det är inte signerat (därav varningen vid första
@@ -113,8 +130,10 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   Det är stort (cirka 200 MB uppackat) eftersom Python och alla bibliotek följer med.
 - **Inget byte av lösenord i appen.** Lösenord byts med skriptet ovan. Har du glömt lösenordet
   och vill ta bort kontot sätter du först ett nytt lösenord med skriptet.
-- **En borttagning går inte att ångra**, och historiken kan inte exporteras först. Kopior av
-  `expenses.db` som du har sparat tidigare innehåller fortfarande det borttagna.
+- **En borttagning går inte att ångra.** Vill du spara din historik, ladda ner en
+  säkerhetskopia innan du tar bort kontot. Säkerhetskopior och kopior av `expenses.db` som du
+  har sparat tidigare innehåller fortfarande det borttagna.
+- **Säkerhetskopian är inte krypterad** och kan inte skyddas med lösenord.
 - **Bara kvittokopior från Kivra** kan läsas in från PDF, oavsett butik (till exempel ICA, Jula,
   Kjell & Co, Rusta och Stadium). Ladda ner kvittot som PDF i Kivra. Andra kvitton får läggas in
   för hand.
