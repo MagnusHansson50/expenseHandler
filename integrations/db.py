@@ -347,15 +347,23 @@ def add_category(user_id, name):
     never be mistaken for the fallback.
     """
     name = name.strip()
-    if not name or len(name) > MAX_NAME_LENGTH:
-        return False
-    if name.casefold() in _RESERVED_CATEGORY_NAMES:
+    if not _is_allowed_category_name(name):
         return False
     with transaction() as conn:
-        cursor = conn.execute(
-            "INSERT OR IGNORE INTO categories (name, user_id) VALUES (?, ?)",
-            (name, user_id),
-        )
+        return _insert_category(conn, user_id, name)
+
+
+def _is_allowed_category_name(name):
+    """Not empty, not too long and not one of the fallback category's reserved labels."""
+    return bool(name) and len(name) <= MAX_NAME_LENGTH and name.casefold() not in _RESERVED_CATEGORY_NAMES
+
+
+def _insert_category(conn, user_id, name):
+    """Add a category on an open connection; False if the user already has it."""
+    cursor = conn.execute(
+        "INSERT OR IGNORE INTO categories (name, user_id) VALUES (?, ?)",
+        (name, user_id),
+    )
     return cursor.rowcount == 1
 
 
@@ -410,7 +418,7 @@ def save_memory(user_id, mapping):
 
 
 def _write_memory(conn, user_id, mapping):
-    """Write memory rows on an open connection (see save_memory)."""
+    """Write memory rows on an open connection (see save_memory); returns how many were written."""
     categories = _category_names(conn, user_id)
     rows = [
         (item, category, user_id)
@@ -425,6 +433,7 @@ def _write_memory(conn, user_id, mapping):
             """,
             rows,
         )
+    return len(rows)
 
 
 # --- History -------------------------------------------------------------
@@ -509,6 +518,49 @@ def get_history(user_id, start_date, end_date):
             (user_id, _to_iso(start_date), _to_iso(end_date)),
         ).fetchall()
     return pd.DataFrame(rows, columns=HISTORY_COLUMNS)
+
+
+def get_all_history(user_id):
+    """Return all of the user's purchases, oldest first, as a DataFrame (for a backup)."""
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            "SELECT id, date, item, price, category FROM history WHERE user_id = ? ORDER BY date, id",
+            (user_id,),
+        ).fetchall()
+    return pd.DataFrame(rows, columns=HISTORY_COLUMNS)
+
+
+class ImportCounts(NamedTuple):
+    """How much import_user_data added."""
+
+    categories: int
+    memory: int
+    purchases: int
+
+
+def import_user_data(user_id, categories, memory, history_df):
+    """Add categories, remembered choices and purchases from a backup, all or nothing.
+
+    The usual rules apply: category names that are empty, too long or
+    reserved are skipped (FALLBACK_CATEGORY is always there already);
+    memory as in save_memory, written after the new categories so it can
+    use them; purchases (columns Date, Item, Price, Category) as in
+    save_history, so a category the user does not have becomes
+    FALLBACK_CATEGORY and an item or price outside the limits raises
+    ValueError. If anything fails, nothing is added.
+    """
+    with transaction() as conn:
+        added_categories = sum(
+            _insert_category(conn, user_id, name.strip())
+            for name in categories
+            if _is_allowed_category_name(name.strip())
+        )
+        added_memory = _write_memory(conn, user_id, memory)
+        added_purchases = sum(
+            _write_history(conn, user_id, purchase_date, rows[["Item", "Price", "Category"]])
+            for purchase_date, rows in history_df.groupby("Date", sort=True)
+        )
+    return ImportCounts(added_categories, added_memory, added_purchases)
 
 
 def get_history_dates(user_id):
