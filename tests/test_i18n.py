@@ -125,13 +125,13 @@ def ui_keys_used_in_app():
 
 
 def keys_produced_below_the_ui():
-    """Keys created in core/receipt.py and core/auth.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
+    """Keys created in core/receipt.py, core/auth.py and core/backup.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
     import ast
     from pathlib import Path
 
     repo = Path(__file__).resolve().parent.parent
     keys = set()
-    for module in ("receipt.py", "auth.py"):
+    for module in ("receipt.py", "auth.py", "backup.py"):
         tree = ast.parse((repo / "core" / module).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
@@ -173,6 +173,13 @@ def test_keys_from_core_and_db_are_found():
         "database_too_new",
         "password_too_short",
         "password_too_long",
+        "backup_too_large",
+        "backup_unreadable",
+        "backup_too_new",
+        "backup_bad_category",
+        "backup_bad_memory",
+        "backup_bad_entry",
+        "backup_bad_date",
     }
 
 
