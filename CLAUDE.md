@@ -9,6 +9,8 @@ and history. No function may read or change another user's rows, and an action b
 (e.g. deleting a category) never affects another user's data.
 Every user logs in with a name and password (see Authentication), so nobody can open another
 user's receipts from the app. The app still only listens on localhost (see Security).
+It is distributed as a Windows desktop program (see Desktop program): everyone runs their own copy,
+with their data on their own computer.
 
 Code location
 All code lives in this repository. The repository is public on GitHub (see Security).
@@ -20,6 +22,7 @@ Tech stack
 - pypdf (PDF text extraction; replaces the unmaintained PyPDF2)
 - SQLite3 (local persistent database)
 - pytest (tests, dev only)
+- PyInstaller (builds the desktop program, build only: `requirements-build.txt`)
 - Versions are pinned in `requirements.txt` / `requirements-dev.txt` (see Security).
 
 Code conventions
@@ -69,6 +72,10 @@ Architecture
   rules (`password_problem`).
 - `scripts/reset_password.py`: command-line tool for whoever runs the app to set a new password
   (see Authentication). Not imported by the app.
+- `desktop/launcher.py`: entry point of the desktop program (see Desktop program). Imports
+  `core.i18n`, `scripts` and Streamlit; nothing in the app imports `desktop/`.
+- `desktop/ExpenseHandler.spec`, `desktop/smoke_test.py`: the PyInstaller build and the check that a
+  built program starts and answers.
 - `core/i18n.py`: translations (`TRANSLATIONS`, `t`), number and amount formatting per language,
   default categories per language and the fallback category label (see Languages).
 - Dependency direction: `app.py` -> `services/`, `core/`, `integrations/`;
@@ -143,6 +150,15 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   open connection so they can be combined. The memory mapping is passed in because `integrations/`
   may not import `core/receipt.py`.
 - Always use `CREATE TABLE IF NOT EXISTS`. Keep the schema stable.
+- Schema version: the file carries `PRAGMA user_version` (`db.SCHEMA_VERSION`, now 1), because desktop
+  users keep their `expenses.db` across program versions. `init_db` stamps new files and files from
+  before versioning (0). To change the schema, leave the `CREATE TABLE` script as version 1, add the
+  change as `db._MIGRATIONS[n]` (a function taking the open connection) and set `SCHEMA_VERSION = n`;
+  `init_db` runs the missing migrations in order in one transaction with the new version. A file
+  with a higher version raises `db.DatabaseTooNew` (key `database_too_new`) before anything is
+  changed; the app shows that message instead of the login page and the reset script exits with 3.
+  The version is written with an f-string only because PRAGMA takes no `?` parameters; it is an int
+  constant.
 - The `EXPENSES_DB_PATH` environment variable points the app at another database file
   (used for manual testing; the test suite patches `db.DB_PATH` instead).
 - The legacy `kvitto_minne.db` (tables `minne`, `kategorier`, `historik`) belongs to the old receipt-splitter version and is not used.
@@ -167,6 +183,36 @@ PDF parsing
 - After an upload the app compares the items with the `Betalat` amount (`paid_difference`); if they
   differ, the import message is a warning showing both amounts, so missing or misread items are
   noticed before saving.
+
+Desktop program
+- `desktop/launcher.py` starts the app: it sets `EXPENSES_DB_PATH` to the user's data folder
+  (`%APPDATA%\ExpenseHandler\expenses.db`; `~/Library/Application Support/...` on macOS,
+  `$XDG_DATA_HOME` or `~/.local/share/...` on Linux) unless it is already set, picks a free port
+  (or `--port N`), prints where it runs (sv and en, `desktop_running`), opens the browser once
+  `/_stcore/health` answers (not with `--no-browser`), and runs Streamlit. `--reset-password "Name"`
+  runs `scripts/reset_password.py` on the same database.
+- `.streamlit/config.toml` is not read inside a packaged program, so `streamlit_flags()` passes the
+  security settings as flags (localhost, 5 MB uploads, no error details) plus no usage statistics,
+  no file watching and `global.developmentMode` off (Streamlit guesses dev mode when it is not in
+  `site-packages`, as in a bundle, and would load its UI from a dev server). Keep them in sync with
+  `config.toml`; `tests/test_launcher.py` compares them. `start_streamlit` loads the flags with
+  `bootstrap.load_config_options` before `bootstrap.run`, as `streamlit run` does; `bootstrap.run`
+  alone ignores them.
+- Build: `python -m pip install -r requirements-build.txt`, then
+  `python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm` -> `dist/ExpenseHandler/`
+  (`ExpenseHandler.exe` and `_internal/`, about 200 MB; one folder, not one file, for start-up time
+  and fewer antivirus alarms). Streamlit has no PyInstaller hook: the spec collects its data files,
+  metadata and submodules, copies `app.py` as a file and lists our packages as hidden imports
+  (Streamlit runs `app.py` as a script, so PyInstaller cannot see its imports). A new top-level
+  package must be added to the spec. `build/` and `dist/` are ignored by git.
+- Check a build: `python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe` (starts it with
+  a throwaway database and waits for the health endpoint and the page). PDF upload and the data
+  editor still need a manual check in the built program.
+- GitHub Actions: `.github/workflows/tests.yml` runs pytest on Windows and Ubuntu (Python 3.12) for
+  pushes to master and pull requests. `.github/workflows/release.yml` runs on a pushed tag `v*`:
+  tests, build, smoke test, then `ExpenseHandler-<tag>-windows.zip` on a new GitHub release. Actions
+  are pinned to commit SHAs (tag in a comment); the tag name reaches scripts only through `$env:TAG`.
+  Pushing a tag publishes a release, so only do it when the user asks.
 
 Authentication
 - Login is by user name and password; there is open registration (anyone who can open the app can
@@ -233,7 +279,8 @@ Languages
   a new tab without `?lang=` starts in Swedish, and switching user keeps the tab's language.
 - Adding or changing a text: add the same key to every language in `core.i18n.TRANSLATIONS`, with the
   same `{placeholders}`, and use it with `t("key", lang())`. `tests/test_i18n.py` fails if a key is
-  missing in a language, has different placeholders, or is defined but never used.
+  missing in a language, has different placeholders, or is defined but never used (it scans `app.py`,
+  `desktop/launcher.py` and the keys produced in `core/` and `db.py`).
 - `t()` formats numeric parameters for the language (`format_number`): "100 000" in Swedish,
   "100,000" in English. Amounts in kronor use `format_amount`: "1 122,17 kr" / "1,122.17 kr".
   Dates are shown as `YYYY-MM-DD` in both languages.
@@ -262,7 +309,7 @@ Error handling
 - Log with `logging` (`logger.exception` / `logger.warning(..., exc_info=True)`). Log messages must not
   contain receipt data, item names or other personal data.
 - Expected problems with user input are not exceptions to log: show them directly (validation
-  problems from `InvalidReceipt`, `NotAPdfError`, duplicate user name).
+  problems from `InvalidReceipt`, `NotAPdfError`, duplicate user name, `DatabaseTooNew`).
 
 Security
 - Network: `.streamlit/config.toml` sets `server.address = "localhost"`. The login is not hardened
@@ -319,6 +366,10 @@ Testing
   layer (nothing left in any table or in the file, other users untouched) and in the UI
   (confirmation, wrong password, lock, logout, the name can be reused).
 - `tests/test_auth_guards.py`: no password in logs; `current_user` only set by `switch_user`/`log_out`.
+- `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing) and refusing
+  a database from a newer version.
+- `tests/test_launcher.py`: the desktop launcher (data folders, port, flags matching `config.toml` and
+  in effect when the server starts, `--reset-password`, `--port`, `--no-browser`).
 - Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
   and log in through the forms with the helpers in `tests/test_app.py`.
 - `tests/test_app.py`: headless UI tests with Streamlit's `AppTest` (including that user text is shown
@@ -358,6 +409,9 @@ Known limitations
   items do not add up to `Betalat`.
 - PDF upload and `st.data_editor` edits are not covered by the automated tests (`AppTest` does not
   support them); check them in a browser after changing that code.
+- The desktop program exists only for Windows, is not code-signed (Windows shows "Windows protected
+  your PC" on first start), does not update itself, is about 200 MB, and runs in a console window
+  that must stay open. Mac and Linux users run it from the code (`python desktop/launcher.py`).
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
 - The language is remembered per browser tab/URL, not per user.
@@ -374,6 +428,16 @@ Project structure
 ├── README.md           # For users, in Swedish: run, log in, reset password, limitations
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
+├── requirements-build.txt  # PyInstaller pin for the desktop build
+├── .github/
+│   └── workflows/
+│       ├── tests.yml   # pytest on Windows and Ubuntu
+│       └── release.yml # build, smoke test and release on a v* tag
+├── desktop/
+│   ├── __init__.py
+│   ├── launcher.py     # Entry point of the desktop program
+│   ├── ExpenseHandler.spec  # PyInstaller build
+│   └── smoke_test.py   # Check that a built program starts
 ├── services/
 │   ├── auth.py         # Register, log in (with throttle), reset password, delete account
 │   └── receipts.py     # Import and save flows (core + database, no Streamlit)
@@ -405,7 +469,9 @@ Project structure
 │   ├── test_db.py
 │   ├── test_db_credentials.py
 │   ├── test_db_delete_user.py
+│   ├── test_db_schema.py
 │   ├── test_i18n.py
+│   ├── test_launcher.py
 │   ├── test_no_personal_data.py
 │   ├── test_parser.py
 │   ├── test_receipt.py
@@ -424,7 +490,7 @@ Commits
 - Commit messages are in English: a short summary line, a blank line, then what changed and why.
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
-  `Language Step 5: ...` or `Login Step 4: ...`.
+  `Language Step 5: ...`, `Login Step 4: ...` or `Desktop Step 2: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
@@ -432,3 +498,10 @@ pip install -r requirements.txt
 
 Run (from the repository root, so .streamlit/config.toml is used)
 python -m streamlit run app.py
+
+Run as the desktop program does (data folder, free port, opens the browser)
+python desktop/launcher.py
+
+Build the desktop program (see Desktop program)
+python -m pip install -r requirements-build.txt
+python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm

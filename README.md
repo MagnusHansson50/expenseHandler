@@ -8,6 +8,26 @@ Appen finns på svenska och engelska (välj språk i sidomenyn).
 
 ## Kom igång
 
+Det finns två sätt: ladda ner programmet för Windows, eller köra appen från koden.
+
+### Programmet för Windows
+
+1. Ladda ner den senaste `ExpenseHandler-vX.Y.Z-windows.zip` under
+   [Releases](https://github.com/MagnusHansson50/expenseHandler/releases).
+2. Packa upp zip-filen, till exempel i `Dokument`.
+3. Starta `ExpenseHandler\ExpenseHandler.exe`. Första gången kan Windows visa
+   "Windows skyddade datorn" eftersom programmet inte är signerat. Klicka **Mer information**
+   och sedan **Kör ändå**.
+4. Ett svart fönster öppnas och appen visas i webbläsaren efter några sekunder. Låt fönstret vara
+   öppet medan du använder appen; stäng det för att avsluta.
+
+Dina data sparas i `%APPDATA%\ExpenseHandler\expenses.db` (skriv `%APPDATA%` i
+Utforskarens adressfält för att hitta mappen), inte i programmappen. Du kan därför byta till en
+ny version genom att packa upp den nya zip-filen och ta bort den gamla mappen; dina kvitton
+finns kvar.
+
+### Från koden
+
 Kräver Python 3.12 eller senare.
 
 1. Installera beroenden (en gång), från mappen där koden ligger:
@@ -23,7 +43,11 @@ Kräver Python 3.12 eller senare.
    ```
 
    Appen öppnas i webbläsaren på `http://localhost:8501`. Starta den alltid från kodmappen,
-   annars används inte säkerhetsinställningarna i `.streamlit/config.toml`.
+   annars används inte säkerhetsinställningarna i `.streamlit/config.toml`. Här sparas
+   databasen som `expenses.db` i kodmappen.
+
+   Vill du köra från koden men som programmet gör (data i `%APPDATA%`, ledig port, webbläsaren
+   öppnas automatiskt) startar du `python desktop/launcher.py` i stället.
 
 ## Konto och inloggning
 
@@ -42,7 +66,14 @@ Kräver Python 3.12 eller senare.
 
 ### Glömt lösenord
 
-Appen kan inte skicka e-post. Den som kör appen sätter ett nytt lösenord på samma dator:
+Appen kan inte skicka e-post. Du sätter ett nytt lösenord på samma dator. Med programmet:
+öppna en kommandotolk i mappen `ExpenseHandler` och skriv
+
+```bash
+ExpenseHandler.exe --reset-password "Ditt namn"
+```
+
+Från koden:
 
 ```bash
 python scripts/reset_password.py "Ditt namn"
@@ -68,11 +99,17 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 
 - **Bara på din egen dator.** Appen lyssnar bara på `localhost`, så den går inte att nå från
   andra datorer. Det är avsiktligt.
-- **Databasen är inte krypterad.** Allt sparas i filen `expenses.db` i kodmappen. Inloggningen
+- **Databasen är inte krypterad.** Allt sparas i filen `expenses.db` (i `%APPDATA%\ExpenseHandler`
+  med programmet, annars i kodmappen). Inloggningen
   skyddar användarna från varandra i appen, men den som kommer åt datorn kan läsa filen direkt.
   Lösenorden sparas aldrig i klartext.
 - **Ingen säkerhetskopia.** Försvinner eller skadas `expenses.db` är all historik borta.
-  Kopiera filen till en säker plats då och då (när appen är stängd).
+  Kopiera filen till en säker plats då och då (när appen är stängd). Öppnar du en databas som
+  en nyare version av programmet har använt, säger en äldre version ifrån i stället för att
+  ändra den; installera då den nyaste versionen.
+- **Bara Windows som färdigt program**, och det är inte signerat (därav varningen vid första
+  starten). Programmet uppdaterar sig inte självt: ladda ner nya versioner från Releases.
+  Det är stort (cirka 200 MB uppackat) eftersom Python och alla bibliotek följer med.
 - **Inget byte av lösenord i appen.** Lösenord byts med skriptet ovan. Har du glömt lösenordet
   och vill ta bort kontot sätter du först ett nytt lösenord med skriptet.
 - **En borttagning går inte att ångra**, och historiken kan inte exporteras först. Kopior av
