@@ -119,6 +119,7 @@ def init_session_state():
         "review_handled": [],
         "review_skipped": [],
         "review_names": [],
+        "review_notice": None,
         "review_kept_fallback": [],
     }
     for key, value in defaults.items():
@@ -192,6 +193,7 @@ def set_draft(df):
         st.session_state.review_active = False
         st.session_state.review_dismissed = []
         st.session_state.review_kept_fallback = []
+        st.session_state.review_notice = None
 
 
 def add_to_draft(rows):
@@ -504,7 +506,14 @@ def render_pdf_upload(user_id, categories):
         add_to_draft(result.items)
         if result.purchase_date:
             set_purchase_date(result.purchase_date)
-        flash(*import_message(result))
+        notice = import_message(result)
+        flash(*notice)
+        if result.remembered < len(result.items):
+            # Some items got no category from memory: open the review popup by
+            # itself (adding items by hand does not, see render_review). The
+            # popup covers the flash, so it shows the import message itself.
+            start_review()
+            st.session_state.review_notice = notice
     st.rerun()
 
 
@@ -596,8 +605,11 @@ def render_save_section(user_id):
 
 # --- Review of items without a category ------------------------------------
 # Items that still need a category are gone through in a popup (st.dialog),
-# one item at a time: clicking a category tag chooses it and moves on. Above
-# the table a button opens the popup and says how many items are left.
+# one item at a time: clicking a category tag chooses it and moves on. It
+# opens by itself after a PDF upload that left items without a category
+# (render_pdf_upload), not when items are added by hand (the form defaults to
+# the fallback category, so it would open after every item). Above the table
+# a button opens the popup and says how many items are left.
 # review_active keeps the popup open across reruns; closing it (Stop or the
 # window's X) puts the items left in review_dismissed, so it is not opened by
 # itself again for them. review_handled lists the items dealt with in this
@@ -606,13 +618,15 @@ def render_save_section(user_id):
 # lists items put in the fallback category on purpose: only those are
 # remembered as such when the receipt is saved, so items nobody decided on are
 # asked about again next time. review_names are the items the open popup is
-# about, for the close callback.
+# about, for the close callback. review_notice is the PDF import message,
+# shown at the top of a popup that opened by itself (it covers the flash).
 
 
 def start_review():
     st.session_state.review_active = True
     st.session_state.review_handled = []
     st.session_state.review_skipped = []
+    st.session_state.review_notice = None
 
 
 def close_review():
@@ -678,6 +692,9 @@ def open_review_dialog(pending, categories):
 
     @st.dialog(t("review_title", lang()), width="large", on_dismiss=close_review)
     def review_dialog():
+        if st.session_state.review_notice:  # what the PDF upload found, e.g. a Betalat mismatch
+            kind, message = st.session_state.review_notice
+            getattr(st, kind)(message)
         st.progress(handled / total, text=t("review_position", lang(), position=handled + 1, total=total))
         with st.container(border=True):
             col_name, col_amount = st.columns([3, 1], vertical_alignment="center")
