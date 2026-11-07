@@ -113,9 +113,9 @@ Architecture
   - `flash`: (kind, message) shown once after the next `st.rerun()`. It is rendered in a container that
     exists on every run, so the tabs below never move (moving them resets the selected tab).
     It is also shown on the login page (e.g. after deleting an account).
-  - `review_active`, `review_dismissed`, `review_handled`, `review_skipped`, `review_error`,
-    `review_kept_fallback`: the review of items without a category (see below). All are reset when
-    the draft becomes empty (cleared, saved, logging in or out).
+  - `review_active`, `review_dismissed`, `review_handled`, `review_skipped`, `review_kept_fallback`,
+    `review_names`, `review_notice`: the review popup for items without a category (see below).
+    They are reset when the draft becomes empty (cleared, saved, logging in or out).
 
 Database (`expenses.db`)
 Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
@@ -287,19 +287,27 @@ UI
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list, date picker + save button that writes to `history` and learns category
   choices into `memory`. Save is blocked with the per-row list of problems from `InvalidReceipt`.
-  Above the table: the question about items without a category, or the review itself.
+  Above the table: the button that opens the review popup for items without a category.
 
 Reviewing items without a category
 - An item needs a category (`core.receipt.uncategorized_items`) when its category is missing or no
   longer one of the user's, or when it is `FALLBACK_CATEGORY` although memory does not say the user
   chose that for it. Items filed under "Other" on purpose are not asked about again.
-- When the draft has such items, a box asks "Items without a category: N. Do you want to go through
-  them now?" with "Go through them" and "Not now". "Not now" stores those names
-  (`review_dismissed`); the question returns only when another item needs a category. It never
-  blocks saving.
-- The review shows one item at a time ("Item 1 of 3: name (amount)") with a category list without a
-  preselected choice and "Save and next" / "Skip" / "Stop". A choice applies to every row with
-  that name. It ends with "Every item now has a category" or the number of skipped items.
+- The review is a popup (`st.dialog`, "🏷️ Items without a category"): a progress bar ("Item 2 of
+  5"), the item and its amount, the user's categories as clickable tags (`st.pills`, a new key per
+  item so no choice carries over) and "Skip" / "Stop". One click on a tag gives every row with
+  that name the category and moves on. "Stop" and the window's X (`on_dismiss=close_review`) keep
+  what was chosen and put the items left in `review_dismissed`. When every item is handled the popup
+  closes and a flash says so, or how many were skipped. It never blocks saving.
+- It opens by itself after a PDF upload in which some items got no category from memory, and then
+  shows the import message at its top (`review_notice`), because it covers the flash. It does not
+  open by itself for items added by hand (the form defaults to the fallback category). Above the
+  table, "🏷️ Go through items without a category (N)" opens it at any time; N leaves out items
+  put in "Other" on purpose in the popup.
+- How the popup works: it stays open across reruns because `render_review` calls it while
+  `review_active` is true. Clicks inside a dialog only rerun the dialog, so every choice, skip or
+  stop ends with `st.rerun()` to move to the next item and update the table behind it. `AppTest`
+  renders the popup and its tags; the X cannot be clicked there and is checked in a browser.
 - Memory: items that still need a category when the receipt is saved are saved to history but not
   remembered, so they are asked about next time. Choosing "Other" in the review is a choice
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
@@ -394,8 +402,9 @@ Testing
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
-- `tests/test_app_review.py`: the question and the review of items without a category (counting,
-  "Not now", one item at a time, skip, stop, escaping, what is remembered on save).
+- `tests/test_app_review.py`: the review popup for items without a category (the button and its
+  count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save).
+  Opening by itself after a PDF upload is checked in a browser (`AppTest` cannot upload).
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).
 - `tests/test_reset_password_script.py`: the reset script with scripted password answers.
@@ -538,7 +547,8 @@ Commits
 - Commit messages are in English: a short summary line, a blank line, then what changed and why.
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
-  `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...` or `Backup Step 3: ...`.
+  `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
+  `Popup Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

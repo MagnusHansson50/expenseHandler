@@ -87,10 +87,13 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 - **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra (PDF, högst 5 MB) eller lägg till köp
   för hand. Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen
   kommer ihåg vilken kategori du valde för en vara till nästa gång.
-  Har några varor ingen kategori (de står som "Övrigt") frågar appen om du vill gå igenom dem.
-  Klicka **Gå igenom** för att välja kategori för en vara i taget, eller **Inte nu**. Varor du
-  hoppar över frågar appen om igen nästa gång; vill du att en vara ska ligga i "Övrigt" väljer
-  du det i genomgången, så frågar appen inte mer.
+  Får varor från ett uppladdat kvitto ingen kategori (de står som "Övrigt") öppnas en ruta,
+  **🏷️ Varor utan kategori**, som visar en vara i taget. Klicka på en kategori, så sparas den och
+  nästa vara visas. **Hoppa över** lämnar varan som den är, och **Avsluta** eller krysset stänger
+  rutan med det du redan valt. Rutan går att öppna igen med knappen **🏷️ Gå igenom varor utan
+  kategori** ovanför tabellen, som också gäller varor du lagt till för hand. Varor du hoppar över
+  frågar appen om igen nästa gång; vill du att en vara ska ligga i "Övrigt" väljer du det i
+  rutan, så frågar appen inte mer.
   Om varorna inte summerar till kvittots "Betalat" visas en gul varning; kontrollera då att alla
   varor finns med och har rätt pris innan du sparar.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
