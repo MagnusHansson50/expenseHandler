@@ -118,7 +118,7 @@ def init_session_state():
         "review_dismissed": [],
         "review_handled": [],
         "review_skipped": [],
-        "review_error": False,
+        "review_names": [],
         "review_kept_fallback": [],
     }
     for key, value in defaults.items():
@@ -595,40 +595,34 @@ def render_save_section(user_id):
 
 
 # --- Review of items without a category ------------------------------------
-# After an upload most items are in the fallback category. The app asks once
-# whether to go through them; "Not now" is remembered for exactly those items,
-# so the question comes back only when new uncategorized items are added.
-# The review shows one item at a time. review_handled lists the items dealt
-# with in this review (given a category, kept in the fallback category on
-# purpose, or skipped); review_skipped is the subset that was skipped.
-# review_kept_fallback lists items put in the fallback category on purpose:
-# only those are remembered as such when the receipt is saved, so items
-# nobody decided on are asked about again next time.
+# Items that still need a category are gone through in a popup (st.dialog),
+# one item at a time: clicking a category tag chooses it and moves on. Above
+# the table a button opens the popup and says how many items are left.
+# review_active keeps the popup open across reruns; closing it (Stop or the
+# window's X) puts the items left in review_dismissed, so it is not opened by
+# itself again for them. review_handled lists the items dealt with in this
+# review (given a category, kept in the fallback category on purpose, or
+# skipped); review_skipped is the subset that was skipped. review_kept_fallback
+# lists items put in the fallback category on purpose: only those are
+# remembered as such when the receipt is saved, so items nobody decided on are
+# asked about again next time. review_names are the items the open popup is
+# about, for the close callback.
 
 
 def start_review():
     st.session_state.review_active = True
     st.session_state.review_handled = []
     st.session_state.review_skipped = []
-    st.session_state.review_error = False
 
 
-def dismiss_review(names):
-    st.session_state.review_dismissed = names
-
-
-def stop_review(names):
-    """End the review; the question is not asked again for the items left."""
+def close_review():
+    """Stop or the popup's X: keep what was chosen, and do not open by itself for the items left."""
     st.session_state.review_active = False
-    st.session_state.review_dismissed = names
+    st.session_state.review_dismissed = st.session_state.review_names
 
 
-def review_choose(name, widget_key):
-    shown = st.session_state.get(widget_key)
-    if shown is None:
-        st.session_state.review_error = True
-        return
-    st.session_state.review_error = False
+def review_choose(name, shown):
+    """Give the item the category whose label was clicked in the popup."""
     category = category_value(shown, lang())
     set_draft(draft_ops.set_item_category(st.session_state.receipt_df, name, category))
     st.session_state.review_handled.append(name)
@@ -637,71 +631,80 @@ def review_choose(name, widget_key):
 
 
 def review_skip(name):
-    st.session_state.review_error = False
     st.session_state.review_handled.append(name)
     st.session_state.review_skipped.append(name)
 
 
 def render_review(user_id, categories):
-    """Ask whether to go through the draft's items that still need a category, and do it."""
+    """The button that opens the review popup, and the popup while it is open."""
     memory = load(db.load_memory, user_id, what="what_memory")
-    names = draft_ops.uncategorized_items(st.session_state.receipt_df, memory, categories)
+    names = [
+        name for name in draft_ops.uncategorized_items(st.session_state.receipt_df, memory, categories)
+        if name not in st.session_state.review_kept_fallback  # put in the fallback category on purpose
+    ]
+    st.session_state.review_names = names
 
     if st.session_state.review_active:
-        render_review_step(names, categories)
-        return
-    if not names or set(names) <= set(st.session_state.review_dismissed):
-        return
-
-    with st.container(border=True):
-        st.write(t("review_prompt", lang(), count=len(names)))
-        col_start, col_dismiss = st.columns(2)
-        col_start.button(t("review_start_button", lang()), key="review_start", on_click=start_review)
-        col_dismiss.button(
-            t("review_dismiss_button", lang()), key="review_dismiss", on_click=dismiss_review, args=(names,)
+        pending = [name for name in names if name not in st.session_state.review_handled]
+        if pending:
+            open_review_dialog(pending, categories)
+        else:
+            finish_review(names)
+    if names and not st.session_state.review_active:
+        st.button(
+            t("review_open_button", lang(), count=len(names)),
+            key="review_open", on_click=start_review,
         )
 
 
-def render_review_step(names, categories):
-    """One item of the review: pick its category, skip it, or stop."""
-    handled = st.session_state.review_handled
-    pending = [name for name in names if name not in handled]
-    if not pending:
-        st.session_state.review_active = False
-        st.session_state.review_dismissed = names
-        skipped = [name for name in st.session_state.review_skipped if name in names]
-        if skipped:
-            st.info(t("review_done_skipped", lang(), count=len(skipped)))
-        else:
-            st.success(t("review_done", lang()))
-        return
+def finish_review(names):
+    """Every item was dealt with: close the popup and say how it went."""
+    st.session_state.review_active = False
+    st.session_state.review_dismissed = names
+    skipped = [name for name in st.session_state.review_skipped if name in names]
+    if skipped:
+        flash("info", t("review_done_skipped", lang(), count=len(skipped)))
+    else:
+        flash("success", t("review_done", lang()))
+    st.rerun()
 
+
+def open_review_dialog(pending, categories):
+    """Show the popup for the first item that is left."""
+    handled = len(st.session_state.review_handled)
+    total = handled + len(pending)
     name = pending[0]
-    amount = draft_ops.item_total(st.session_state.receipt_df, name)
-    position = len(handled) + 1
-    widget_key = f"review_category_{position}"  # a new widget per item, so no choice carries over
+    widget_key = f"review_category_{handled + 1}"  # a new widget per item, so no choice carries over
 
-    with st.container(border=True):
-        st.markdown(t(
-            "review_progress", lang(), position=position, total=len(handled) + len(pending),
-            name=escape_markdown(name), amount=format_amount(amount, lang()),
-        ))
-        st.selectbox(
-            t("col_category", lang()),
+    @st.dialog(t("review_title", lang()), width="large", on_dismiss=close_review)
+    def review_dialog():
+        st.progress(handled / total, text=t("review_position", lang(), position=handled + 1, total=total))
+        with st.container(border=True):
+            col_name, col_amount = st.columns([3, 1], vertical_alignment="center")
+            col_name.markdown(f"**{escape_markdown(name)}**")
+            col_amount.markdown(format_amount(draft_ops.item_total(st.session_state.receipt_df, name), lang()))
+        chosen = st.pills(
+            t("review_choose_label", lang()),
             options=[category_label(category, lang()) for category in categories],
-            index=None,
-            placeholder=t("review_placeholder", lang()),
+            selection_mode="single",
             key=widget_key,
         )
-        if st.session_state.review_error:
-            st.error(t("review_choose_category", lang()))
-        col_save, col_skip, col_stop = st.columns(3)
-        col_save.button(
-            t("review_save_button", lang()), type="primary", key="review_save",
-            on_click=review_choose, args=(name, widget_key),
-        )
-        col_skip.button(t("review_skip_button", lang()), key="review_skip", on_click=review_skip, args=(name,))
-        col_stop.button(t("review_stop_button", lang()), key="review_stop", on_click=stop_review, args=(names,))
+        col_skip, col_stop = st.columns(2)
+        skipped = col_skip.button(t("review_skip_button", lang()), key="review_skip")
+        stopped = col_stop.button(t("review_stop_button", lang()), key="review_stop")
+        # Clicks inside a dialog only rerun the dialog. A full rerun (st.rerun)
+        # moves the popup to the next item and updates the table behind it.
+        if chosen is not None:
+            review_choose(name, chosen)
+            st.rerun()
+        if skipped:
+            review_skip(name)
+            st.rerun()
+        if stopped:
+            close_review()
+            st.rerun()
+
+    review_dialog()
 
 
 def render_current_receipt_tab():
