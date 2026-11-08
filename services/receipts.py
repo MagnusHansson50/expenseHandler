@@ -2,7 +2,8 @@
 
 No Streamlit here: the UI calls these functions and decides how to show the
 result. Errors are passed on unchanged for the UI to handle:
-- core.parser.NotAPdfError / ReceiptReadError when a PDF cannot be read
+- core.parser.NotAPdfError / ReceiptReadError when a PDF cannot be read, and
+  UnknownReceiptFormat when it is not a receipt in a layout we can read
 - InvalidReceipt when a receipt fails validation
 - sqlite3.Error when the database fails
 """
@@ -35,7 +36,7 @@ class InvalidReceipt(ValueError):
 
 
 def import_receipt(user_id, pdf_bytes, categories):
-    """Read a Kivra receipt copy (PDF) and pre-fill categories from the user's memory.
+    """Read a receipt PDF (see core.parser.FORMATS) and pre-fill categories from the user's memory.
 
     `categories` are the user's current category names; remembered categories
     the user no longer has fall back to FALLBACK_CATEGORY.

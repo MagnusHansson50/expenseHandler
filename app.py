@@ -31,7 +31,7 @@ from core.i18n import (
     t,
 )
 from core.backup import InvalidBackup, download_name
-from core.parser import NotAPdfError, ReceiptReadError
+from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from core.text import escape_markdown
 from integrations import db
 from services import auth, backup, receipts
@@ -517,7 +517,7 @@ def render_manual_entry(categories):
 
 
 def render_pdf_upload(user_id, categories):
-    """Upload a Kivra receipt copy, parse it and pre-fill categories from memory."""
+    """Upload a receipt PDF (Kivra or Willys), parse it and pre-fill categories from memory."""
     uploaded = st.file_uploader(
         t("upload_label", lang()),
         type="pdf",
@@ -535,6 +535,10 @@ def render_pdf_upload(user_id, categories):
         )
     except NotAPdfError:
         st.error(t("not_a_pdf", lang()))
+        return
+    except UnknownReceiptFormat:
+        # Expected for other PDFs; nothing to log (the file may hold personal data).
+        st.error(t("unknown_receipt_format", lang()))
         return
     except ReceiptReadError:
         # The pypdf error is logged for debugging but not shown to the user.

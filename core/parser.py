@@ -25,9 +25,6 @@ from core.receipt_formats import kivra, willys
 # The layouts that can be imported, tried in this order.
 FORMATS = (kivra, willys)
 
-# Used when no layout recognizes the text.
-DEFAULT_FORMAT = kivra
-
 # An ISO date not embedded in a longer number; it may be glued to letters ("Kassör2026-09-26").
 ISO_DATE = re.compile(r"(?<!\d)(\d{4}-\d{2}-\d{2})(?!\d)")
 
@@ -43,6 +40,10 @@ class ReceiptReadError(Exception):
 
     The original pypdf exception is kept as __cause__ for logging.
     """
+
+
+class UnknownReceiptFormat(ValueError):
+    """Raised when a readable PDF is in none of the layouts in FORMATS."""
 
 
 def extract_text(file_bytes):
@@ -65,8 +66,8 @@ def extract_text(file_bytes):
 
 
 def receipt_format(text):
-    """Return the module in FORMATS whose layout the text is in (DEFAULT_FORMAT if none)."""
-    return next((layout for layout in FORMATS if layout.matches(text)), DEFAULT_FORMAT)
+    """Return the module in FORMATS whose layout the text is in, or None if there is none."""
+    return next((layout for layout in FORMATS if layout.matches(text)), None)
 
 
 def parse_receipt_date(text):
@@ -90,8 +91,11 @@ class ParsedReceipt(NamedTuple):
 def read_receipt(file_bytes):
     """Parse an uploaded receipt PDF into a ParsedReceipt.
 
-    Raises NotAPdfError or ReceiptReadError if the file cannot be read.
+    Raises NotAPdfError or ReceiptReadError if the file cannot be read, and
+    UnknownReceiptFormat if it is not a receipt in a layout we can read.
     """
     text = extract_text(file_bytes)
     layout = receipt_format(text)
+    if layout is None:
+        raise UnknownReceiptFormat("The PDF is not a receipt in a known layout.")
     return ParsedReceipt(layout.parse_items(text), parse_receipt_date(text), layout.parse_paid_total(text))

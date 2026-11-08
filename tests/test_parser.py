@@ -10,6 +10,7 @@ from core.parser import (
     ParsedReceipt,
     ReceiptReadError,
     parse_receipt_date,
+    UnknownReceiptFormat,
     read_receipt,
     receipt_format,
 )
@@ -108,8 +109,13 @@ def test_kivra_text_is_parsed_as_kivra():
     assert receipt_format(SAMPLE_RECEIPT) is kivra
 
 
-def test_text_in_no_known_layout_falls_back_to_kivra():
-    assert receipt_format("Nothing here") is kivra
+def test_text_in_no_known_layout_has_no_format():
+    assert receipt_format("Nothing here\nBetalat 10,00") is None
+
+
+def test_a_pdf_in_no_known_layout_is_refused():
+    with pytest.raises(UnknownReceiptFormat):
+        read_receipt(make_pdf("Faktura 12345\nAtt betala 99,00"))
 
 
 # --- PDF -----------------------------------------------------------------

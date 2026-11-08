@@ -373,7 +373,7 @@ Error handling
 - Log with `logging` (`logger.exception` / `logger.warning(..., exc_info=True)`). Log messages must not
   contain receipt data, item names or other personal data.
 - Expected problems with user input are not exceptions to log: show them directly (validation
-  problems from `InvalidReceipt`, `NotAPdfError`, duplicate user name, `DatabaseTooNew`).
+  problems from `InvalidReceipt`, `NotAPdfError`, `UnknownReceiptFormat`, duplicate user name, `DatabaseTooNew`).
 
 Security
 - Network: `.streamlit/config.toml` sets `server.address = "localhost"`. The login is not hardened

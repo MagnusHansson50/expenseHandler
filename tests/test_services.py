@@ -5,11 +5,13 @@ import pandas as pd
 import pytest
 
 from core.constants import FALLBACK_CATEGORY, MAX_PRICE, RECEIPT_COLUMNS
-from core.parser import NotAPdfError, ReceiptReadError
+from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from core.receipt import Problem
 from integrations import db
 from services import receipts
 from test_parser import SAMPLE_RECEIPT, make_pdf
+
+KIVRA_HEADER = "Beskrivning Artikelnummer Pris Mängd Summa(SEK)"  # a Kivra receipt, but no items
 
 
 def draft(*rows):
@@ -34,7 +36,7 @@ def test_import_receipt_parses_and_categorizes_from_memory(two_users):
 
 def test_import_receipt_passes_the_paid_total_on_even_without_items(two_users):
     anna, _ = two_users
-    result = receipts.import_receipt(anna, make_pdf("No items here\n Betalat 99,00"), [])
+    result = receipts.import_receipt(anna, make_pdf(f"{KIVRA_HEADER}\n Betalat 99,00"), [])
     assert result.items.empty
     assert result.paid_total == 99.0
 
@@ -49,14 +51,18 @@ def test_import_receipt_uses_only_that_users_memory(two_users):
 def test_import_receipt_without_items_does_not_touch_the_database(two_users, monkeypatch):
     anna, _ = two_users
     monkeypatch.setattr(db, "load_memory", lambda *_: pytest.fail("memory should not be loaded"))
-    result = receipts.import_receipt(anna, make_pdf("Just a header\nNo items here"), [])
+    result = receipts.import_receipt(anna, make_pdf(f"Just a header\n{KIVRA_HEADER}"), [])
     assert result.items.empty
     assert result.remembered == 0
 
 
 @pytest.mark.parametrize(
     "data, error",
-    [(b"not a pdf", NotAPdfError), (b"%PDF-1.4\nbroken body", ReceiptReadError)],
+    [
+        (b"not a pdf", NotAPdfError),
+        (b"%PDF-1.4\nbroken body", ReceiptReadError),
+        (make_pdf("Faktura 12345\nAtt betala 99,00"), UnknownReceiptFormat),
+    ],
 )
 def test_import_receipt_passes_read_errors_on(two_users, data, error):
     anna, _ = two_users
