@@ -20,10 +20,10 @@ from typing import NamedTuple
 import pandas as pd
 from pypdf import PdfReader
 
-from core.receipt_formats import kivra
+from core.receipt_formats import kivra, willys
 
 # The layouts that can be imported, tried in this order.
-FORMATS = (kivra,)
+FORMATS = (kivra, willys)
 
 # Used when no layout recognizes the text.
 DEFAULT_FORMAT = kivra

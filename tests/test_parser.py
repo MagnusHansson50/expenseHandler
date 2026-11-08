@@ -170,7 +170,7 @@ def test_unmaintained_pypdf2_is_not_imported():
 
 
 # Real receipts contain personal data and are never committed. To run this test,
-# point SAMPLE_RECEIPT_PDF at one or more local receipt copies from Kivra,
+# point SAMPLE_RECEIPT_PDF at one or more local receipt PDFs (Kivra or Willys),
 # separated by os.pathsep (";" on Windows, ":" elsewhere).
 SAMPLE_RECEIPT_PDFS = [path for path in os.environ.get("SAMPLE_RECEIPT_PDF", "").split(os.pathsep) if path]
 
