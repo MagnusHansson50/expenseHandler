@@ -1,7 +1,7 @@
 # ExpenseHandler
 
-En webbapp för att hålla koll på vad du handlar för. Ladda upp kvittokopior från Kivra (PDF)
-eller lägg in köp för hand, sortera varorna i kategorier och följ upp utgifterna över tid.
+En webbapp för att hålla koll på vad du handlar för. Ladda upp kvittokopior från Kivra eller
+digitala kvitton från Willys (PDF) eller lägg in köp för hand, sortera varorna i kategorier och följ upp utgifterna över tid.
 Flera personer kan använda samma app; var och en loggar in och ser bara sina egna kvitton.
 
 Appen finns på svenska och engelska (välj språk i sidomenyn).
@@ -84,8 +84,10 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 
 ## Användning
 
-- **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra (PDF, högst 5 MB) eller lägg till köp
-  för hand. Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen
+- **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra eller ett digitalt kvitto från Willys
+  (PDF, högst 5 MB) eller lägg till köp för hand. Rabatter och pant räknas in i varan de hör
+  till; en mängdrabatt som gäller flera varor (till exempel `Willys Plus:CHOKLAD`) blir en egen
+  rad. Stämmer varorna inte med det betalda beloppet visas en varning med båda summorna. Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen
   kommer ihåg vilken kategori du valde för en vara till nästa gång.
   Får varor från ett uppladdat kvitto ingen kategori (de står som "Övrigt") öppnas en ruta,
   **🏷️ Varor utan kategori**, som visar en vara i taget. Klicka på en kategori, så sparas den och
@@ -141,9 +143,12 @@ skapa ett konto (eller logga in) och läs in filen.
   säkerhetskopia innan du tar bort kontot. Säkerhetskopior och kopior av `expenses.db` som du
   har sparat tidigare innehåller fortfarande det borttagna.
 - **Säkerhetskopian är inte krypterad** och kan inte skyddas med lösenord.
-- **Bara kvittokopior från Kivra** kan läsas in från PDF, oavsett butik (till exempel ICA, Jula,
-  Kjell & Co, Rusta och Stadium). Ladda ner kvittot som PDF i Kivra. Andra kvitton får läggas in
-  för hand.
+- **Bara två sorters PDF-kvitton kan läsas in:** kvittokopior från Kivra, oavsett butik (till
+  exempel ICA, Jula, Kjell & Co, Rusta och Stadium; ladda ner kvittot som PDF i Kivra), och
+  digitala kvitton från Willys. Andra kvitton ger meddelandet att formatet inte känns igen och
+  får läggas in för hand.
+- **Willys-kvitton är bara provade från självscanning.** Ett kvitto från vanlig kassa kan se
+  annorlunda ut; läses en rad fel syns det som en varning om att summan inte stämmer.
 - **Registreringen visar om ett namn redan är upptaget**, och vem som helst kan låsa ett namn i
   30 sekunder genom att skriva fel lösenord fem gånger.
 - **Ingen automatisk utloggning** så länge fliken är öppen. Logga ut om andra använder datorn.

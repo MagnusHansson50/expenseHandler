@@ -1,6 +1,6 @@
 Project
 ExpenseHandler: a Streamlit web application for tracking personal spending.
-Users upload receipts (receipt copies downloaded as PDF from Kivra), add manual purchases,
+Users upload receipts (PDF receipt copies from Kivra or digital receipts from Willys), add manual purchases,
 categorize items, and save them to a history so they can follow up on their expenses.
 
 The app supports MULTIPLE USERS, and each user's data is COMPLETELY ISOLATED from every other user's.
@@ -179,21 +179,40 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 PDF parsing
 - `read_receipt(file_bytes)` reads the upload via `io.BytesIO` and pypdf and returns
   `ParsedReceipt(items, purchase_date, paid_total)` - a DataFrame with `Item` and `Price`, the date
-  printed on the receipt and its `Betalat` amount (each `None` if not found). The app calls it through `services.receipts.import_receipt`.
+  printed on the receipt and the amount paid (each `None` if not found). The app calls it through `services.receipts.import_receipt`.
 - Bytes that do not start with `%PDF-` raise `NotAPdfError` before pypdf sees them. Any error raised by
   pypdf itself becomes `ReceiptReadError` (the pypdf exception is kept as `__cause__`).
-- Designed for Kivra's receipt copies, which print every store's receipt (ICA, Jula, Kjell & Co, Rusta,
+- Layouts: one module per receipt layout in `core/receipt_formats/`, each with `matches(text)`,
+  `parse_items(text)` and `parse_paid_total(text)`. `core.parser.FORMATS` lists them in the order
+  they are tried (`kivra`, `willys`); the first whose `matches` is true parses the text. Text in no
+  layout raises `UnknownReceiptFormat` (key `unknown_receipt_format`, not logged). To add a layout:
+  a new module with those three functions, an entry in `FORMATS`, a `tests/test_<name>_format.py`
+  with made-up text in the layout, the texts that name the supported receipts (`upload_label`,
+  `not_a_pdf`, `pdf_unreadable`, `unknown_receipt_format`) and README. Make `matches` specific:
+  it must not accept another layout's text.
+- Kivra (`kivra.py`, recognized by the column header `Beskrivning Artikelnummer ...`): Kivra's
+  receipt copies print every store's receipt (ICA, Jula, Kjell & Co, Rusta,
   Stadium, ...) with the same columns: name, article number, unit price, quantity, `st`/`kg`, total.
   Process line by line, pick up item lines ending in those columns, parse the total, and capture
   discounts (negative amounts), which are merged into the item above. Back-to-back lines with the
   same article number are combined into one row.
-- A name too long for one line is printed on the line(s) above, with the columns alone on the last
-  line; those name lines are joined. The column header (`Beskrivning Artikelnummer ...`) and
+  A name too long for one line is printed on the line(s) above, with the columns alone on the last
+  line; those name lines are joined. The column header and
   discounts clear the collected lines, so store and address lines never become a name.
-  Parsing stops at the payment section (`Delavstämning`, `Betalat`, `Betalningsinformation`).
+  Parsing stops at the payment section (`DelavstÃ¤mning`, `Betalat`, `Betalningsinformation`).
+  The amount paid is the `Betalat` line.
+- Willys (`willys.py`, recognized by `Totalt N varor` together with `Totalt 206,60 SEK`): a copy of
+  the till receipt in fixed-width text. An item line ends in its amount, with an optional
+  `4st*23,90` before it (not part of the name). Indented lines below an item (and, should
+  extraction drop the spaces, lines starting with `+` or ending in a negative amount) belong to
+  it: discounts (`Rabatt:DRYCK -4,18`) and deposits (`+PANT ... 6,00`) are merged into it. A
+  discount larger than the item above (a multi-buy covering several items, `Willys Plus:CHOKLAD
+  -34,50`) becomes its own row, so no item gets a negative price. A line without an amount followed
+  by an indented amount is read as a weighed item (not yet seen on a real receipt). Items end at
+  `Totalt N varor`; `Totalt ... SEK` is the amount paid. Only self-checkout receipts have been seen.
 - The purchase date is the first valid `YYYY-MM-DD` in the text; text extraction may glue it to a label
   (e.g. `Kassör2026-09-26`).
-- After an upload the app compares the items with the `Betalat` amount (`paid_difference`); if they
+- After an upload the app compares the items with the amount paid (`paid_difference`); if they
   differ, the import message is a warning showing both amounts, so missing or misread items are
   noticed before saving.
 
@@ -455,7 +474,7 @@ Testing
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
-- Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local Kivra receipt copies
+- Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local receipt PDFs (Kivra or Willys)
   (separated by `;` on Windows, `:` elsewhere) to check that their items add up to `Betalat`;
   it is skipped otherwise. Never commit those files.
 
@@ -477,8 +496,9 @@ Known limitations
   automatically. There is no CSV import (only CSV export).
 - If `expenses.db` is lost or damaged, whatever is not in a downloaded backup is gone. Copying the
   file while the app is stopped backs up all users at once.
-- Only receipt copies from Kivra (PDF) can be imported; other receipts must be entered manually.
-  A layout Kivra changes or a line the parser does not recognize shows up as a warning that the
+- Only receipt copies from Kivra and digital receipts from Willys (PDF) can be imported; other
+  receipts must be entered manually. Willys receipts have only been seen from the self-checkout.
+  A layout that changes or a line the parser does not recognize shows up as a warning that the
   items do not add up to `Betalat`.
 - PDF upload and `st.data_editor` edits are not covered by the automated tests (`AppTest` does not
   support them); check them in a browser after changing that code.
@@ -572,7 +592,7 @@ Commits
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
-  `Popup Step 1: ...` or `Popup Categories Step 2: ...`.
+  `Popup Step 1: ...`, `Popup Categories Step 2: ...` or `Receipt Format Step 2: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
