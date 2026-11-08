@@ -234,3 +234,57 @@ def test_the_message_is_shown_once(temp_db):
     add_category_in_popup(at, "Tools")
     choose(at, "Tools")
     assert not at.success
+
+
+# --- Removing a category in the popup ------------------------------------------
+
+
+def remove_category_in_popup(at, name, confirm=True):
+    at.selectbox(key="review_remove_choice").set_value(name)
+    at.checkbox(key="review_remove_confirm").set_value(confirm)
+    at.button(key="review_remove_submit").click().run()
+
+
+def test_removing_a_category_in_the_popup_takes_away_its_tag(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    anna = temp_db.get_user_by_name("Anna").id
+    temp_db.save_memory(anna, {"Chips": "Snacks"})
+    start_with(at, ("Drill", 799.0))
+
+    remove_category_in_popup(at, "Snacks")
+
+    assert at.success[0].value == "Removed category 'Snacks'."
+    assert "Snacks" not in category_tags(at).options
+    assert "Snacks" not in temp_db.get_categories(anna)
+    assert temp_db.load_memory(anna) == {}  # its remembered choices go with it
+    assert popup_item(at)[1] == "**Drill**"
+
+
+def test_removing_needs_the_box_ticked(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    remove_category_in_popup(at, "Snacks", confirm=False)
+    assert at.error[0].value == "Tick the box to confirm."
+    assert "Snacks" in category_tags(at).options
+
+
+def test_the_fallback_category_is_not_offered_for_removal(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    assert FALLBACK_CATEGORY not in at.selectbox(key="review_remove_choice").options
+
+
+def test_an_item_given_a_removed_category_is_asked_about_again(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0))
+    choose(at, "Snacks")  # Drill
+    assert popup_item(at)[1] == "**Gloves**"
+
+    remove_category_in_popup(at, "Snacks")
+
+    assert popup_item(at) == ("Item 1 of 2", "**Drill**", "799.00 kr")
+    assert open_button(at) is None  # still in the popup

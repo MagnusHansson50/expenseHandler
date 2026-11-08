@@ -435,10 +435,11 @@ def render_category_manager(user_id, categories):
                 delete_clicked = st.form_submit_button(t("remove_button", lang()))
             if delete_clicked and to_delete:
                 with write_errors("action_remove_category"):
-                    if db.delete_category(user_id, to_delete):
-                        flash("success", t("category_removed", lang(), name=escape_markdown(to_delete)))
+                    kind, message = remove_category(user_id, to_delete)
+                    if kind == "success":
+                        flash(kind, message)
                         st.rerun()
-                    st.error(t("category_not_removed", lang(), name=escape_markdown(to_delete)))
+                    st.error(message)
 
 
 def add_category(user_id, name):
@@ -450,6 +451,18 @@ def add_category(user_id, name):
     if db.add_category(user_id, name):
         return "success", t("category_added", lang(), name=escape_markdown(name.strip()))
     return "error", t("category_name_invalid", lang(), max=MAX_NAME_LENGTH)
+
+
+def remove_category(user_id, name):
+    """Remove one of the user's categories; returns (kind, message) to show. Run it inside write_errors.
+
+    Used by "Manage categories" and by the review popup. db.delete_category
+    also forgets the remembered choices pointing at it and refuses the
+    fallback category; saved purchases keep it.
+    """
+    if db.delete_category(user_id, name):
+        return "success", t("category_removed", lang(), name=escape_markdown(name))
+    return "error", t("category_not_removed", lang(), name=escape_markdown(name))
 
 
 def render_manual_entry(categories):
@@ -727,6 +740,16 @@ def open_review_dialog(user_id, pending, categories):
                 t("new_category", lang()), max_chars=MAX_NAME_LENGTH, key="review_new_category"
             )
             added = col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
+        with st.expander(t("review_remove_header", lang())):
+            st.caption(t("review_remove_note", lang()))
+            with st.form("review_remove_category", border=False):
+                to_remove = st.selectbox(
+                    t("category_to_remove", lang()),
+                    options=[category for category in categories if category != FALLBACK_CATEGORY],
+                    key="review_remove_choice",
+                )
+                confirmed = st.checkbox(t("review_remove_confirm", lang()), key="review_remove_confirm")
+                removed = st.form_submit_button(t("remove_button", lang()), key="review_remove_submit")
         if st.session_state.review_category_message:  # from the previous run, shown once
             kind, message = st.session_state.review_category_message
             st.session_state.review_category_message = None
@@ -749,6 +772,20 @@ def open_review_dialog(user_id, pending, categories):
             # The new tag appears after a full rerun; the popup stays on this item.
             with write_errors("action_add_category"):
                 st.session_state.review_category_message = add_category(user_id, new_category)
+                st.rerun()
+        if removed and to_remove:
+            if not confirmed:
+                st.session_state.review_category_message = ("error", t("tick_to_confirm", lang()))
+                st.rerun()
+            with write_errors("action_remove_category"):
+                kind, message = remove_category(user_id, to_remove)
+                st.session_state.review_category_message = (kind, message)
+                if kind == "success":
+                    # Items already given that category in this review need one again.
+                    draft = st.session_state.receipt_df
+                    again = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
+                             if category == to_remove}
+                    st.session_state.review_handled = [n for n in st.session_state.review_handled if n not in again]
                 st.rerun()
 
     review_dialog()
