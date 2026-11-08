@@ -62,7 +62,9 @@ Architecture
   a category are not remembered, see Reviewing items without a category).
 - `integrations/db.py`: all SQLite access, and the data rules that must always hold (see Database).
 - `core/constants.py`: shared constants and input limits. Imports nothing, so every module may depend on it.
-- `core/parser.py`: parsing of Kivra receipt copies (PDF).
+- `core/parser.py`: reads a receipt PDF, picks its layout (`FORMATS`) and reads the purchase date.
+- `core/receipt_formats/`: one module per receipt layout (`kivra.py`), each with `matches`,
+  `parse_items` and `parse_paid_total`; `common.py` has what they share.
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
   changes, categorize from memory, validate before saving, decide what to remember on save, find
   items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`).
@@ -414,7 +416,7 @@ Testing
 - Run: `python -m pytest`
 - `tests/test_db.py`: data layer, including user isolation, input limits, transactions and atomic
   `save_receipt`. Each test uses its own temporary database.
-- `tests/test_parser.py`, `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
+- `tests/test_parser.py`, `tests/test_kivra_format.py`, `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
@@ -521,7 +523,8 @@ Project structure
 │   ├── auth.py         # Password hashing and rules
 │   ├── backup.py       # Backup file format, CSV export, import merge rules
 │   ├── constants.py
-│   ├── parser.py
+│   ├── parser.py       # Reads the PDF, picks the layout
+│   ├── receipt_formats/  # One module per receipt layout (kivra.py)
 │   ├── receipt.py
 │   ├── calculator.py
 │   ├── i18n.py         # Translations, number formatting, categories per language
@@ -547,6 +550,7 @@ Project structure
 │   ├── test_i18n.py
 │   ├── test_launcher.py
 │   ├── test_no_personal_data.py
+│   ├── test_kivra_format.py
 │   ├── test_parser.py
 │   ├── test_receipt.py
 │   ├── test_requirements.py

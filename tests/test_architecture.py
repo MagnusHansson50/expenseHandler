@@ -24,10 +24,10 @@ def imported_modules(path):
 
 
 def modules_in(package):
-    return sorted((REPO_ROOT / package).glob("*.py"))
+    return sorted((REPO_ROOT / package).rglob("*.py"))  # subpackages too (core/receipt_formats)
 
 
-@pytest.mark.parametrize("path", modules_in("core"), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", modules_in("core"), ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
 def test_core_has_no_streamlit_database_or_higher_layers(path):
     forbidden = ("streamlit", "sqlite3", "integrations", "services")
     bad = [m for m in imported_modules(path) if m.split(".")[0] in forbidden]
