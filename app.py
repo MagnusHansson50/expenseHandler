@@ -682,8 +682,11 @@ def close_review():
     st.session_state.review_dismissed = st.session_state.review_names
 
 
-def review_choose(name, shown):
-    """Give the item the category whose label was clicked in the popup."""
+def review_choose(name, widget_key):
+    """A category tag was clicked: give every row with that name its category (tag callback)."""
+    shown = st.session_state.get(widget_key)
+    if shown is None:
+        return  # the tag was clicked off
     category = category_value(shown, lang())
     set_draft(draft_ops.set_item_category(st.session_state.receipt_df, name, category))
     st.session_state.review_handled.append(name)
@@ -696,21 +699,21 @@ def review_skip(name):
     st.session_state.review_skipped.append(name)
 
 
-def render_review(user_id, categories):
-    """The button that opens the review popup, and the popup while it is open."""
+def review_names(user_id, categories):
+    """The draft's items that still need a category (see core.receipt.uncategorized_items)."""
     memory = load(db.load_memory, user_id, what="what_memory")
-    names = [
+    return [
         name for name in draft_ops.uncategorized_items(st.session_state.receipt_df, memory, categories)
         if name not in st.session_state.review_kept_fallback  # put in the fallback category on purpose
     ]
-    st.session_state.review_names = names
 
+
+def render_review(user_id, categories):
+    """The button that opens the review popup, and the popup while it is open."""
+    names = review_names(user_id, categories)
+    st.session_state.review_names = names
     if st.session_state.review_active:
-        pending = [name for name in names if name not in st.session_state.review_handled]
-        if pending:
-            open_review_dialog(user_id, pending, categories)
-        else:
-            finish_review(names)
+        open_review_dialog(user_id)
     if names and not st.session_state.review_active:
         st.button(
             t("review_open_button", lang(), count=len(names)),
@@ -730,15 +733,59 @@ def finish_review(names):
     st.rerun()
 
 
-def open_review_dialog(user_id, pending, categories):
+def handle_review_category_forms(user_id):
+    """Add or remove a category sent from the popup on the previous click."""
+    if st.session_state.get("review_add_submit"):
+        with write_errors("action_add_category"):
+            st.session_state.review_category_message = add_category(
+                user_id, st.session_state.get("review_new_category", "")
+            )
+    to_remove = st.session_state.get("review_remove_choice")
+    confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
+    if st.session_state.get("review_remove_submit") and to_remove:
+        if not confirmed:
+            st.session_state.review_category_message = ("error", t("tick_to_confirm", lang()))
+            return
+        draft = st.session_state.receipt_df
+        in_removed = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
+                      if category == to_remove}
+        with write_errors("action_remove_category"):
+            kind, message = remove_category(user_id, to_remove)
+            st.session_state.review_category_message = (kind, message)
+            if kind == "success":
+                # Items already given that category in this review need one again.
+                st.session_state.review_handled = [
+                    name for name in st.session_state.review_handled if name not in in_removed
+                ]
+
+
+def open_review_dialog(user_id):
     """Show the popup for the first item that is left."""
-    handled = len(st.session_state.review_handled)
-    total = handled + len(pending)
-    name = pending[0]
-    widget_key = f"review_category_{handled + 1}"  # a new widget per item, so no choice carries over
 
     @st.dialog(t("review_title", lang()), width="large", on_dismiss=close_review)
     def review_dialog():
+        # A click inside a dialog reruns only this function, so it works out the
+        # next item, the categories and any form that was sent from session
+        # state and the database by itself, and choices are made in callbacks.
+        # The popup then stays open without flickering; the page behind it is
+        # updated when it closes (a full rerun).
+        if not st.session_state.review_active:  # "Stop" was clicked
+            st.rerun()
+        try:
+            handle_review_category_forms(user_id)
+            categories = load(db.get_categories, user_id, what="what_categories")
+            names = review_names(user_id, categories)
+        except DataUnavailable:
+            return  # load() has shown the message and "Try again"
+        st.session_state.review_names = names
+        handled = len(st.session_state.review_handled)
+        pending = [name for name in names if name not in st.session_state.review_handled]
+        if not pending:
+            finish_review(names)
+        name = pending[0]
+        total = handled + len(pending)
+        widget_key = f"review_category_{handled + 1}"  # a new widget per item, so no choice carries over
+
         if st.session_state.review_notice:  # what the PDF upload found, e.g. a Betalat mismatch
             kind, message = st.session_state.review_notice
             getattr(st, kind)(message)
@@ -747,71 +794,38 @@ def open_review_dialog(user_id, pending, categories):
             col_name, col_amount = st.columns([3, 1], vertical_alignment="center")
             col_name.markdown(f"**{escape_markdown(name)}**")
             col_amount.markdown(format_amount(draft_ops.item_total(st.session_state.receipt_df, name), lang()))
-        chosen = st.pills(
+        st.pills(
             t("review_choose_label", lang()),
             options=[category_label(category, lang()) for category in categories],
             selection_mode="single",
             key=widget_key,
+            on_change=review_choose,
+            args=(name, widget_key),
         )
         with st.form("review_add_category", clear_on_submit=True, border=False):
             col_name, col_add = st.columns([3, 1], vertical_alignment="bottom")
-            new_category = col_name.text_input(
-                t("new_category", lang()), max_chars=MAX_NAME_LENGTH, key="review_new_category"
-            )
-            added = col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
+            col_name.text_input(t("new_category", lang()), max_chars=MAX_NAME_LENGTH, key="review_new_category")
+            col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
         with st.expander(t("review_remove_header", lang())):
             st.caption(t("remove_category_note", lang()))
             with st.form("review_remove_category", border=False):
-                to_remove = st.selectbox(
+                st.selectbox(
                     t("category_to_remove", lang()),
                     options=[category for category in categories if category != FALLBACK_CATEGORY],
                     key="review_remove_choice",
                 )
                 st.checkbox(t("remove_category_confirm", lang()), key="review_remove_confirm")
-                removed = st.form_submit_button(
+                st.form_submit_button(
                     t("remove_button", lang()), key="review_remove_submit",
                     on_click=take_confirmation, args=("review_remove_confirm",),
                 )
-            confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
-        if st.session_state.review_category_message:  # from the previous run, shown once
+        if st.session_state.review_category_message:  # shown once
             kind, message = st.session_state.review_category_message
             st.session_state.review_category_message = None
             getattr(st, kind)(message)
         col_skip, col_stop = st.columns(2)
-        skipped = col_skip.button(t("review_skip_button", lang()), key="review_skip")
-        stopped = col_stop.button(t("review_stop_button", lang()), key="review_stop")
-        # Clicks inside a dialog only rerun the dialog. A full rerun (st.rerun)
-        # moves the popup to the next item and updates the table behind it.
-        if chosen is not None:
-            review_choose(name, chosen)
-            st.rerun()
-        if skipped:
-            review_skip(name)
-            st.rerun()
-        if stopped:
-            close_review()
-            st.rerun()
-        if added:
-            # The new tag appears after a full rerun; the popup stays on this item.
-            with write_errors("action_add_category"):
-                st.session_state.review_category_message = add_category(user_id, new_category)
-                st.rerun()
-        if removed and to_remove:
-            if not confirmed:
-                st.session_state.review_category_message = ("error", t("tick_to_confirm", lang()))
-                st.rerun()
-            draft = st.session_state.receipt_df
-            in_removed = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
-                          if category == to_remove}
-            with write_errors("action_remove_category"):
-                kind, message = remove_category(user_id, to_remove)
-                st.session_state.review_category_message = (kind, message)
-                if kind == "success":
-                    # Items already given that category in this review need one again.
-                    st.session_state.review_handled = [
-                        name for name in st.session_state.review_handled if name not in in_removed
-                    ]
-                st.rerun()
+        col_skip.button(t("review_skip_button", lang()), key="review_skip", on_click=review_skip, args=(name,))
+        col_stop.button(t("review_stop_button", lang()), key="review_stop", on_click=close_review)
 
     review_dialog()
 

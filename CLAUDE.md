@@ -306,7 +306,8 @@ Reviewing items without a category
 - Categories in the popup: a "New category" field adds one (it becomes a tag; it is not chosen for
   the item shown), and a collapsed "🗑️ Remove a category" section removes one (a list without the
   fallback category, a confirmation box). Both use `add_category` / `remove_category` in `app.py`,
-  shared with "Manage categories", rerun the app so the tags are reloaded, keep the popup on the
+  shared with "Manage categories", are handled at the top of the popup's next run
+  (`handle_review_category_forms`) so the tags are reloaded there, keep the popup on the
   same item, and show their result once inside the popup (`review_category_message`), since a flash
   would be hidden behind it. Items already given a removed category in this review move to the
   fallback category and are taken out of `review_handled`, so they are asked about again.
@@ -316,9 +317,14 @@ Reviewing items without a category
   table, "🏷️ Go through items without a category (N)" opens it at any time; N leaves out items
   put in "Other" on purpose in the popup.
 - How the popup works: it stays open across reruns because `render_review` calls it while
-  `review_active` is true. Clicks inside a dialog only rerun the dialog, so every choice, skip or
-  stop ends with `st.rerun()` to move to the next item and update the table behind it. `AppTest`
-  renders the popup and its tags; the X cannot be clicked there and is checked in a browser.
+  `review_active` is true. A click inside a dialog reruns only the dialog function, so the dialog
+  works out everything itself from session state and the database (categories, the items left,
+  forms sent on the previous click), and choices and skips are made in callbacks (`on_change` /
+  `on_click`). Do NOT call `st.rerun()` for a choice: that closes and reopens the popup, which
+  flickers. Only closing it (Stop, the last item) reruns the whole app, which also updates the table
+  behind it. `st.rerun(scope="fragment")` is not an option: it raises in `AppTest`, which reruns
+  the whole script. `AppTest` renders the popup and its tags; the X and the absence of flicker are
+  checked in a browser.
 - Memory: items that still need a category when the receipt is saved are saved to history but not
   remembered, so they are asked about next time. Choosing "Other" in the review is a choice
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
