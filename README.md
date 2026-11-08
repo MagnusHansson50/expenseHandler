@@ -96,7 +96,8 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   rutan, så frågar appen inte mer.
   Saknas en kategori kan du skapa den direkt i rutan (**Ny kategori**); den läggs till bland
   kategorierna och du väljer den med ett klick. Under **🗑️ Ta bort en kategori** i rutan kan du
-  ta bort en kategori (kryssa i rutan för att bekräfta). Köp du redan sparat behåller den.
+  ta bort en kategori (kryssa i rutan för att bekräfta), precis som under **Hantera kategorier**.
+  Köp du redan sparat behåller kategorin; varor i det osparade kvittot hamnar i "Övrigt".
   Om varorna inte summerar till kvittots "Betalat" visas en gul varning; kontrollera då att alla
   varor finns med och har rätt pris innan du sparar.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.

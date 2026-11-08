@@ -6,6 +6,7 @@ from core.receipt import (
     add_rows,
     apply_editor_changes,
     categorize,
+    clear_category,
     empty_receipt,
     item_total,
     memory_from_receipt,
@@ -221,3 +222,9 @@ def test_edit_in_swedish_editor_is_stored_with_internal_name():
     df = receipt(("Gum", 9.0, "Mejeri"))
     changes = changes_to_stored_categories({"edited_rows": {0: {"Category": "Övrigt"}}}, "sv")
     assert apply_editor_changes(df, changes)["Category"].tolist() == [FALLBACK_CATEGORY]
+
+
+def test_clear_category_moves_its_rows_to_the_fallback_category():
+    draft = receipt(("Shoes", 499.0, "Skor"), ("Milk", 15.9, "Dairy"), ("Boots", 899.0, "Skor"))
+    assert clear_category(draft, "Skor")["Category"].tolist() == [FALLBACK_CATEGORY, "Dairy", FALLBACK_CATEGORY]
+    assert draft["Category"].tolist() == ["Skor", "Dairy", "Skor"]  # input unchanged

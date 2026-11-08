@@ -108,11 +108,46 @@ def test_removing_category_in_ui_forgets_its_memory(app, temp_db):
     temp_db.save_memory(anna, {"Chips": "Snacks"})
 
     widget(app.selectbox, "Category to remove").set_value("Snacks")
+    app.checkbox(key="category_remove_confirm").check()
     next(b for b in app.button if "Remove" in b.label).click().run()
     assert not app.exception
     assert "Removed category 'Snacks'" in app.success[0].value
     assert "Snacks" not in temp_db.get_categories(anna)
     assert temp_db.load_memory(anna) == {}
+
+
+def test_the_box_is_unticked_again_after_removing(app, temp_db):
+    create_user(app, "Anna")
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    app.checkbox(key="category_remove_confirm").check()
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert app.checkbox(key="category_remove_confirm").value is False
+    next(b for b in app.button if "Remove" in b.label).click().run()  # the next category, not confirmed
+    assert app.error[0].value == "Tick the box to confirm."
+
+
+def test_removing_a_category_needs_the_box_ticked(app, temp_db):
+    create_user(app, "Anna")
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert app.error[0].value == "Tick the box to confirm."
+    assert "Snacks" in temp_db.get_categories(temp_db.get_users()[0].id)
+
+
+def test_unsaved_items_in_a_removed_category_move_to_other(app, temp_db):
+    create_user(app, "Anna")
+    widget(app.text_input, "Item").input("Shoes")
+    widget(app.number_input, "Price (kr)").set_value(499.0)
+    widget(app.selectbox, "Category").set_value("Snacks")
+    next(b for b in app.button if "Add to list" in b.label).click().run()
+    assert app.session_state["receipt_df"]["Category"].tolist() == ["Snacks"]
+
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    app.checkbox(key="category_remove_confirm").check()
+    next(b for b in app.button if "Remove" in b.label).click().run()
+
+    assert app.session_state["receipt_df"]["Category"].tolist() == ["Other"]
+    assert next(b.label for b in app.button if b.key == "review_open") == "🏷️ Go through items without a category (1)"
 
 
 def tabs_position(at):
@@ -130,6 +165,7 @@ def test_tabs_keep_their_position_when_a_flash_message_comes_and_goes(app):
     without_message = tabs_position(app)
 
     widget(app.selectbox, "Category to remove").set_value("Snacks")
+    app.checkbox(key="category_remove_confirm").check()
     next(b for b in app.button if "Remove" in b.label).click().run()
     assert app.success  # flash message is showing
     assert tabs_position(app) == without_message
@@ -166,6 +202,7 @@ def test_category_names_in_messages_are_shown_literally(app):
     )
 
     widget(app.selectbox, "Category to remove").set_value("**Bold** [x](https://evil.test)")
+    app.checkbox(key="category_remove_confirm").check()
     next(b for b in app.button if "Remove" in b.label).click().run()
     assert app.success[0].value == (
         rf"Removed category '\*\*Bold\*\* \[x\]\(https\:{WJ}\/\/evil\.test\)'."

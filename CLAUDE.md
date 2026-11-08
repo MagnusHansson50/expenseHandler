@@ -146,7 +146,10 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   `delete_category` refuses it. Its labels in every language ("Övrigt", "Other") are reserved:
   `add_category` rejects them in any letter case.
 - Deleting a category also deletes that user's `memory` rows pointing at it, in the same transaction.
-  `history` is never rewritten: saved purchases keep the category they were saved with.
+  `history` is never rewritten: saved purchases keep the category they were saved with. In the UI,
+  rows of the unsaved receipt in that category move to `FALLBACK_CATEGORY` (`core.receipt.clear_category`,
+  in `remove_category`), so the table never shows a category the user no longer has. Removing a
+  category needs a ticked confirmation box, in "Manage categories" and in the review popup alike.
 - Input limits are enforced here as the last guard: `create_user` / `add_category` reject names longer
   than `MAX_NAME_LENGTH`; `save_history` rejects (and saves nothing) if an item is longer than
   `MAX_ITEM_LENGTH` or a price is outside -`MAX_PRICE`..`MAX_PRICE`.
@@ -305,8 +308,8 @@ Reviewing items without a category
   fallback category, a confirmation box). Both use `add_category` / `remove_category` in `app.py`,
   shared with "Manage categories", rerun the app so the tags are reloaded, keep the popup on the
   same item, and show their result once inside the popup (`review_category_message`), since a flash
-  would be hidden behind it. Items already given a removed category in this review are taken out of
-  `review_handled`, so they are asked about again.
+  would be hidden behind it. Items already given a removed category in this review move to the
+  fallback category and are taken out of `review_handled`, so they are asked about again.
 - It opens by itself after a PDF upload in which some items got no category from memory, and then
   shows the import message at its top (`review_notice`), because it covers the flash. It does not
   open by itself for items added by hand (the form defaults to the fallback category). Above the

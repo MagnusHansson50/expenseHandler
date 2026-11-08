@@ -133,6 +133,18 @@ def set_item_category(receipt, item, category):
     return df
 
 
+def clear_category(receipt, category):
+    """Put the receipt's rows in `category` back in FALLBACK_CATEGORY (after it was removed).
+
+    Without this the table would still show the removed category while the
+    rows already count as having none, and saving would file them under
+    FALLBACK_CATEGORY anyway.
+    """
+    df = normalize_receipt(receipt)
+    df.loc[df["Category"] == category, "Category"] = FALLBACK_CATEGORY
+    return df
+
+
 def item_total(receipt, item):
     """The summed price of every row of the receipt named `item`, rounded to öre."""
     return round(float(receipt.loc[_rows_named(receipt, item), "Price"].sum()), 2)

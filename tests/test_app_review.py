@@ -261,6 +261,14 @@ def test_removing_a_category_in_the_popup_takes_away_its_tag(temp_db):
     assert popup_item(at)[1] == "**Drill**"
 
 
+def test_the_box_is_unticked_again_after_removing_in_the_popup(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    remove_category_in_popup(at, "Snacks")
+    assert at.checkbox(key="review_remove_confirm").value is False
+
+
 def test_removing_needs_the_box_ticked(temp_db):
     at = start_app()
     create_user(at, "Anna")

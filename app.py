@@ -432,8 +432,15 @@ def render_category_manager(user_id, categories):
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
             with st.form("delete_category_form"):
                 to_delete = st.selectbox(t("category_to_remove", lang()), options=removable)
-                delete_clicked = st.form_submit_button(t("remove_button", lang()))
-            if delete_clicked and to_delete:
+                st.caption(t("remove_category_note", lang()))
+                st.checkbox(t("remove_category_confirm", lang()), key="category_remove_confirm")
+                delete_clicked = st.form_submit_button(
+                    t("remove_button", lang()), on_click=take_confirmation, args=("category_remove_confirm",)
+                )
+            confirmed = st.session_state.pop("confirmed_category_remove_confirm", False)
+            if delete_clicked and to_delete and not confirmed:
+                st.error(t("tick_to_confirm", lang()))
+            elif delete_clicked and to_delete:
                 with write_errors("action_remove_category"):
                     kind, message = remove_category(user_id, to_delete)
                     if kind == "success":
@@ -453,6 +460,16 @@ def add_category(user_id, name):
     return "error", t("category_name_invalid", lang(), max=MAX_NAME_LENGTH)
 
 
+def take_confirmation(key):
+    """Read a confirmation box and untick it at once (form submit callback).
+
+    The value is kept in "confirmed_<key>" for this run only, so a ticked
+    box never carries over to the next removal.
+    """
+    st.session_state[f"confirmed_{key}"] = st.session_state.get(key, False)
+    st.session_state[key] = False
+
+
 def remove_category(user_id, name):
     """Remove one of the user's categories; returns (kind, message) to show. Run it inside write_errors.
 
@@ -461,6 +478,8 @@ def remove_category(user_id, name):
     fallback category; saved purchases keep it.
     """
     if db.delete_category(user_id, name):
+        # Rows of the unsaved receipt in that category show the fallback category now.
+        set_draft(draft_ops.clear_category(st.session_state.receipt_df, name))
         return "success", t("category_removed", lang(), name=escape_markdown(name))
     return "error", t("category_not_removed", lang(), name=escape_markdown(name))
 
@@ -741,15 +760,19 @@ def open_review_dialog(user_id, pending, categories):
             )
             added = col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
         with st.expander(t("review_remove_header", lang())):
-            st.caption(t("review_remove_note", lang()))
+            st.caption(t("remove_category_note", lang()))
             with st.form("review_remove_category", border=False):
                 to_remove = st.selectbox(
                     t("category_to_remove", lang()),
                     options=[category for category in categories if category != FALLBACK_CATEGORY],
                     key="review_remove_choice",
                 )
-                confirmed = st.checkbox(t("review_remove_confirm", lang()), key="review_remove_confirm")
-                removed = st.form_submit_button(t("remove_button", lang()), key="review_remove_submit")
+                st.checkbox(t("remove_category_confirm", lang()), key="review_remove_confirm")
+                removed = st.form_submit_button(
+                    t("remove_button", lang()), key="review_remove_submit",
+                    on_click=take_confirmation, args=("review_remove_confirm",),
+                )
+            confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
         if st.session_state.review_category_message:  # from the previous run, shown once
             kind, message = st.session_state.review_category_message
             st.session_state.review_category_message = None
@@ -777,15 +800,17 @@ def open_review_dialog(user_id, pending, categories):
             if not confirmed:
                 st.session_state.review_category_message = ("error", t("tick_to_confirm", lang()))
                 st.rerun()
+            draft = st.session_state.receipt_df
+            in_removed = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
+                          if category == to_remove}
             with write_errors("action_remove_category"):
                 kind, message = remove_category(user_id, to_remove)
                 st.session_state.review_category_message = (kind, message)
                 if kind == "success":
                     # Items already given that category in this review need one again.
-                    draft = st.session_state.receipt_df
-                    again = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
-                             if category == to_remove}
-                    st.session_state.review_handled = [n for n in st.session_state.review_handled if n not in again]
+                    st.session_state.review_handled = [
+                        name for name in st.session_state.review_handled if name not in in_removed
+                    ]
                 st.rerun()
 
     review_dialog()
