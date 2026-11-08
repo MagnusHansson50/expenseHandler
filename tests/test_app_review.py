@@ -4,6 +4,8 @@ AppTest renders the popup's contents while it is open; closing it with the
 window's X (on_dismiss) cannot be clicked here and is checked in a browser.
 """
 
+import pytest
+
 from core.constants import FALLBACK_CATEGORY
 from test_app import add_manual_purchase, create_user, log_out, start_app, widget
 
@@ -187,3 +189,48 @@ def test_a_new_receipt_or_logging_out_resets_the_review(temp_db):
     log_out(at)
     assert at.session_state["review_active"] is False
     assert at.session_state["review_dismissed"] == []
+
+
+# --- Adding a category in the popup --------------------------------------------
+
+
+def add_category_in_popup(at, name):
+    at.text_input(key="review_new_category").input(name)
+    at.button(key="review_add_submit").click().run()
+
+
+def test_a_category_added_in_the_popup_becomes_a_tag_and_the_item_stays(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0))
+
+    add_category_in_popup(at, "Tools")
+
+    assert popup_item(at) == ("Item 1 of 2", "**Drill**", "799.00 kr")  # not chosen for the item
+    assert "Tools" in category_tags(at).options
+    assert at.success[0].value == "Added category 'Tools'."
+    assert "Tools" in temp_db.get_categories(temp_db.get_user_by_name("Anna").id)
+    assert draft_categories(at)["Drill"] == FALLBACK_CATEGORY
+
+    choose(at, "Tools")
+    assert draft_categories(at)["Drill"] == "Tools"
+    assert popup_item(at)[1] == "**Gloves**"
+
+
+@pytest.mark.parametrize("name", ["", "   ", "Övrigt", "other", "Dairy"])
+def test_empty_reserved_or_existing_names_are_refused_in_the_popup(temp_db, name):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    add_category_in_popup(at, name)
+    assert at.error[0].value == "Enter a name of 1–50 characters that is not already in the list."
+    assert popup_item(at)[1] == "**Drill**"
+
+
+def test_the_message_is_shown_once(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gloves", 99.0))
+    add_category_in_popup(at, "Tools")
+    choose(at, "Tools")
+    assert not at.success

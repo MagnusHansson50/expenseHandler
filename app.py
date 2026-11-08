@@ -120,6 +120,7 @@ def init_session_state():
         "review_skipped": [],
         "review_names": [],
         "review_notice": None,
+        "review_category_message": None,
         "review_kept_fallback": [],
     }
     for key, value in defaults.items():
@@ -194,6 +195,7 @@ def set_draft(df):
         st.session_state.review_dismissed = []
         st.session_state.review_kept_fallback = []
         st.session_state.review_notice = None
+        st.session_state.review_category_message = None
 
 
 def add_to_draft(rows):
@@ -420,10 +422,11 @@ def render_category_manager(user_id, categories):
                 add_clicked = st.form_submit_button(t("add_button", lang()))
             if add_clicked:
                 with write_errors("action_add_category"):
-                    if db.add_category(user_id, new_category):
-                        flash("success", t("category_added", lang(), name=escape_markdown(new_category)))
+                    kind, message = add_category(user_id, new_category)
+                    if kind == "success":
+                        flash(kind, message)
                         st.rerun()
-                    st.error(t("category_name_invalid", lang(), max=MAX_NAME_LENGTH))
+                    st.error(message)
 
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
@@ -436,6 +439,17 @@ def render_category_manager(user_id, categories):
                         flash("success", t("category_removed", lang(), name=escape_markdown(to_delete)))
                         st.rerun()
                     st.error(t("category_not_removed", lang(), name=escape_markdown(to_delete)))
+
+
+def add_category(user_id, name):
+    """Add a category for the user; returns (kind, message) to show. Run it inside write_errors.
+
+    Used by "Manage categories" and by the review popup, so both follow the
+    same rules (db.add_category: length, no duplicates, no reserved names).
+    """
+    if db.add_category(user_id, name):
+        return "success", t("category_added", lang(), name=escape_markdown(name.strip()))
+    return "error", t("category_name_invalid", lang(), max=MAX_NAME_LENGTH)
 
 
 def render_manual_entry(categories):
@@ -627,6 +641,7 @@ def start_review():
     st.session_state.review_handled = []
     st.session_state.review_skipped = []
     st.session_state.review_notice = None
+    st.session_state.review_category_message = None
 
 
 def close_review():
@@ -661,7 +676,7 @@ def render_review(user_id, categories):
     if st.session_state.review_active:
         pending = [name for name in names if name not in st.session_state.review_handled]
         if pending:
-            open_review_dialog(pending, categories)
+            open_review_dialog(user_id, pending, categories)
         else:
             finish_review(names)
     if names and not st.session_state.review_active:
@@ -683,7 +698,7 @@ def finish_review(names):
     st.rerun()
 
 
-def open_review_dialog(pending, categories):
+def open_review_dialog(user_id, pending, categories):
     """Show the popup for the first item that is left."""
     handled = len(st.session_state.review_handled)
     total = handled + len(pending)
@@ -706,6 +721,16 @@ def open_review_dialog(pending, categories):
             selection_mode="single",
             key=widget_key,
         )
+        with st.form("review_add_category", clear_on_submit=True, border=False):
+            col_name, col_add = st.columns([3, 1], vertical_alignment="bottom")
+            new_category = col_name.text_input(
+                t("new_category", lang()), max_chars=MAX_NAME_LENGTH, key="review_new_category"
+            )
+            added = col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
+        if st.session_state.review_category_message:  # from the previous run, shown once
+            kind, message = st.session_state.review_category_message
+            st.session_state.review_category_message = None
+            getattr(st, kind)(message)
         col_skip, col_stop = st.columns(2)
         skipped = col_skip.button(t("review_skip_button", lang()), key="review_skip")
         stopped = col_stop.button(t("review_stop_button", lang()), key="review_stop")
@@ -720,6 +745,11 @@ def open_review_dialog(pending, categories):
         if stopped:
             close_review()
             st.rerun()
+        if added:
+            # The new tag appears after a full rerun; the popup stays on this item.
+            with write_errors("action_add_category"):
+                st.session_state.review_category_message = add_category(user_id, new_category)
+                st.rerun()
 
     review_dialog()
 
