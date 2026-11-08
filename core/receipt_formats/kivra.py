@@ -19,6 +19,12 @@ Discount lines follow the item they apply to and end in a negative amount:
     Rabatt: 2 för 25 -6,80
 
 Discounts are merged into the preceding item so its price is what was actually paid.
+So is a deposit printed below a drink without article number or unit:
+
+    *Coca-Cola 20-p 2975805 129,00 1,00 st 133,08
+    Läsk 89kr/st  -44,08
+    *Pant  40,00 1 40,00
+
 Back-to-back lines with the same article number (e.g. the same product at two
 prices) are combined into one row, since a multi-buy discount after them covers both.
 
@@ -84,6 +90,18 @@ DISCOUNT_LINE = re.compile(
     re.VERBOSE,
 )
 
+# A deposit line below a drink, with no article number or unit: "*Pant  40,00 1 40,00"
+# (20 cans at 2 kr, counted as one) or "Pant  2,00 2 4,00". It is added to the item above.
+DEPOSIT_LINE = re.compile(
+    rf"""
+    ^\*?Pant                       # "Pant", with ICA's leading * for an item on offer
+    \s+(?P<unit_price>{AMOUNT})    # deposit per piece (or per pack)
+    \s+(?P<quantity>\d+)           # number of pieces, a whole number without decimals
+    \s+(?P<total>{AMOUNT})$        # deposit for the whole line (what is parsed)
+    """,
+    re.VERBOSE,
+)
+
 # The total paid, e.g. "Betalat 519,84" or "Betalat 5 297,00" (thousands may be grouped).
 PAID_LINE = re.compile(
     r"""
@@ -133,6 +151,17 @@ def parse_items(text):
             else:
                 items.append({"Item": name.replace("*", "").strip(), "Price": total})
             previous_article = match["article"]
+            continue
+
+        deposit_match = DEPOSIT_LINE.match(line)
+        if deposit_match:
+            previous_article = None
+            name_lines = []
+            deposit = to_float(deposit_match["total"])
+            if items:
+                items[-1]["Price"] = round(items[-1]["Price"] + deposit, 2)
+            else:
+                items.append({"Item": "Pant", "Price": deposit})  # never lose an amount
             continue
 
         discount_match = DISCOUNT_LINE.match(line)

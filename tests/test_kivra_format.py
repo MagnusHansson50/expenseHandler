@@ -28,6 +28,27 @@ def test_discount_is_merged_into_previous_item():
     assert items["Price"].tolist() == [35.0]
 
 
+def test_deposit_without_article_number_is_added_to_the_drink_above():
+    # Mirrors ICA's layout: the deposit line has no article number and no unit.
+    items = parse_items(
+        "*Läsk 20-p 2975805 129,00 1,00 st 133,08\n"
+        "Läsk 89kr/st  -44,08\n"
+        "*Pant  40,00 1 40,00\n"
+        "Kex 1026236 12,32 1,00 st 12,32\n"
+        "Cider 2563365 18,56 2,00 st 33,12\n"
+        "Pant  2,00 2 4,00"
+    )
+    assert items.to_dict("records") == [
+        {"Item": "Läsk 20-p", "Price": 129.0},  # 133,08 - 44,08 + 40,00
+        {"Item": "Kex", "Price": 12.32},
+        {"Item": "Cider", "Price": 37.12},  # 33,12 + 4,00
+    ]
+
+
+def test_deposit_with_no_item_above_is_kept():
+    assert parse_items("Pant  2,00 2 4,00").to_dict("records") == [{"Item": "Pant", "Price": 4.0}]
+
+
 def test_same_article_on_consecutive_lines_is_combined():
     items = parse_items(
         "*Super crunch prem 2033432 26,45 4,00 st 105,80\n"

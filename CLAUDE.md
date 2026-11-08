@@ -194,7 +194,8 @@ PDF parsing
   receipt copies print every store's receipt (ICA, Jula, Kjell & Co, Rusta,
   Stadium, ...) with the same columns: name, article number, unit price, quantity, `st`/`kg`, total.
   Process line by line, pick up item lines ending in those columns, parse the total, and capture
-  discounts (negative amounts), which are merged into the item above. Back-to-back lines with the
+  discounts (negative amounts), which are merged into the item above. So is a deposit line without
+  article number or unit (`*Pant  40,00 1 40,00`, `Pant  2,00 2 4,00`) below a drink. Back-to-back lines with the
   same article number are combined into one row.
   A name too long for one line is printed on the line(s) above, with the columns alone on the last
   line; those name lines are joined. The column header and
