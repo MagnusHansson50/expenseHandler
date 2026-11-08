@@ -114,7 +114,8 @@ Architecture
     exists on every run, so the tabs below never move (moving them resets the selected tab).
     It is also shown on the login page (e.g. after deleting an account).
   - `review_active`, `review_dismissed`, `review_handled`, `review_skipped`, `review_kept_fallback`,
-    `review_names`, `review_notice`: the review popup for items without a category (see below).
+    `review_names`, `review_notice`, `review_category_message`: the review popup for items without a
+    category (see below).
     They are reset when the draft becomes empty (cleared, saved, logging in or out).
 
 Database (`expenses.db`)
@@ -299,6 +300,13 @@ Reviewing items without a category
   that name the category and moves on. "Stop" and the window's X (`on_dismiss=close_review`) keep
   what was chosen and put the items left in `review_dismissed`. When every item is handled the popup
   closes and a flash says so, or how many were skipped. It never blocks saving.
+- Categories in the popup: a "New category" field adds one (it becomes a tag; it is not chosen for
+  the item shown), and a collapsed "🗑️ Remove a category" section removes one (a list without the
+  fallback category, a confirmation box). Both use `add_category` / `remove_category` in `app.py`,
+  shared with "Manage categories", rerun the app so the tags are reloaded, keep the popup on the
+  same item, and show their result once inside the popup (`review_category_message`), since a flash
+  would be hidden behind it. Items already given a removed category in this review are taken out of
+  `review_handled`, so they are asked about again.
 - It opens by itself after a PDF upload in which some items got no category from memory, and then
   shows the import message at its top (`review_notice`), because it covers the flash. It does not
   open by itself for items added by hand (the form defaults to the fallback category). Above the
@@ -403,7 +411,8 @@ Testing
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
-  count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save).
+  count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
+  adding and removing categories in the popup).
   Opening by itself after a PDF upload is checked in a browser (`AppTest` cannot upload).
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).
@@ -548,7 +557,7 @@ Commits
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
-  `Popup Step 1: ...`.
+  `Popup Step 1: ...` or `Popup Categories Step 2: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
