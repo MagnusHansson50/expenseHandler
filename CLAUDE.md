@@ -140,6 +140,11 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 - `get_all_history(user_id)` returns all of a user's purchases, oldest first (for backups).
   `import_user_data(user_id, categories, memory, history_df)` adds them in one transaction (see
   Backup and CSV export).
+- `update_history_categories(user_id, categories_by_id)` gives saved purchases (history ids) a
+  new category and remembers it for their items, in one transaction. Only the user's own rows
+  (`WHERE id = ? AND user_id = ?`); other ids are skipped. A category the user does not have becomes
+  `FALLBACK_CATEGORY`, which is remembered too (it was chosen). Returns how many purchases changed.
+  Only the category of a saved purchase can be changed, never its date, item or price.
 - `delete_user(user_id)` deletes the user; their categories, memory, history and credentials go with
   them through `ON DELETE CASCADE` (foreign keys are on for every connection), in one transaction.
   It turns on `PRAGMA secure_delete` so the freed pages are overwritten and the data cannot be read
@@ -439,6 +444,8 @@ Testing
 - Run: `python -m pytest`
 - `tests/test_db.py`: data layer, including user isolation, input limits, transactions and atomic
   `save_receipt`. Each test uses its own temporary database.
+- `tests/test_db_update_categories.py`: changing the category of saved purchases (only the user's
+  own, fallback for other categories, memory, all or nothing).
 - `tests/test_parser.py`, `tests/test_kivra_format.py`, `tests/test_willys_format.py`,
   `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
@@ -572,6 +579,7 @@ Project structure
 │   ├── test_db_credentials.py
 │   ├── test_db_delete_user.py
 │   ├── test_db_schema.py
+│   ├── test_db_update_categories.py
 │   ├── test_i18n.py
 │   ├── test_launcher.py
 │   ├── test_no_personal_data.py
@@ -596,7 +604,8 @@ Commits
 - Work done as a numbered plan uses a prefix with the plan's name and step number, e.g.
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
-  `Popup Step 1: ...`, `Popup Categories Step 2: ...` or `Receipt Format Step 2: ...`.
+  `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
+  `Edit Category Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

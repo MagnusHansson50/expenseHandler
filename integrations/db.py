@@ -573,6 +573,41 @@ def get_history_dates(user_id):
     return [row[0] for row in rows]
 
 
+def update_history_categories(user_id, categories_by_id):
+    """Give saved purchases a new category and remember it for their items, all or nothing.
+
+    `categories_by_id` maps history ids to stored category names. Only the
+    user's own purchases are changed (ids of other users' rows, or unknown
+    ids, are skipped). A category the user does not have becomes
+    FALLBACK_CATEGORY, as in save_history. Each changed item's category is
+    remembered as in save_memory (FALLBACK_CATEGORY too: it was chosen);
+    if one item gets several categories, the purchase with the highest id
+    wins. Returns the number of purchases whose category changed.
+    """
+    with transaction() as conn:
+        categories = _category_names(conn, user_id)
+        changed = 0
+        memory = {}
+        for history_id, category in sorted(categories_by_id.items()):
+            stored = category if category in categories else FALLBACK_CATEGORY
+            row = conn.execute(
+                "SELECT item, category FROM history WHERE id = ? AND user_id = ?",
+                (int(history_id), user_id),
+            ).fetchone()
+            if row is None:
+                continue  # not this user's purchase, or no such purchase
+            item, old_category = row
+            if stored != old_category:
+                conn.execute(
+                    "UPDATE history SET category = ? WHERE id = ? AND user_id = ?",
+                    (stored, int(history_id), user_id),
+                )
+                changed += 1
+            memory[item] = stored
+        _write_memory(conn, user_id, memory)
+    return changed
+
+
 def delete_history_date(user_id, purchase_date):
     """Delete all of the user's purchases on a date. Returns rows removed."""
     with transaction() as conn:
