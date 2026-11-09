@@ -262,13 +262,20 @@ def log_out():
 
 
 def render_login_page():
-    """Shown instead of the app when nobody is logged in: log in or create an account."""
-    st.write(t("login_intro", lang()))
-    tab_login, tab_register = st.tabs([t("login_tab", lang()), t("register_tab", lang())])
-    with tab_login:
-        render_login_form()
-    with tab_register:
-        render_register_form()
+    """Shown instead of the app when nobody is logged in: log in or create an account.
+
+    The whole page is one block, in the place where the app's tabs come after
+    logging in. The run after logging in then replaces it at once. As two
+    blocks (text, tabs), the app's tabs would replace the text and push the
+    old login box down until the run ended.
+    """
+    with st.container():
+        st.write(t("login_intro", lang()))
+        tab_login, tab_register = st.tabs([t("login_tab", lang()), t("register_tab", lang())])
+        with tab_login:
+            render_login_form()
+        with tab_register:
+            render_register_form()
 
 
 def set_auth_message(form, key, **params):

@@ -13,6 +13,7 @@ from test_app import (
     log_out,
     logged_in_caption,
     start_app,
+    tabs_position,
 )
 
 
@@ -49,6 +50,30 @@ def test_login_with_correct_password(two_registered):
     log_in(at, "Anna")
     assert not at.exception
     assert logged_in_caption(at) == "Logged in as **Anna**"
+
+
+def top_level_block_holding(at, keys):
+    """Index in the main area of the top-level element that holds widgets with these keys."""
+    def subtree_keys(node):
+        found = {getattr(node, "key", None)}
+        for child in getattr(node, "children", {}).values():
+            found |= subtree_keys(child)
+        return found
+
+    return next(index for index, child in at.main.children.items() if set(keys) <= subtree_keys(child))
+
+
+def test_the_app_takes_the_place_of_the_whole_login_page(two_registered):
+    # In the browser the run after logging in sends the app's tabs to the place of the
+    # login page's first element. If that is only its intro text, the old login box is
+    # pushed down below the new tabs until the run ends. So the login page is one block,
+    # at the place where the app's tabs come.
+    at = start_app()
+    login_page = top_level_block_holding(at, ["login_name", "register_name"])
+    assert len(at.main.children) == login_page + 1  # nothing of the login page after it
+
+    log_in(at, "Anna")
+    assert tabs_position(at) == login_page
 
 
 @pytest.mark.parametrize("name, password", [("Anna", "wrong-password"), ("Nobody", TEST_PASSWORD)])

@@ -304,7 +304,10 @@ Authentication
 
 UI
 - Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
-  "Create account". Nothing about other users (not even their names) is shown.
+  "Create account". Nothing about other users (not even their names) is shown. The login page is
+  one `st.container()` in the place where the app's tabs come after logging in, so the next run
+  replaces it at once; as separate elements, the old login box was pushed down below the new tabs
+  until the run ended (`tests/test_app_login.py` checks the position).
 - Logged in: the sidebar shows the language selector, "Logged in as <name>", a "Log out" button and
   a collapsed "🗑️ Delete my account" ("🗑️ Ta bort mitt konto") section: a warning, the password, a
   confirmation box and a delete button. The login page then shows "Your account and all your
