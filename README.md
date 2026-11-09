@@ -103,6 +103,10 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   Om varorna inte summerar till kvittots "Betalat" visas en gul varning; kontrollera då att alla
   varor finns med och har rätt pris innan du sparar.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
+  Har du sparat ett köp med fel kategori kan du rätta den under **Visa alla köp**: klicka på
+  kategorin, välj en annan och klicka **💾 Spara ändringar**. Appen kommer då ihåg den nya
+  kategorin för varan till nästa kvitto. Datum, vara och pris går inte att ändra; är något av
+  dem fel, ta bort det datumets köp och lägg in dem igen.
   Här kan du också ta bort allt som sparats ett visst datum.
 
 ## Säkerhetskopiera och byta dator
@@ -149,6 +153,8 @@ skapa ett konto (eller logga in) och läs in filen.
   får läggas in för hand.
 - **Willys-kvitton är bara provade från självscanning.** Ett kvitto från vanlig kassa kan se
   annorlunda ut; läses en rad fel syns det som en varning om att summan inte stämmer.
+- **I sparade köp går bara kategorin att ändra**, inte datum, vara eller pris. Ett köp som
+  sparades med en kategori du sedan har tagit bort visar den gamla kategorin tills du byter den.
 - **Registreringen visar om ett namn redan är upptaget**, och vem som helst kan låsa ett namn i
   30 sekunder genom att skriva fel lösenord fem gånger.
 - **Ingen automatisk utloggning** så länge fliken är öppen. Logga ut om andra använder datorn.

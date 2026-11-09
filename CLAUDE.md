@@ -159,7 +159,8 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   `delete_category` refuses it. Its labels in every language ("Övrigt", "Other") are reserved:
   `add_category` rejects them in any letter case.
 - Deleting a category also deletes that user's `memory` rows pointing at it, in the same transaction.
-  `history` is never rewritten: saved purchases keep the category they were saved with. In the UI,
+  Deleting a category never rewrites `history`: saved purchases keep the category they were saved
+  with (the user can change it in the history list, see `update_history_categories`). In the UI,
   rows of the unsaved receipt in that category move to `FALLBACK_CATEGORY` (`core.receipt.clear_category`,
   in `remove_category`), so the table never shows a category the user no longer has. Removing a
   category needs a ticked confirmation box, in "Manage categories" and in the review popup alike.
@@ -364,7 +365,8 @@ Reviewing items without a category
 - Memory: items that still need a category when the receipt is saved are saved to history but not
   remembered, so they are asked about next time. Choosing "Other" in the review is a choice
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
-  form's default is not (it cannot be told apart from the default).
+  form's default is not (it cannot be told apart from the default). Changing a saved purchase's
+  category in the History list is a choice too and is remembered (also "Other").
 - Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
   the list of purchases (an `st.data_editor` in a form where only the category can be changed, a
   selectbox of the user's categories as labels; "💾 Save changes" saves them through
@@ -513,6 +515,9 @@ Known limitations
 - `expenses.db` is not encrypted.
 - Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
   the app. To delete an account whose password is forgotten, reset it first.
+- Only the category of a saved purchase can be changed; a wrong date, item or price means deleting
+  that date's purchases and entering them again. A purchase saved with a category that was later
+  removed shows the old name until it is changed (the list only offers current categories).
 - Deleting an account cannot be undone; download a backup first to keep the history. Backups and
   copies of `expenses.db` made earlier still contain the deleted data.
 - Backups are not encrypted and cannot be protected with a password, and they are not made
