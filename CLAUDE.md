@@ -71,6 +71,10 @@ Architecture
 - `core/backup.py`: the backup file (write, read and check), the CSV export and the import merge
   rules (see Backup and CSV export).
 - `services/backup.py`: `export_backup`, `export_history_csv`, `import_backup`.
+- `core/history.py`: `category_changes` - which saved purchases got another category in the
+  history list (editor rows -> history ids, labels -> stored names, unchanged left out).
+- `services/history.py`: `change_categories(user_id, history, editor_changes, lang)` - saves them
+  with `db.update_history_categories` (nothing is written if nothing changed).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
@@ -450,6 +454,8 @@ Testing
   `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
+- `tests/test_history.py`, `tests/test_services_history.py`: which categories were changed in the
+  history list, and saving them.
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
@@ -545,6 +551,7 @@ Project structure
 ├── services/
 │   ├── auth.py         # Register, log in (with throttle), reset password, delete account
 │   ├── backup.py       # Export and import of a user's own data
+│   ├── history.py      # Change the category of saved purchases
 │   └── receipts.py     # Import and save flows (core + database, no Streamlit)
 ├── scripts/
 │   ├── __init__.py
@@ -554,6 +561,7 @@ Project structure
 ├── core/
 │   ├── auth.py         # Password hashing and rules
 │   ├── backup.py       # Backup file format, CSV export, import merge rules
+│   ├── history.py      # Category changes in the history list
 │   ├── constants.py
 │   ├── parser.py       # Reads the PDF, picks the layout
 │   ├── receipt_formats/  # One module per receipt layout (kivra.py, willys.py)
@@ -580,6 +588,7 @@ Project structure
 │   ├── test_db_delete_user.py
 │   ├── test_db_schema.py
 │   ├── test_db_update_categories.py
+│   ├── test_history.py
 │   ├── test_i18n.py
 │   ├── test_launcher.py
 │   ├── test_no_personal_data.py
@@ -592,6 +601,7 @@ Project structure
 │   ├── test_services.py
 │   ├── test_services_auth.py
 │   ├── test_services_backup.py
+│   ├── test_services_history.py
 │   ├── test_streamlit_config.py
 │   └── test_text.py
 ├── requirements.txt
