@@ -200,7 +200,7 @@ PDF parsing
   A name too long for one line is printed on the line(s) above, with the columns alone on the last
   line; those name lines are joined. The column header and
   discounts clear the collected lines, so store and address lines never become a name.
-  Parsing stops at the payment section (`DelavstÃ¤mning`, `Betalat`, `Betalningsinformation`).
+  Parsing stops at the payment section (`Delavstämning`, `Betalat`, `Betalningsinformation`).
   The amount paid is the `Betalat` line.
 - Willys (`willys.py`, recognized by `Totalt N varor` together with `Totalt 206,60 SEK`): a copy of
   the till receipt in fixed-width text. An item line ends in its amount, with an optional

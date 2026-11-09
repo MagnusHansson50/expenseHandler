@@ -144,6 +144,37 @@ def test_save_problems_are_translated(temp_db):
     )
 
 
+def chart_tooltip_fields(at):
+    """The fields the history bar chart shows when hovering a bar (its vega-lite tooltip)."""
+    import json
+
+    def walk(node):
+        yield node
+        for child in getattr(node, "children", {}).values():
+            yield from walk(child)
+
+    chart = next(node for node in walk(at._tree) if getattr(node, "type", "") == "vega_lite_chart")
+    return [field["field"] for field in json.loads(chart.proto.spec)["encoding"]["tooltip"]]
+
+
+@pytest.mark.parametrize(
+    "lang, item, price, add, save, fields",
+    [
+        ("sv", "Vara", "Pris (kr)", "Lägg till i listan", "Spara", ["Kategori", "Summa (kr)"]),
+        ("en", "Item", "Price (kr)", "Add to list", "Save", ["Category", "Total (kr)"]),
+    ],
+)
+def test_history_chart_tooltip_is_translated(temp_db, lang, item, price, add, save, fields):
+    at = run_app(lang)
+    create_user(at, "Anna")
+    next(w for w in at.text_input if w.label == item).input("Kaffe")
+    next(w for w in at.number_input if w.label == price).set_value(45.0)
+    next(b for b in at.button if add in b.label).click().run()
+    next(b for b in at.button if save in b.label).click().run()
+    assert not at.exception
+    assert chart_tooltip_fields(at) == fields
+
+
 # --- Categories per language ---------------------------------------------
 
 

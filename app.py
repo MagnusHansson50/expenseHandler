@@ -896,12 +896,18 @@ def render_history_tab():
         col_total.metric(t("total_spent", lang()), format_amount(total_cost(history), lang()))
         col_count.metric(t("purchases", lang()), format_number(len(history), lang()))
 
-        by_category = sum_by_category(history).rename(index=lambda name: category_label(name, lang()))
+        # The chart's tooltip shows the column names, so they are named in the user's language.
+        category_column, amount_column = t("col_category", lang()), t("chart_amount", lang())
+        by_category = (
+            sum_by_category(history)
+            .rename(index=lambda name: category_label(name, lang()), columns={"Price": amount_column})
+            .rename_axis(category_column)
+        )
         st.subheader(t("spending_per_category", lang()))
         st.bar_chart(
             # y is the value column ("kr"), also when the bars are horizontal.
-            by_category, y="Price", x_label=t("col_category", lang()), y_label="kr",
-            horizontal=True, sort="-Price",
+            by_category, y=amount_column, x_label=category_column, y_label="kr",
+            horizontal=True, sort=f"-{amount_column}",
         )
 
         with st.expander(t("show_all_purchases", lang())):
