@@ -139,6 +139,10 @@ TRANSLATIONS = {
         "purchases": "Köp",
         "spending_per_category": "Utgifter per kategori",
         "show_all_purchases": "Visa alla köp",
+        "change_category_hint": "Fel kategori? Klicka på kategorin, välj en annan och klicka på Spara ändringar. Appen kommer ihåg den till nästa gång.",
+        "save_category_changes": "💾 Spara ändringar",
+        "categories_changed": "{count} köp fick en ny kategori.",
+        "no_category_changes": "Ingen kategori ändrades.",
         "delete_receipt_expander": "🗑️ Radera ett sparat kvitto",
         "confirm_delete": "Ja, radera alla köp som sparats detta datum",
         "delete_button": "Radera",
@@ -174,6 +178,7 @@ TRANSLATIONS = {
         "action_remove_category": "ta bort kategorin",
         "action_save_receipt": "spara kvittot",
         "action_delete_receipt": "radera kvittot",
+        "action_change_categories": "spara de ändrade kategorierna",
     },
     "en": {
         # Page and navigation
@@ -288,6 +293,10 @@ TRANSLATIONS = {
         "purchases": "Purchases",
         "spending_per_category": "Spending per category",
         "show_all_purchases": "Show all purchases",
+        "change_category_hint": "Wrong category? Click the category, pick another and click Save changes. The app remembers it for next time.",
+        "save_category_changes": "💾 Save changes",
+        "categories_changed": "{count} purchases got a new category.",
+        "no_category_changes": "No category was changed.",
         "delete_receipt_expander": "🗑️ Delete a saved receipt",
         "confirm_delete": "Yes, delete every purchase saved on this date",
         "delete_button": "Delete",
@@ -323,6 +332,7 @@ TRANSLATIONS = {
         "action_remove_category": "remove the category",
         "action_save_receipt": "save the receipt",
         "action_delete_receipt": "delete the receipt",
+        "action_change_categories": "save the changed categories",
     },
 }
 

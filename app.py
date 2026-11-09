@@ -35,6 +35,7 @@ from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from core.text import escape_markdown
 from integrations import db
 from services import auth, backup, receipts
+from services import history as history_service
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ def init_session_state():
         "table_version": 0,
         "upload_version": 0,
         "backup_upload_version": 0,
+        "history_version": 0,
         "purchase_date": date.today(),
         "date_version": 0,
         "flash": None,
@@ -882,6 +884,51 @@ def render_delete_date(user_id):
                     st.rerun()
 
 
+def render_history_list(user_id, history, start_date, end_date):
+    """The purchases of the period, where only the category can be changed (see core/history.py).
+
+    The editor is in a form, so edits are sent together with "Save changes".
+    Its key holds the period, the language and history_version (bumped after
+    saving), so the edits of one list are never applied to another.
+    """
+    categories = load(db.get_categories, user_id, what="what_categories")
+    editor_key = f"history_editor_{lang()}_{start_date}_{end_date}_{st.session_state.history_version}"
+    with st.expander(t("show_all_purchases", lang())):
+        st.caption(t("change_category_hint", lang()))
+        with st.form("history_form", border=False):
+            st.data_editor(
+                draft_ops.with_category_labels(history, lang()),
+                key=editor_key,
+                hide_index=True,
+                width="stretch",
+                num_rows="fixed",
+                column_order=["Date", "Item", "Price", "Category"],
+                disabled=["Date", "Item", "Price"],
+                column_config={
+                    "Date": st.column_config.TextColumn(t("col_date", lang())),
+                    "Item": st.column_config.TextColumn(t("col_item", lang())),
+                    "Price": st.column_config.NumberColumn(t("col_price", lang()), format=PRICE_INPUT_FORMAT),
+                    "Category": st.column_config.SelectboxColumn(
+                        t("col_category", lang()),
+                        options=[category_label(name, lang()) for name in categories],
+                        required=True,
+                    ),
+                },
+            )
+            save_clicked = st.form_submit_button(t("save_category_changes", lang()), key="history_save")
+    if save_clicked:
+        with write_errors("action_change_categories"):
+            changed = history_service.change_categories(
+                user_id, history, st.session_state.get(editor_key, {}), lang()
+            )
+            st.session_state.history_version += 1
+            if changed:
+                flash("success", t("categories_changed", lang(), count=changed))
+            else:
+                flash("info", t("no_category_changes", lang()))
+            st.rerun()
+
+
 def render_history_tab():
     """Tab 2: total spent and spending per category for a period."""
     user_id = st.session_state.current_user
@@ -917,18 +964,7 @@ def render_history_tab():
             horizontal=True, sort=f"-{amount_column}",
         )
 
-        with st.expander(t("show_all_purchases", lang())):
-            st.dataframe(
-                draft_ops.with_category_labels(history.drop(columns="Id"), lang()),
-                hide_index=True,
-                width="stretch",
-                column_config={
-                    "Date": st.column_config.TextColumn(t("col_date", lang())),
-                    "Item": st.column_config.TextColumn(t("col_item", lang())),
-                    "Price": st.column_config.NumberColumn(t("col_price", lang()), format=PRICE_INPUT_FORMAT),
-                    "Category": st.column_config.TextColumn(t("col_category", lang())),
-                },
-            )
+        render_history_list(user_id, history, start_date, end_date)
 
     render_delete_date(user_id)
     render_backup(user_id)

@@ -113,6 +113,8 @@ Architecture
   - `upload_version`: part of the `st.file_uploader` key; bumped after a PDF is parsed so the same file
     is not parsed again on the next rerun.
   - `backup_upload_version`: the same for the backup uploader.
+  - `history_version`: part of the history list's `st.data_editor` key (with the language and the
+    period); bumped after saving changed categories, so the list is rebuilt from the database.
   - `purchase_date`: the date that will be saved with the receipt (from the receipt, or picked by the user).
   - `date_version`: part of the date picker key; bumped when `purchase_date` is set from code
     (upload, save, clear, switch user) so the picker shows the new value.
@@ -364,7 +366,9 @@ Reviewing items without a category
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
   form's default is not (it cannot be told apart from the default).
 - Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
-  the list of purchases, delete all purchases saved on a date (with confirmation), and the backup
+  the list of purchases (an `st.data_editor` in a form where only the category can be changed, a
+  selectbox of the user's categories as labels; "💾 Save changes" saves them through
+  `services.history.change_categories` and remembers them, see `db.update_history_categories`), delete all purchases saved on a date (with confirmation), and the backup
   section (see Backup and CSV export).
 
 Languages
@@ -454,8 +458,10 @@ Testing
   `tests/test_receipt.py`, `tests/test_calculator.py`, `tests/test_text.py`:
   pure `core/` logic.
 - `tests/test_services.py`: `services/receipts.py` flows against a temporary database.
-- `tests/test_history.py`, `tests/test_services_history.py`: which categories were changed in the
-  history list, and saving them.
+- `tests/test_history.py`, `tests/test_services_history.py`, `tests/test_app_history_edit.py`: which
+  categories were changed in the history list, saving them, and the list in the UI (only the
+  category editable, the save button, database errors). Picking a category in the table is
+  checked in a browser (`AppTest` cannot edit `st.data_editor`).
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
@@ -575,6 +581,7 @@ Project structure
 │   ├── test_app_backup.py
 │   ├── test_app_db_errors.py
 │   ├── test_app_delete_account.py
+│   ├── test_app_history_edit.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
 │   ├── test_app_review.py
