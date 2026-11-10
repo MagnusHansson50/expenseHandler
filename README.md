@@ -110,6 +110,10 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   kategorierna och du väljer den med ett klick. Under **🗑️ Ta bort en kategori** i rutan kan du
   ta bort en kategori (kryssa i rutan för att bekräfta), precis som under **Hantera kategorier**.
   Köp du redan sparat behåller kategorin; varor i det osparade kvittot hamnar i "Övrigt".
+  Nya kategorier skapar du under **⚙️ Hantera kategorier** eller i rutan. Liknar namnet en
+  kategori du redan har, så att bara stora och små bokstäver eller mellanslag skiljer (till
+  exempel "mjölk" när du har "Mjölk"), frågar appen först: **Lägg till ändå** ger dig båda,
+  **Avbryt** lägger inte till något. Exakt samma namn går inte att lägga till.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
   Har du sparat ett köp med fel kategori kan du rätta den under **Visa alla köp**: klicka på
   kategorin, välj en annan och klicka **💾 Spara ändringar**. Appen kommer då ihåg den nya

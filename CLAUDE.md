@@ -78,6 +78,9 @@ Architecture
   with `db.update_history_categories` (nothing is written if nothing changed).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
+- `core/categories.py`: `category_clash(name, categories)` -> `CategoryClash(existing, exact)` or
+  `None`, `comparable` (letter case and extra spaces ignored) and `is_reserved` (the fallback
+  labels), for asking before adding a category that looks like an existing one.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
   rules (`password_problem`).
 - `scripts/reset_password.py`: command-line tool for whoever runs the app to set a new password
@@ -132,9 +135,13 @@ Architecture
     exists on every run, so the tabs below never move (moving them resets the selected tab).
     It is also shown on the login page (e.g. after deleting an account).
   - `review_active`, `review_dismissed`, `review_handled`, `review_skipped`, `review_kept_fallback`,
-    `review_names`, `review_notice`, `review_category_message`: the review popup for items without a
-    category (see below).
+    `review_names`, `review_notice`, `review_category_message`, `review_pending_category`: the review
+    popup for items without a category (see below).
     They are reset when the draft becomes empty (cleared, saved, logging in or out).
+  - `pending_category`: (new name, existing category) while "Manage categories" asks whether to add
+    a name that looks like an existing category (see Look-alike categories). Cleared by the answer,
+    a new name, logging in or out. `review_pending_category` is the same inside the review popup,
+    also cleared when the review stops or starts.
 
 Database (`expenses.db`)
 Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
@@ -174,6 +181,13 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   rows of the unsaved receipt in that category move to `FALLBACK_CATEGORY` (`core.receipt.clear_category`,
   in `remove_category`), so the table never shows a category the user no longer has. Removing a
   category needs a ticked confirmation box, in "Manage categories" and in the review popup alike.
+- Look-alike categories: `categories` is unique on the exact name, so "mjölk" next to "Mjölk" is
+  allowed in the database. The UI asks first (`app.add_category` returns kind `"similar"`):
+  "You already have the category 'Mjölk'. Add 'mjölk' anyway?" with "Add anyway" / "Cancel", in
+  "Manage categories" and in the review popup alike; nothing is added until "Add anyway". Names are
+  compared with `core.categories.comparable` (casefold, extra whitespace ignored). An exact
+  duplicate gets its own message (`category_exists`); the reserved fallback labels skip the
+  question and get the usual refusal. Backup import adds only missing exact names and asks nothing.
 - Input limits are enforced here as the last guard: `create_user` / `add_category` reject names longer
   than `MAX_NAME_LENGTH`; `save_history` rejects (and saves nothing) if an item is longer than
   `MAX_ITEM_LENGTH` or a price is outside -`MAX_PRICE`..`MAX_PRICE`.
@@ -372,6 +386,8 @@ Reviewing items without a category
   same item, and show their result once inside the popup (`review_category_message`), since a flash
   would be hidden behind it. Items already given a removed category in this review move to the
   fallback category and are taken out of `review_handled`, so they are asked about again.
+  A look-alike name asks "Add anyway?" inside the popup (`review_pending_category`); its two
+  buttons are read in `handle_review_category_forms` too, so the popup stays on the same item.
 - It opens by itself after a PDF upload in which some items got no category from memory, and then
   shows the import message at its top (`review_notice`), because it covers the flash. It does not
   open by itself for items added by hand (the form defaults to the fallback category). Above the
@@ -499,6 +515,9 @@ Testing
   count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
   adding and removing categories in the popup, removing an item from the receipt).
   Opening by itself after a PDF upload is checked in a browser (`AppTest` cannot upload).
+- `tests/test_categories.py`, `tests/test_app_similar_category.py`: look-alike category names
+  (which names clash, the question in "Manage categories" and in the popup, add anyway, cancel,
+  only the user's own categories, escaping, Swedish texts).
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).
 - `tests/test_reset_password_script.py`: the reset script with scripted password answers.
@@ -603,6 +622,7 @@ Project structure
 │   └── db.py
 ├── core/
 │   ├── auth.py         # Password hashing and rules
+│   ├── categories.py   # Look-alike category names
 │   ├── backup.py       # Backup file format, CSV export, import merge rules
 │   ├── history.py      # Category changes in the history list
 │   ├── constants.py
@@ -624,11 +644,13 @@ Project structure
 │   ├── test_app_missing_item.py
 │   ├── test_app_remove_item.py
 │   ├── test_app_review.py
+│   ├── test_app_similar_category.py
 │   ├── test_architecture.py
 │   ├── test_auth.py
 │   ├── test_auth_guards.py
 │   ├── test_backup.py
 │   ├── test_calculator.py
+│   ├── test_categories.py
 │   ├── test_db.py
 │   ├── test_db_credentials.py
 │   ├── test_db_delete_user.py
@@ -661,7 +683,7 @@ Commits
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
-  `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...`.
+  `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
