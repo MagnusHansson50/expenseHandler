@@ -72,6 +72,7 @@ TRANSLATIONS = {
         "category_not_removed": "Kategorin '{name}' kunde inte tas bort.",
         # Manual entry and PDF upload
         "manual_entry": "✍️ Lägg till ett köp manuellt",
+        "add_missing_item": "➕ Lägg till en vara som saknas",
         "add_to_list": "➕ Lägg till i listan",
         "item_missing": "Ange en beskrivning av varan.",
         "upload_label": "Ladda upp ett kvitto från Kivra eller Willys (.pdf)",
@@ -93,14 +94,19 @@ TRANSLATIONS = {
         "import_added": "{count} varor har lagts till ({remembered} fick kategori från minnet).",
         "import_date_set": "Köpdatumet är satt till {date} från kvittot.",
         "import_no_date": "Inget datum hittades på kvittot; kontrollera köpdatumet.",
-        "import_total_mismatch": (
-            "Varorna summerar till {items_total}, men kvittot anger Betalat {paid_total}. "
-            "Kontrollera att inga varor saknas eller har fel pris."
+        "paid_items_missing": (
+            "Kvittot anger Betalat {paid_total}, men listan är {difference} mindre. Saknas en vara, "
+            "lägg till den under Lägg till en vara som saknas, eller rätta ett pris i tabellen."
         ),
+        "paid_items_too_much": (
+            "Kvittot anger Betalat {paid_total}, men listan är {difference} mer. Ta bort det som inte "
+            "ska vara med under Ta bort en vara, eller rätta ett pris i tabellen."
+        ),
+        "paid_matches": "✔️ Listan stämmer med kvittots Betalat {paid_total}.",
         # Draft receipt table and saving
         "empty_draft_info": "Lägg till ett köp manuellt eller ladda upp ett kvitto för att komma igång.",
         "current_list": "Aktuell lista",
-        "receipt_table_hint": "Du kan ändra vara, pris och kategori direkt i tabellen. Saknas en vara, lägg till den i tabellens tomma rad längst ner eller med Lägg till ett köp manuellt.",
+        "receipt_table_hint": "Du kan ändra vara, pris och kategori direkt i tabellen. Saknas en vara, lägg till den i tabellens tomma rad längst ner eller under Lägg till en vara som saknas.",
         "remove_item_header": "🗑️ Ta bort en vara",
         "remove_item_note": "Till exempel något du köpte åt någon annan. Varan tas bara bort ur det här kvittot; den sparas inte och appen lägger den inte på minnet.",
         "remove_item_choice": "Vara att ta bort",
@@ -231,6 +237,7 @@ TRANSLATIONS = {
         "category_not_removed": "Category '{name}' could not be removed.",
         # Manual entry and PDF upload
         "manual_entry": "✍️ Add a purchase manually",
+        "add_missing_item": "➕ Add a missing item",
         "add_to_list": "➕ Add to list",
         "item_missing": "Enter an item description.",
         "upload_label": "Upload a receipt from Kivra or Willys (.pdf)",
@@ -252,14 +259,19 @@ TRANSLATIONS = {
         "import_added": "Added {count} items ({remembered} categorized from memory).",
         "import_date_set": "Purchase date set to {date} from the receipt.",
         "import_no_date": "No date found on the receipt; check the purchase date.",
-        "import_total_mismatch": (
-            "The items add up to {items_total}, but the receipt says Betalat (paid) {paid_total}. "
-            "Check that no items are missing or have the wrong price."
+        "paid_items_missing": (
+            "The receipt says Betalat (paid) {paid_total}, but the list is {difference} less. If an "
+            "item is missing, add it under Add a missing item, or correct a price in the table."
         ),
+        "paid_items_too_much": (
+            "The receipt says Betalat (paid) {paid_total}, but the list is {difference} more. Remove "
+            "what should not be included under Remove an item, or correct a price in the table."
+        ),
+        "paid_matches": "✔️ The list matches the receipt's Betalat (paid) {paid_total}.",
         # Draft receipt table and saving
         "empty_draft_info": "Add a purchase manually or upload a receipt to get started.",
         "current_list": "Current list",
-        "receipt_table_hint": "You can change the item, price and category right in the table. If an item is missing, add it in the table's empty row at the bottom or with Add a purchase manually.",
+        "receipt_table_hint": "You can change the item, price and category right in the table. If an item is missing, add it in the table's empty row at the bottom or under Add a missing item.",
         "remove_item_header": "🗑️ Remove an item",
         "remove_item_note": "For example something you bought for someone else. The item is only removed from this receipt; it is not saved and the app does not remember it.",
         "remove_item_choice": "Item to remove",

@@ -113,6 +113,7 @@ def init_session_state():
         "upload_version": 0,
         "backup_upload_version": 0,
         "history_version": 0,
+        "paid_total": None,
         "purchase_date": date.today(),
         "date_version": 0,
         "flash": None,
@@ -198,6 +199,7 @@ def set_draft(df):
         st.session_state.review_kept_fallback = []
         st.session_state.review_notice = None
         st.session_state.review_category_message = None
+        st.session_state.paid_total = None
 
 
 def add_to_draft(rows):
@@ -493,9 +495,9 @@ def remove_category(user_id, name):
     return "error", t("category_not_removed", lang(), name=escape_markdown(name))
 
 
-def render_manual_entry(categories):
-    """Form for adding a purchase by hand."""
-    with st.expander(t("manual_entry", lang())):
+def render_manual_entry(categories, header):
+    """Form for adding a purchase by hand: above the upload while the list is empty, then below the table."""
+    with st.expander(header):
         with st.form("manual_entry_form", clear_on_submit=True):
             col_item, col_price, col_category = st.columns([2, 1, 1])
             item = col_item.text_input(t("col_item", lang()), max_chars=MAX_ITEM_LENGTH)
@@ -562,7 +564,18 @@ def render_pdf_upload(user_id, categories):
     if result.items.empty:
         flash("warning", t("no_items_found", lang()))
     else:
+        # The amount paid to compare the list with while editing (render_paid_comparison):
+        # this receipt's, added to the earlier receipts' in the same list. Items that were
+        # already there without a paid amount make a comparison meaningless.
+        earlier = st.session_state.paid_total
+        if st.session_state.receipt_df.empty:
+            paid = result.paid_total
+        elif earlier is not None and result.paid_total is not None:
+            paid = round(earlier + result.paid_total, 2)
+        else:
+            paid = None
         add_to_draft(result.items)
+        st.session_state.paid_total = paid
         if result.purchase_date:
             set_purchase_date(result.purchase_date)
         notice = import_message(result)
@@ -587,12 +600,13 @@ def import_message(result):
         parts.append(t("import_date_set", lang(), date=f"{result.purchase_date:%Y-%m-%d}"))
     else:
         parts.append(t("import_no_date", lang()))
-    if paid_difference(result.items, result.paid_total) is None:
+    difference = paid_difference(result.items, result.paid_total)
+    if difference is None:
         return "success", " ".join(parts)
     parts.append(t(
-        "import_total_mismatch", lang(),
-        items_total=format_amount(total_cost(result.items), lang()),
+        "paid_items_missing" if difference > 0 else "paid_items_too_much", lang(),
         paid_total=format_amount(result.paid_total, lang()),
+        difference=format_amount(abs(difference), lang()),
     ))
     return "warning", " ".join(parts)
 
@@ -887,7 +901,8 @@ def render_current_receipt_tab():
     categories = load(db.get_categories, user_id, what="what_categories")
 
     render_category_manager(user_id, categories)
-    render_manual_entry(categories)
+    if st.session_state.receipt_df.empty:
+        render_manual_entry(categories, t("manual_entry", lang()))
     render_pdf_upload(user_id, categories)
 
     if st.session_state.receipt_df.empty:
@@ -898,9 +913,28 @@ def render_current_receipt_tab():
     render_review(user_id, categories)
     st.caption(t("receipt_table_hint", lang()))
     render_receipt_editor(categories)
+    # Next to the table, so a missing item is added where the list is checked.
+    render_manual_entry(categories, t("add_missing_item", lang()))
     render_remove_item()
-    st.metric(t("total", lang()), format_amount(total_cost(st.session_state.receipt_df), lang()))
+    total = total_cost(st.session_state.receipt_df)
+    st.metric(t("total", lang()), format_amount(total, lang()))
+    render_paid_comparison()
     render_save_section(user_id)
+
+
+def render_paid_comparison():
+    """How the list compares with the amount paid on the uploaded receipt(s), while editing."""
+    paid = st.session_state.paid_total
+    if paid is None:
+        return
+    difference = paid_difference(st.session_state.receipt_df, paid)
+    paid_text = format_amount(paid, lang())
+    if difference is None:
+        st.caption(t("paid_matches", lang(), paid_total=paid_text))
+    elif difference > 0:
+        st.warning(t("paid_items_missing", lang(), paid_total=paid_text, difference=format_amount(difference, lang())))
+    else:
+        st.warning(t("paid_items_too_much", lang(), paid_total=paid_text, difference=format_amount(-difference, lang())))
 
 
 def render_delete_date(user_id):

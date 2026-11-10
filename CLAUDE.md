@@ -116,6 +116,10 @@ Architecture
   - `backup_upload_version`: the same for the backup uploader.
   - `history_version`: part of the history list's `st.data_editor` key (with the language and the
     period); bumped after saving changed categories, so the list is rebuilt from the database.
+  - `paid_total`: the amount paid on the uploaded receipt(s) in the draft, to compare the list with
+    while editing (`render_paid_comparison`); a second upload into the same list adds its amount,
+    and it is `None` when there is nothing to compare with (no upload, a receipt without a paid
+    amount, or items added before the upload). Reset when the draft becomes empty.
   - `purchase_date`: the date that will be saved with the receipt (from the receipt, or picked by the user).
   - `date_version`: part of the date picker key; bumped when `purchase_date` is set from code
     (upload, save, clear, switch user) so the picker shows the new value.
@@ -227,8 +231,10 @@ PDF parsing
 - The purchase date is the first valid `YYYY-MM-DD` in the text; text extraction may glue it to a label
   (e.g. `Kassör2026-09-26`).
 - After an upload the app compares the items with the amount paid (`paid_difference`); if they
-  differ, the import message is a warning showing both amounts, so missing or misread items are
-  noticed before saving.
+  differ, the import message is a warning saying how much less or more the list is
+  (`paid_items_missing` / `paid_items_too_much`) and where to add or remove an item. Below the
+  total the same comparison stays while editing (`paid_total`), so adding the missing item or
+  removing an extra one turns it into "✔️ The list matches ..." (`paid_matches`).
 
 Backup and CSV export
 - Only the logged-in user's own data. `services/backup.py`: `export_backup(user_id)` (JSON bytes),
@@ -325,7 +331,9 @@ UI
   a collapsed "🗑️ Delete my account" ("🗑️ Ta bort mitt konto") section: a warning, the password, a
   confirmation box and a delete button. The login page then shows "Your account and all your
   receipts have been deleted."
-- Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price, category), PDF upload
+- Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price,
+  category; "✍️ Add a purchase manually" above the upload while the list is empty, then "➕ Add a
+  missing item" below the table, the same form), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list (a caption above it says items, prices and categories can be changed there
   and where to add a missing item; rows can also be added and deleted in the table itself),
@@ -476,6 +484,8 @@ Testing
 - `tests/test_app_remove_item.py`: the "Remove an item" section (rows listed with their number, only
   that row removed, one of two rows with the same name, never saved or remembered). Deleting rows
   in the table itself is checked in a browser.
+- `tests/test_app_missing_item.py`: where the manual form is, and the comparison with the amount
+  paid while editing (missing, too much, matching, none without an upload, reset on clear).
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
   count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
   adding and removing categories in the popup).
@@ -599,6 +609,7 @@ Project structure
 │   ├── test_app_history_edit.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
+│   ├── test_app_missing_item.py
 │   ├── test_app_remove_item.py
 │   ├── test_app_review.py
 │   ├── test_architecture.py
