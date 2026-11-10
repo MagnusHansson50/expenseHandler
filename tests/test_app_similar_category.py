@@ -6,6 +6,7 @@ The user is asked first and has to choose: "Add anyway" or "Cancel".
 import pytest
 
 from test_app import WJ, create_user, log_out, start_app, widget
+from test_app_review import add_category_in_popup, category_tags, popup_item, start_with
 
 
 @pytest.fixture
@@ -136,3 +137,69 @@ def test_the_question_in_swedish(temp_db):
 
 def create_user_sv(at, name):
     create_user(at, name)  # the form is found by keys, so it works in any language
+
+
+# --- In the review popup -----------------------------------------------------
+# The same question inside the popup for items without a category. Its buttons
+# are handled at the top of the popup's next run, so it stays on the same item.
+
+
+def popup_question(at):
+    return [w.value for w in at.warning if "anyway" in w.value]
+
+
+@pytest.fixture
+def popup(anna):
+    start_with(anna, ("Drill", 799.0), ("Gloves", 99.0))
+    return anna
+
+
+def test_the_popup_asks_about_a_similar_name(popup, temp_db):
+    add_category_in_popup(popup, "dairy")
+    assert not popup.exception
+    assert popup_question(popup) == ["You already have the category 'Dairy'. Add 'dairy' anyway?"]
+    assert "dairy" not in temp_db.get_categories(user_id(temp_db, "Anna"))
+    assert "dairy" not in category_tags(popup).options
+    assert popup_item(popup)[1] == "**Drill**"
+
+
+def test_add_anyway_in_the_popup_adds_a_tag_and_stays_on_the_item(popup, temp_db):
+    add_category_in_popup(popup, "dairy")
+    popup.button(key="review_add_similar").click().run()
+    assert not popup.exception
+    assert "dairy" in temp_db.get_categories(user_id(temp_db, "Anna"))
+    assert "dairy" in category_tags(popup).options
+    assert popup.success[0].value == "Added category 'dairy'."
+    assert not popup_question(popup)
+    assert popup_item(popup)[1] == "**Drill**"
+
+
+def test_cancel_in_the_popup_adds_nothing_and_stays_on_the_item(popup, temp_db):
+    before = temp_db.get_categories(user_id(temp_db, "Anna"))
+    add_category_in_popup(popup, "dairy")
+    popup.button(key="review_cancel_similar").click().run()
+    assert not popup.exception
+    assert temp_db.get_categories(user_id(temp_db, "Anna")) == before
+    assert not popup_question(popup)
+    assert not any(b.key == "review_add_similar" for b in popup.button)
+    assert popup_item(popup)[1] == "**Drill**"
+
+
+def test_the_popup_question_does_not_show_behind_it_on_the_page(popup):
+    add_category_in_popup(popup, "dairy")
+    assert popup.session_state["pending_category"] is None  # "Manage categories" asks nothing
+
+
+def test_stopping_the_review_drops_the_question(popup):
+    add_category_in_popup(popup, "dairy")
+    popup.button(key="review_stop").click().run()
+    assert popup_item(popup) is None
+    assert popup.session_state["review_pending_category"] is None
+    popup.button(key="review_open").click().run()
+    assert not popup_question(popup)
+
+
+def test_names_in_the_popup_question_are_shown_literally(popup):
+    add_category_in_popup(popup, "**Bold**")
+    add_category_in_popup(popup, "**bold**")
+    assert popup_question(popup) == [r"You already have the category '\*\*Bold\*\*'. Add '\*\*bold\*\*' anyway?"]

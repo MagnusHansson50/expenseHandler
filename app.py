@@ -129,6 +129,7 @@ def init_session_state():
         "review_category_message": None,
         "review_kept_fallback": [],
         "pending_category": None,
+        "review_pending_category": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -204,6 +205,7 @@ def set_draft(df):
         st.session_state.review_kept_fallback = []
         st.session_state.review_notice = None
         st.session_state.review_category_message = None
+        st.session_state.review_pending_category = None
         st.session_state.paid_total = None
         st.session_state.removed_total = 0.0
         st.session_state.imported_rows = []
@@ -813,11 +815,13 @@ def start_review():
     st.session_state.review_skipped = []
     st.session_state.review_notice = None
     st.session_state.review_category_message = None
+    st.session_state.review_pending_category = None
 
 
 def close_review():
     """Stop or the popup's X: keep what was chosen, and do not open by itself for the items left."""
     st.session_state.review_active = False
+    st.session_state.review_pending_category = None  # an unanswered "add anyway?" is dropped
     st.session_state.review_dismissed = st.session_state.review_names
 
 
@@ -884,14 +888,31 @@ def finish_review(names):
 
 
 def handle_review_category_forms(user_id):
-    """Add or remove a category sent from the popup on the previous click."""
+    """Add or remove a category sent from the popup on the previous click.
+
+    A name like an existing category ("mjölk" next to "Mjölk") waits in
+    review_pending_category until "Add anyway" or "Cancel" is clicked. Those
+    buttons are read here on the click's run, like the forms, so the popup
+    stays open and on the same item.
+    """
     if st.session_state.get("review_add_submit"):
+        st.session_state.review_pending_category = None  # a new name replaces an open question
+        name = st.session_state.get("review_new_category", "")
         with write_errors("action_add_category"):
-            # The popup asks about similar names in the next step; until then it adds them.
+            kind, message = add_category(user_id, name, db.get_categories(user_id))
+            if kind == "similar":
+                st.session_state.review_pending_category = (name.strip(), message)
+            else:
+                st.session_state.review_category_message = (kind, message)
+    pending = st.session_state.review_pending_category
+    if pending and st.session_state.get("review_add_similar"):
+        with write_errors("action_add_category"):
             st.session_state.review_category_message = add_category(
-                user_id, st.session_state.get("review_new_category", ""),
-                db.get_categories(user_id), confirmed=True,
+                user_id, pending[0], db.get_categories(user_id), confirmed=True,
             )
+            st.session_state.review_pending_category = None
+    elif pending and st.session_state.get("review_cancel_similar"):
+        st.session_state.review_pending_category = None
     to_remove = st.session_state.get("review_remove_choice")
     confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
     if st.session_state.get("review_remove_submit") and to_remove:
@@ -958,6 +979,13 @@ def open_review_dialog(user_id):
             col_name, col_add = st.columns([3, 1], vertical_alignment="bottom")
             col_name.text_input(t("new_category", lang()), max_chars=MAX_NAME_LENGTH, key="review_new_category")
             col_add.form_submit_button(t("add_button", lang()), key="review_add_submit")
+        if st.session_state.review_pending_category:
+            name_new, existing = st.session_state.review_pending_category
+            st.warning(t("category_similar", lang(),
+                         name=escape_markdown(name_new), existing=escape_markdown(existing)))
+            col_yes, col_no = st.columns(2)
+            col_yes.button(t("category_add_anyway", lang()), key="review_add_similar")
+            col_no.button(t("cancel_button", lang()), key="review_cancel_similar")
         with st.expander(t("review_remove_header", lang())):
             st.caption(t("remove_category_note", lang()))
             with st.form("review_remove_category", border=False):
