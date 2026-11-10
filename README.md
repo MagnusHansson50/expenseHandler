@@ -87,8 +87,18 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 - **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra eller ett digitalt kvitto från Willys
   (PDF, högst 5 MB) eller lägg till köp för hand. Rabatter och pant räknas in i varan de hör
   till; en mängdrabatt som gäller flera varor (till exempel `Willys Plus:CHOKLAD`) blir en egen
-  rad. Stämmer varorna inte med det betalda beloppet visas en varning med båda summorna. Kontrollera och ändra kategorierna i tabellen, välj datum och klicka **Spara**. Appen
-  kommer ihåg vilken kategori du valde för en vara till nästa gång.
+  rad. Kontrollera och ändra vara, pris och kategori direkt i tabellen, välj datum och klicka
+  **Spara**. Appen kommer ihåg vilken kategori du valde för en vara till nästa gång.
+  - **Saknas en vara** på kvittot lägger du till den under **➕ Lägg till en vara som saknas**
+    under tabellen (eller i tabellens tomma rad längst ner).
+  - **Ska en vara inte vara med**, till exempel något du köpte åt någon annan, tar du bort den
+    under **🗑️ Ta bort en vara** (raderna visas med nummer, så två varor med samma namn går att
+    skilja åt), med **🗑️ Ta bort från kvittot** i rutan för varor utan kategori, eller genom att
+    markera raden i tabellens vänsterkant och trycka Delete. En borttagen vara sparas inte och
+    appen lägger den inte på minnet.
+  - **Under totalen** jämför appen listan med kvittots "Betalat" så länge du redigerar: en gul
+    varning säger hur mycket som saknas eller är för mycket, och när det stämmer står det
+    "✔️ Listan stämmer". Varor du tagit bort från kvittot räknas av, så de räknas inte som saknade.
   Får varor från ett uppladdat kvitto ingen kategori (de står som "Övrigt") öppnas en ruta,
   **🏷️ Varor utan kategori**, som visar en vara i taget. Klicka på en kategori, så sparas den och
   nästa vara visas. **Hoppa över** lämnar varan som den är, och **Avsluta** eller krysset stänger
@@ -100,8 +110,6 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   kategorierna och du väljer den med ett klick. Under **🗑️ Ta bort en kategori** i rutan kan du
   ta bort en kategori (kryssa i rutan för att bekräfta), precis som under **Hantera kategorier**.
   Köp du redan sparat behåller kategorin; varor i det osparade kvittot hamnar i "Övrigt".
-  Om varorna inte summerar till kvittots "Betalat" visas en gul varning; kontrollera då att alla
-  varor finns med och har rätt pris innan du sparar.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
   Har du sparat ett köp med fel kategori kan du rätta den under **Visa alla köp**: klicka på
   kategorin, välj en annan och klicka **💾 Spara ändringar**. Appen kommer då ihåg den nya

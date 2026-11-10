@@ -544,6 +544,9 @@ Known limitations
 - `expenses.db` is not encrypted.
 - Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
   the app. To delete an account whose password is forgotten, reset it first.
+- The comparison with the paid amount while editing knows a removed row came from the receipt by
+  its item name and price: a row whose name or price was changed before it was removed counts as
+  missing. Uploading a receipt into a list that already has items added by hand shows no comparison.
 - Only the category of a saved purchase can be changed; a wrong date, item or price means deleting
   that date's purchases and entering them again. A purchase saved with a category that was later
   removed shows the old name until it is changed (the list only offers current categories).
