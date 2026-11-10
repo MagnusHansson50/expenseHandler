@@ -114,6 +114,8 @@ def init_session_state():
         "backup_upload_version": 0,
         "history_version": 0,
         "paid_total": None,
+        "removed_total": 0.0,
+        "imported_rows": [],
         "purchase_date": date.today(),
         "date_version": 0,
         "flash": None,
@@ -200,6 +202,8 @@ def set_draft(df):
         st.session_state.review_notice = None
         st.session_state.review_category_message = None
         st.session_state.paid_total = None
+        st.session_state.removed_total = 0.0
+        st.session_state.imported_rows = []
 
 
 def add_to_draft(rows):
@@ -221,7 +225,26 @@ def on_editor_change():
     picked in the editor are turned back into stored names first.
     """
     changes = draft_ops.changes_to_stored_categories(st.session_state[editor_key()], lang())
-    set_draft(draft_ops.apply_editor_changes(st.session_state.receipt_df, changes))
+    draft = st.session_state.receipt_df
+    deleted = [int(row) for row in changes.get("deleted_rows", []) if 0 <= int(row) < len(draft)]
+    note_removed(draft.iloc[deleted])
+    set_draft(draft_ops.apply_editor_changes(draft, changes))
+
+
+def note_removed(rows):
+    """Count rows removed from an uploaded receipt as removed on purpose (see render_paid_comparison).
+
+    Only rows that came from the upload (imported_rows, as item and price) count: something
+    added by hand and removed again was never on the receipt. Called before set_draft,
+    which forgets both with paid_total when the draft becomes empty.
+    """
+    if st.session_state.paid_total is None:
+        return
+    for item, price in zip(rows["Item"], rows["Price"]):
+        key = [item, price]
+        if key in st.session_state.imported_rows:
+            st.session_state.imported_rows.remove(key)
+            st.session_state.removed_total = round(st.session_state.removed_total + float(price), 2)
 
 
 def flash(kind, message):
@@ -576,6 +599,11 @@ def render_pdf_upload(user_id, categories):
             paid = None
         add_to_draft(result.items)
         st.session_state.paid_total = paid
+        # Which rows came from receipts, so removing one counts as removed on purpose (note_removed).
+        st.session_state.imported_rows = (
+            st.session_state.imported_rows + [[item, price] for item, price in zip(result.items["Item"], result.items["Price"])]
+            if paid is not None else []
+        )
         if result.purchase_date:
             set_purchase_date(result.purchase_date)
         notice = import_message(result)
@@ -607,6 +635,7 @@ def import_message(result):
         "paid_items_missing" if difference > 0 else "paid_items_too_much", lang(),
         paid_total=format_amount(result.paid_total, lang()),
         difference=format_amount(abs(difference), lang()),
+        removed="",
     ))
     return "warning", " ".join(parts)
 
@@ -645,8 +674,10 @@ def render_receipt_editor(categories):
 def remove_chosen_row(widget_key):
     """on_click for "Remove": drop the chosen row from the draft (never saved, never remembered)."""
     row = st.session_state.get(widget_key)
-    if row is not None:
-        set_draft(draft_ops.remove_row(st.session_state.receipt_df, row))
+    draft = st.session_state.receipt_df
+    if row is not None and 0 <= row < len(draft):
+        note_removed(draft.iloc[[row]])
+        set_draft(draft_ops.remove_row(draft, row))
 
 
 def render_remove_item():
@@ -762,6 +793,17 @@ def review_choose(name, widget_key):
 def review_skip(name):
     st.session_state.review_handled.append(name)
     st.session_state.review_skipped.append(name)
+
+
+def review_remove(name):
+    """Remove the item shown from the receipt (every row with that name); the popup moves on.
+
+    Like a choice it is made in a callback, so the popup stays open. If the
+    receipt becomes empty, set_draft ends the review and the popup closes.
+    """
+    draft = st.session_state.receipt_df
+    note_removed(draft_ops.item_rows(draft, name))
+    set_draft(draft_ops.remove_item(draft, name))
 
 
 def review_names(user_id, categories):
@@ -888,8 +930,12 @@ def open_review_dialog(user_id):
             kind, message = st.session_state.review_category_message
             st.session_state.review_category_message = None
             getattr(st, kind)(message)
-        col_skip, col_stop = st.columns(2)
+        col_skip, col_remove, col_stop = st.columns(3)
         col_skip.button(t("review_skip_button", lang()), key="review_skip", on_click=review_skip, args=(name,))
+        col_remove.button(
+            t("review_remove_item_button", lang()), key="review_remove_item",
+            help=t("review_remove_item_help", lang()), on_click=review_remove, args=(name,),
+        )
         col_stop.button(t("review_stop_button", lang()), key="review_stop", on_click=close_review)
 
     review_dialog()
@@ -927,14 +973,19 @@ def render_paid_comparison():
     paid = st.session_state.paid_total
     if paid is None:
         return
-    difference = paid_difference(st.session_state.receipt_df, paid)
-    paid_text = format_amount(paid, lang())
+    # Items removed on purpose (bought for someone else) are not missing.
+    removed = st.session_state.removed_total
+    difference = paid_difference(st.session_state.receipt_df, round(paid - removed, 2))
+    params = {
+        "paid_total": format_amount(paid, lang()),
+        "removed": t("paid_removed_part", lang(), amount=format_amount(removed, lang())) if removed else "",
+    }
     if difference is None:
-        st.caption(t("paid_matches", lang(), paid_total=paid_text))
+        st.caption(t("paid_matches", lang(), **params))
     elif difference > 0:
-        st.warning(t("paid_items_missing", lang(), paid_total=paid_text, difference=format_amount(difference, lang())))
+        st.warning(t("paid_items_missing", lang(), difference=format_amount(difference, lang()), **params))
     else:
-        st.warning(t("paid_items_too_much", lang(), paid_total=paid_text, difference=format_amount(-difference, lang())))
+        st.warning(t("paid_items_too_much", lang(), difference=format_amount(-difference, lang()), **params))
 
 
 def render_delete_date(user_id):

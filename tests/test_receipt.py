@@ -9,9 +9,11 @@ from core.receipt import (
     categorize,
     clear_category,
     empty_receipt,
+    item_rows,
     item_total,
     memory_from_receipt,
     normalize_receipt,
+    remove_item,
     remove_row,
     set_item_category,
     uncategorized_items,
@@ -251,3 +253,20 @@ def test_remove_row_gives_a_clean_index():
 def test_remove_row_outside_the_receipt_changes_nothing(row):
     draft = receipt(("A", 1.0, "X"), ("B", 2.0, "X"), ("C", 3.0, "X"))
     assert remove_row(draft, row).equals(normalize_receipt(draft))
+
+def test_remove_item_removes_every_row_with_that_name():
+    draft = receipt(("Milk", 15.9, "Dairy"), (" Gift ", 99.0, FALLBACK_CATEGORY), ("Gift", 49.0, FALLBACK_CATEGORY))
+    assert remove_item(draft, "Gift").to_dict("records") == [{"Item": "Milk", "Price": 15.9, "Category": "Dairy"}]
+    assert remove_item(draft, "Gift").index.tolist() == [0]
+    assert len(draft) == 3  # input unchanged
+
+
+def test_remove_item_that_is_not_there_changes_nothing():
+    draft = receipt(("Milk", 15.9, "Dairy"))
+    assert remove_item(draft, "Bread").equals(normalize_receipt(draft))
+
+
+def test_item_rows_returns_the_rows_with_that_name():
+    draft = receipt(("Milk", 15.9, "Dairy"), (" Gift ", 99.0, FALLBACK_CATEGORY), ("Gift", 49.0, FALLBACK_CATEGORY))
+    assert item_rows(draft, "Gift")["Price"].tolist() == [99.0, 49.0]
+    assert item_rows(draft, "Bread").empty

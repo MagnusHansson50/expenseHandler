@@ -88,6 +88,8 @@ TRANSLATIONS = {
         "remove_category_note": "Kategorin tas bort ur dina kategorier och ur minnet. Köp du redan har sparat behåller den. Varor i det osparade kvittot som har den hamnar i Övrigt.",
         "remove_category_confirm": "Ja, ta bort kategorin",
         "review_skip_button": "Hoppa över",
+        "review_remove_item_button": "🗑️ Ta bort från kvittot",
+        "review_remove_item_help": "För något som inte ska med, till exempel något du köpte åt någon annan. Varan sparas inte och läggs inte på minnet.",
         "review_stop_button": "Avsluta",
         "review_done": "Alla varor har nu en kategori. Valen sparas i minnet när du sparar kvittot.",
         "review_done_skipped": "Genomgången är klar. Varor som du hoppade över och som fortfarande saknar kategori: {count}.",
@@ -95,14 +97,15 @@ TRANSLATIONS = {
         "import_date_set": "Köpdatumet är satt till {date} från kvittot.",
         "import_no_date": "Inget datum hittades på kvittot; kontrollera köpdatumet.",
         "paid_items_missing": (
-            "Kvittot anger Betalat {paid_total}, men listan är {difference} mindre. Saknas en vara, "
+            "Listan är {difference} mindre än kvittots Betalat {paid_total}{removed}. Saknas en vara, "
             "lägg till den under Lägg till en vara som saknas, eller rätta ett pris i tabellen."
         ),
         "paid_items_too_much": (
-            "Kvittot anger Betalat {paid_total}, men listan är {difference} mer. Ta bort det som inte "
+            "Listan är {difference} mer än kvittots Betalat {paid_total}{removed}. Ta bort det som inte "
             "ska vara med under Ta bort en vara, eller rätta ett pris i tabellen."
         ),
-        "paid_matches": "✔️ Listan stämmer med kvittots Betalat {paid_total}.",
+        "paid_matches": "✔️ Listan stämmer med kvittots Betalat {paid_total}{removed}.",
+        "paid_removed_part": " minus det du tagit bort ({amount})",
         # Draft receipt table and saving
         "empty_draft_info": "Lägg till ett köp manuellt eller ladda upp ett kvitto för att komma igång.",
         "current_list": "Aktuell lista",
@@ -253,6 +256,8 @@ TRANSLATIONS = {
         "remove_category_note": "The category is removed from your categories and from what is remembered. Purchases you have already saved keep it. Items on the unsaved receipt that have it move to Other.",
         "remove_category_confirm": "Yes, remove the category",
         "review_skip_button": "Skip",
+        "review_remove_item_button": "🗑️ Remove from receipt",
+        "review_remove_item_help": "For something that should not be included, e.g. something you bought for someone else. The item is not saved and not remembered.",
         "review_stop_button": "Stop",
         "review_done": "Every item now has a category. The choices are remembered when you save the receipt.",
         "review_done_skipped": "The review is done. Items you skipped that still have no category: {count}.",
@@ -260,14 +265,15 @@ TRANSLATIONS = {
         "import_date_set": "Purchase date set to {date} from the receipt.",
         "import_no_date": "No date found on the receipt; check the purchase date.",
         "paid_items_missing": (
-            "The receipt says Betalat (paid) {paid_total}, but the list is {difference} less. If an "
+            "The list is {difference} less than the receipt's Betalat (paid) {paid_total}{removed}. If an "
             "item is missing, add it under Add a missing item, or correct a price in the table."
         ),
         "paid_items_too_much": (
-            "The receipt says Betalat (paid) {paid_total}, but the list is {difference} more. Remove "
+            "The list is {difference} more than the receipt's Betalat (paid) {paid_total}{removed}. Remove "
             "what should not be included under Remove an item, or correct a price in the table."
         ),
-        "paid_matches": "✔️ The list matches the receipt's Betalat (paid) {paid_total}.",
+        "paid_matches": "✔️ The list matches the receipt's Betalat (paid) {paid_total}{removed}.",
+        "paid_removed_part": " minus what you removed ({amount})",
         # Draft receipt table and saving
         "empty_draft_info": "Add a purchase manually or upload a receipt to get started.",
         "current_list": "Current list",

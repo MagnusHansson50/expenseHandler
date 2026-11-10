@@ -68,7 +68,7 @@ Architecture
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
   changes, categorize from memory, validate before saving, decide what to remember on save, find
   items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`,
-  and `remove_row` for the "Remove an item" section).
+  `item_rows`, and `remove_row` / `remove_item` for removing items).
 - `core/backup.py`: the backup file (write, read and check), the CSV export and the import merge
   rules (see Backup and CSV export).
 - `services/backup.py`: `export_backup`, `export_history_csv`, `import_backup`.
@@ -120,6 +120,11 @@ Architecture
     while editing (`render_paid_comparison`); a second upload into the same list adds its amount,
     and it is `None` when there is nothing to compare with (no upload, a receipt without a paid
     amount, or items added before the upload). Reset when the draft becomes empty.
+  - `imported_rows`, `removed_total`: the rows ([item, price]) that came from the uploaded
+    receipt(s), and the amount of those removed since ("Remove an item", the popup's remove button
+    or deleting rows in the table, all through `note_removed`). Removed on purpose means not
+    missing, so the comparison uses the paid amount minus `removed_total` and says so; a row added
+    by hand and removed again never counts. Reset with `paid_total`.
   - `purchase_date`: the date that will be saved with the receipt (from the receipt, or picked by the user).
   - `date_version`: part of the date picker key; bumped when `purchase_date` is set from code
     (upload, save, clear, switch user) so the picker shows the new value.
@@ -234,7 +239,8 @@ PDF parsing
   differ, the import message is a warning saying how much less or more the list is
   (`paid_items_missing` / `paid_items_too_much`) and where to add or remove an item. Below the
   total the same comparison stays while editing (`paid_total`), so adding the missing item or
-  removing an extra one turns it into "✔️ The list matches ..." (`paid_matches`).
+  removing an extra one turns it into "✔️ The list matches ..." (`paid_matches`). Items removed
+  from the receipt on purpose are taken off the paid amount ("... minus what you removed (25,00 kr)").
 
 Backup and CSV export
 - Only the logged-in user's own data. `services/backup.py`: `export_backup(user_id)` (JSON bytes),
@@ -351,7 +357,10 @@ Reviewing items without a category
   chose that for it. Items filed under "Other" on purpose are not asked about again.
 - The review is a popup (`st.dialog`, "🏷️ Items without a category"): a progress bar ("Item 2 of
   5"), the item and its amount, the user's categories as clickable tags (`st.pills`, a new key per
-  item so no choice carries over) and "Skip" / "Stop". One click on a tag gives every row with
+  item so no choice carries over) and "Skip" / "🗑️ Remove from receipt" / "Stop". Remove
+  (`review_remove`, a callback like the choices) takes every row with that name off the receipt
+  (`core.receipt.remove_item`); it is never saved or remembered, and the popup moves on (or closes
+  if the receipt is now empty). One click on a tag gives every row with
   that name the category and moves on. "Stop" and the window's X (`on_dismiss=close_review`) keep
   what was chosen and put the items left in `review_dismissed`. When every item is handled the popup
   closes and a flash says so, or how many were skipped. It never blocks saving.
@@ -488,7 +497,7 @@ Testing
   paid while editing (missing, too much, matching, none without an upload, reset on clear).
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
   count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
-  adding and removing categories in the popup).
+  adding and removing categories in the popup, removing an item from the receipt).
   Opening by itself after a PDF upload is checked in a browser (`AppTest` cannot upload).
 - `tests/test_app_login.py`: the login page (same message for wrong password and unknown name,
   lockout, registration rules, logout, isolation between users, no password left in session state).

@@ -296,3 +296,42 @@ def test_an_item_given_a_removed_category_is_asked_about_again(temp_db):
 
     assert popup_item(at) == ("Item 1 of 2", "**Drill**", "799.00 kr")
     assert open_button(at) is None  # still in the popup
+
+# --- Removing an item from the popup ------------------------------------------
+
+
+def test_remove_takes_the_item_off_the_receipt_and_moves_on(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0), ("Gift", 99.0), ("Saw", 199.0))
+    choose(at, "Dairy")
+    assert popup_item(at) == ("Item 2 of 3", "**Gift**", "99.00\xa0kr")
+    at.button(key="review_remove_item").click().run()
+    assert not at.exception
+    assert popup_item(at) == ("Item 2 of 2", "**Saw**", "199.00\xa0kr")
+    assert draft_categories(at) == {"Drill": "Dairy", "Saw": FALLBACK_CATEGORY}
+
+
+def test_every_row_with_that_name_is_removed_and_never_saved(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Gift", 99.0), ("Milk", 15.9), ("Gift", 49.0))
+    at.button(key="review_remove_item").click().run()
+    assert at.session_state["receipt_df"]["Item"].tolist() == ["Milk"]
+    choose(at, "Dairy")  # the last item: the popup closes
+    assert popup_item(at) is None
+    save_receipt(at)
+    anna = temp_db.get_user_by_name("Anna").id
+    assert temp_db.get_all_history(anna)["Item"].tolist() == ["Milk"]
+    assert "Gift" not in temp_db.load_memory(anna)
+
+
+def test_removing_the_last_item_closes_the_popup(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Gift", 99.0))
+    at.button(key="review_remove_item").click().run()
+    assert not at.exception
+    assert popup_item(at) is None
+    assert at.session_state["review_active"] is False
+    assert at.session_state["receipt_df"].empty

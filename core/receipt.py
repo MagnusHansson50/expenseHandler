@@ -153,6 +153,18 @@ def remove_row(receipt, row):
     return normalize_receipt(df.drop(index=row))
 
 
+def item_rows(receipt, item):
+    """Return the receipt's rows named `item`."""
+    df = normalize_receipt(receipt)
+    return normalize_receipt(df[_rows_named(df, item)])
+
+
+def remove_item(receipt, item):
+    """Return the receipt without any row named `item` (e.g. something bought for someone else)."""
+    df = normalize_receipt(receipt)
+    return normalize_receipt(df[~_rows_named(df, item)])
+
+
 def item_total(receipt, item):
     """The summed price of every row of the receipt named `item`, rounded to öre."""
     return round(float(receipt.loc[_rows_named(receipt, item), "Price"].sum()), 2)

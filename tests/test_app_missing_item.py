@@ -43,7 +43,7 @@ def with_paid_total(at, paid):
 
 def test_missing_amount_is_shown_until_the_item_is_added(anna):
     at = with_paid_total(anna, 48.4)
-    assert at.main.warning[0].value.startswith("The receipt says Betalat (paid) 48.40\xa0kr, but the list is 32.50\xa0kr less.")
+    assert at.main.warning[0].value.startswith("The list is 32.50\xa0kr less than the receipt's Betalat (paid) 48.40\xa0kr.")
     add_manual_purchase(at, "Bread", 32.5)
     assert not at.main.warning
     assert any(c.value == "✔️ The list matches the receipt's Betalat (paid) 48.40\xa0kr." for c in at.caption)
@@ -51,11 +51,29 @@ def test_missing_amount_is_shown_until_the_item_is_added(anna):
 
 def test_too_much_is_shown_until_the_item_is_removed(anna):
     at = with_paid_total(anna, 15.9)
-    add_manual_purchase(at, "Gift", 99.0)
-    assert at.main.warning[0].value.startswith("The receipt says Betalat (paid) 15.90\xa0kr, but the list is 99.00\xa0kr more.")
+    add_manual_purchase(at, "Gift", 99.0)  # added by hand after the upload: not on the receipt
+    assert at.main.warning[0].value.startswith("The list is 99.00\xa0kr more than the receipt's Betalat (paid) 15.90\xa0kr.")
     next(box for box in at.selectbox if box.label == "Item to remove").set_value(1)
     at.button(key="remove_item").click().run()
     assert not at.main.warning
+
+
+def test_an_item_removed_from_the_receipt_is_not_missing(anna):
+    # Something bought for someone else: removed on purpose, so the list still matches.
+    at = with_paid_total(anna, 15.9)
+    add_manual_purchase(at, "Gift", 99.0)
+    # As if both came from the receipt: its paid amount and its rows, as an upload sets them.
+    at.session_state["paid_total"] = 114.9
+    at.session_state["imported_rows"] = [["Milk", 15.9], ["Gift", 99.0]]
+    at.run()
+    assert any(c.value == "✔️ The list matches the receipt's Betalat (paid) 114.90\xa0kr." for c in at.caption)
+    next(box for box in at.selectbox if box.label == "Item to remove").set_value(1)
+    at.button(key="remove_item").click().run()
+    assert not at.main.warning
+    assert any(
+        c.value == "✔️ The list matches the receipt's Betalat (paid) 114.90\xa0kr minus what you removed (99.00\xa0kr)."
+        for c in at.caption
+    )
 
 
 def test_no_comparison_without_an_uploaded_receipt(anna):
@@ -65,6 +83,14 @@ def test_no_comparison_without_an_uploaded_receipt(anna):
 
 
 def test_clearing_the_list_forgets_the_amount_paid(anna):
+    at = with_paid_total(anna, 48.4)
+    next(box for box in at.selectbox if box.label == "Item to remove").set_value(0)
+    at.button(key="remove_item").click().run()  # the only row: the list is empty again
+    assert at.session_state["paid_total"] is None
+    assert at.session_state["removed_total"] == 0.0
+
+
+def test_clearing_the_list_with_the_button_forgets_it_too(anna):
     at = with_paid_total(anna, 48.4)
     next(b for b in at.button if "Clear list" in b.label).click().run()
     assert at.session_state["paid_total"] is None
