@@ -145,6 +145,14 @@ def clear_category(receipt, category):
     return df
 
 
+def remove_row(receipt, row):
+    """Return the receipt without the row at position `row` (0-based, as shown); unchanged if there is none."""
+    df = normalize_receipt(receipt)
+    if not 0 <= row < len(df):
+        return df
+    return normalize_receipt(df.drop(index=row))
+
+
 def item_total(receipt, item):
     """The summed price of every row of the receipt named `item`, rounded to öre."""
     return round(float(receipt.loc[_rows_named(receipt, item), "Price"].sum()), 2)

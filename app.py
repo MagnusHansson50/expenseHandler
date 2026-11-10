@@ -628,6 +628,44 @@ def render_receipt_editor(categories):
     )
 
 
+def remove_chosen_row(widget_key):
+    """on_click for "Remove": drop the chosen row from the draft (never saved, never remembered)."""
+    row = st.session_state.get(widget_key)
+    if row is not None:
+        set_draft(draft_ops.remove_row(st.session_state.receipt_df, row))
+
+
+def render_remove_item():
+    """A plain way to remove a row from the draft, e.g. something bought for someone else.
+
+    Rows are listed with their number, so two rows with the same name can be told apart.
+    The key holds table_version, so the list starts over whenever the draft changes.
+    """
+    draft = st.session_state.receipt_df
+    widget_key = f"remove_row_{st.session_state.table_version}"
+    labels = [
+        t(
+            "remove_item_option", lang(), row=number,
+            item=item if isinstance(item, str) else "",
+            amount=format_amount(price, lang()) if pd.notna(price) else "",
+        )
+        for number, (item, price) in enumerate(zip(draft["Item"], draft["Price"]), 1)
+    ]
+    with st.expander(t("remove_item_header", lang())):
+        st.caption(t("remove_item_note", lang()))
+        col_choice, col_button = st.columns([3, 1], vertical_alignment="bottom")
+        col_choice.selectbox(
+            t("remove_item_choice", lang()),
+            options=list(range(len(draft))),
+            format_func=labels.__getitem__,  # the row's number, name and amount
+            key=widget_key,
+        )
+        col_button.button(
+            t("remove_button", lang()), key="remove_item", width="stretch",
+            on_click=remove_chosen_row, args=(widget_key,),
+        )
+
+
 def render_save_section(user_id):
     """Pick a date and save the receipt to history; learn categories into memory."""
     draft = st.session_state.receipt_df
@@ -858,7 +896,9 @@ def render_current_receipt_tab():
 
     st.subheader(t("current_list", lang()))
     render_review(user_id, categories)
+    st.caption(t("receipt_table_hint", lang()))
     render_receipt_editor(categories)
+    render_remove_item()
     st.metric(t("total", lang()), format_amount(total_cost(st.session_state.receipt_df), lang()))
     render_save_section(user_id)
 

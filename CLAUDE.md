@@ -67,7 +67,8 @@ Architecture
   `parse_items` and `parse_paid_total`; `common.py` has what they share.
 - `core/receipt.py`: logic for the receipt being edited (normalize, add rows, apply `st.data_editor`
   changes, categorize from memory, validate before saving, decide what to remember on save, find
-  items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`).
+  items that still need a category: `uncategorized_items`, `set_item_category`, `item_total`,
+  and `remove_row` for the "Remove an item" section).
 - `core/backup.py`: the backup file (write, read and check), the CSV export and the import merge
   rules (see Backup and CSV export).
 - `services/backup.py`: `export_backup`, `export_history_csv`, `import_backup`.
@@ -326,8 +327,14 @@ UI
   receipts have been deleted."
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price, category), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
-  for the current list, date picker + save button that writes to `history` and learns category
-  choices into `memory`. Save is blocked with the per-row list of problems from `InvalidReceipt`.
+  for the current list (a caption above it says items, prices and categories can be changed there
+  and where to add a missing item; rows can also be added and deleted in the table itself),
+  a collapsed "🗑️ Remove an item" ("🗑️ Ta bort en vara") section below it (a list of the rows as
+  "Row 3: Milk – 15,90 kr", so rows with the same name can be told apart, and a remove button;
+  the widget key holds `table_version`; the labels are worked out before the selectbox, since
+  `AppTest` calls its `format_func` outside a run), date picker + save button that writes to
+  `history` and learns category choices into `memory`. A removed row is never saved or remembered.
+  Save is blocked with the per-row list of problems from `InvalidReceipt`.
   Above the table: the button that opens the review popup for items without a category.
 
 Reviewing items without a category
@@ -466,6 +473,9 @@ Testing
   checked in a browser (`AppTest` cannot edit `st.data_editor`).
 - `tests/test_auth.py`, `tests/test_db_credentials.py`, `tests/test_services_auth.py`: password
   hashing, credential storage, registration, login and the throttle (with a fake clock).
+- `tests/test_app_remove_item.py`: the "Remove an item" section (rows listed with their number, only
+  that row removed, one of two rows with the same name, never saved or remembered). Deleting rows
+  in the table itself is checked in a browser.
 - `tests/test_app_review.py`: the review popup for items without a category (the button and its
   count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
   adding and removing categories in the popup).
@@ -589,6 +599,7 @@ Project structure
 │   ├── test_app_history_edit.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
+│   ├── test_app_remove_item.py
 │   ├── test_app_review.py
 │   ├── test_architecture.py
 │   ├── test_auth.py
@@ -627,7 +638,7 @@ Commits
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
-  `Edit Category Step 1: ...`.
+  `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

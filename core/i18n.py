@@ -100,6 +100,11 @@ TRANSLATIONS = {
         # Draft receipt table and saving
         "empty_draft_info": "Lägg till ett köp manuellt eller ladda upp ett kvitto för att komma igång.",
         "current_list": "Aktuell lista",
+        "receipt_table_hint": "Du kan ändra vara, pris och kategori direkt i tabellen. Saknas en vara, lägg till den i tabellens tomma rad längst ner eller med Lägg till ett köp manuellt.",
+        "remove_item_header": "🗑️ Ta bort en vara",
+        "remove_item_note": "Till exempel något du köpte åt någon annan. Varan tas bara bort ur det här kvittot; den sparas inte och appen lägger den inte på minnet.",
+        "remove_item_choice": "Vara att ta bort",
+        "remove_item_option": "Rad {row}: {item} – {amount}",
         "col_item": "Vara",
         "col_price": "Pris (kr)",
         "col_category": "Kategori",
@@ -254,6 +259,11 @@ TRANSLATIONS = {
         # Draft receipt table and saving
         "empty_draft_info": "Add a purchase manually or upload a receipt to get started.",
         "current_list": "Current list",
+        "receipt_table_hint": "You can change the item, price and category right in the table. If an item is missing, add it in the table's empty row at the bottom or with Add a purchase manually.",
+        "remove_item_header": "🗑️ Remove an item",
+        "remove_item_note": "For example something you bought for someone else. The item is only removed from this receipt; it is not saved and the app does not remember it.",
+        "remove_item_choice": "Item to remove",
+        "remove_item_option": "Row {row}: {item} – {amount}",
         "col_item": "Item",
         "col_price": "Price (kr)",
         "col_category": "Category",

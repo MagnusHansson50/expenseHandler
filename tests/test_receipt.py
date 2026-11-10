@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE, RECEIPT_COLUMNS
 from core.receipt import (
@@ -11,6 +12,7 @@ from core.receipt import (
     item_total,
     memory_from_receipt,
     normalize_receipt,
+    remove_row,
     set_item_category,
     uncategorized_items,
     validate_receipt,
@@ -228,3 +230,24 @@ def test_clear_category_moves_its_rows_to_the_fallback_category():
     draft = receipt(("Shoes", 499.0, "Skor"), ("Milk", 15.9, "Dairy"), ("Boots", 899.0, "Skor"))
     assert clear_category(draft, "Skor")["Category"].tolist() == [FALLBACK_CATEGORY, "Dairy", FALLBACK_CATEGORY]
     assert draft["Category"].tolist() == ["Skor", "Dairy", "Skor"]  # input unchanged
+
+
+def test_remove_row_removes_only_that_row():
+    draft = receipt(("Milk", 15.9, "Dairy"), ("Gift", 99.0, FALLBACK_CATEGORY), ("Milk", 15.9, "Dairy"))
+    assert remove_row(draft, 1).to_dict("records") == [
+        {"Item": "Milk", "Price": 15.9, "Category": "Dairy"},
+        {"Item": "Milk", "Price": 15.9, "Category": "Dairy"},
+    ]
+    assert remove_row(draft, 2)["Item"].tolist() == ["Milk", "Gift"]  # one of two rows with the same name
+    assert len(draft) == 3  # input unchanged
+
+
+def test_remove_row_gives_a_clean_index():
+    draft = receipt(("A", 1.0, "X"), ("B", 2.0, "X"), ("C", 3.0, "X"))
+    assert remove_row(draft, 0).index.tolist() == [0, 1]
+
+
+@pytest.mark.parametrize("row", [-1, 3, 99])
+def test_remove_row_outside_the_receipt_changes_nothing(row):
+    draft = receipt(("A", 1.0, "X"), ("B", 2.0, "X"), ("C", 3.0, "X"))
+    assert remove_row(draft, row).equals(normalize_receipt(draft))
