@@ -6,6 +6,14 @@ it. The database still allows it: the user may choose to keep both.
 
 from typing import NamedTuple
 
+from core.constants import FALLBACK_CATEGORY, FALLBACK_CATEGORY_LABELS
+
+# The fallback category's labels in every language, in comparable form. They
+# are reserved (the database refuses them), so asking "add it anyway?" would
+# only lead to a refusal.
+_RESERVED = frozenset(" ".join(label.split()).casefold()
+                      for label in (FALLBACK_CATEGORY, *FALLBACK_CATEGORY_LABELS.values()))
+
 
 class CategoryClash(NamedTuple):
     """An existing category that a new name collides with.
@@ -26,6 +34,11 @@ def comparable(name):
     Example: "  MJÖLK   och  ost " -> "mjölk och ost".
     """
     return " ".join(str(name).split()).casefold()
+
+
+def is_reserved(name):
+    """True for the fallback category's labels ("Övrigt", "Other") in any case or spacing."""
+    return comparable(name) in _RESERVED
 
 
 def category_clash(name, categories):

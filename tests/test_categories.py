@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.categories import CategoryClash, category_clash, comparable
+from core.categories import CategoryClash, category_clash, comparable, is_reserved
 
 CATEGORIES = ["Mjölk", "Frukt och grönt", "Other"]
 
@@ -44,3 +44,13 @@ def test_comparable_folds_case_and_spaces():
 def test_the_result_has_named_fields():
     clash = category_clash("mjölk", CATEGORIES)
     assert clash.existing == "Mjölk" and clash.exact is False
+
+
+@pytest.mark.parametrize("name", ["Other", "other", "ÖVRIGT", " övrigt ", "Övrigt"])
+def test_the_fallback_labels_are_reserved(name):
+    assert is_reserved(name)
+
+
+@pytest.mark.parametrize("name", ["Others", "Övriga", "Mjölk", ""])
+def test_other_names_are_not_reserved(name):
+    assert not is_reserved(name)

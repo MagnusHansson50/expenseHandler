@@ -217,13 +217,22 @@ def test_a_category_added_in_the_popup_becomes_a_tag_and_the_item_stays(temp_db)
     assert popup_item(at)[1] == "**Gloves**"
 
 
-@pytest.mark.parametrize("name", ["", "   ", "Övrigt", "other", "Dairy"])
-def test_empty_reserved_or_existing_names_are_refused_in_the_popup(temp_db, name):
+@pytest.mark.parametrize("name", ["", "   ", "Övrigt", "other"])
+def test_empty_or_reserved_names_are_refused_in_the_popup(temp_db, name):
     at = start_app()
     create_user(at, "Anna")
     start_with(at, ("Drill", 799.0))
     add_category_in_popup(at, name)
     assert at.error[0].value == "Enter a name of 1–50 characters that is not already in the list."
+    assert popup_item(at)[1] == "**Drill**"
+
+
+def test_an_existing_name_is_refused_in_the_popup(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    start_with(at, ("Drill", 799.0))
+    add_category_in_popup(at, "Dairy")
+    assert at.error[0].value == "Category 'Dairy' already exists."
     assert popup_item(at)[1] == "**Drill**"
 
 

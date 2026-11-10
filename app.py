@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
+from core.categories import category_clash, is_reserved
 from core.calculator import paid_difference, sum_by_category, total_cost
 from core.constants import (
     FALLBACK_CATEGORY,
@@ -127,6 +128,7 @@ def init_session_state():
         "review_notice": None,
         "review_category_message": None,
         "review_kept_fallback": [],
+        "pending_category": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -170,6 +172,7 @@ def render_language_selector():
 def switch_user(user_id):
     """Select a user and drop the previous user's unsaved receipt."""
     st.session_state.current_user = user_id
+    st.session_state.pending_category = None
     set_draft(draft_ops.empty_receipt())
     set_purchase_date(date.today())
 
@@ -283,6 +286,7 @@ def log_in(user_id):
 def log_out():
     """End the session: forget the user and everything they had on screen (not the language)."""
     st.session_state.current_user = None
+    st.session_state.pending_category = None
     set_draft(draft_ops.empty_receipt())
     set_purchase_date(date.today())
     st.session_state.flash = None
@@ -455,12 +459,18 @@ def render_category_manager(user_id, categories):
                 new_category = st.text_input(t("new_category", lang()), max_chars=MAX_NAME_LENGTH)
                 add_clicked = st.form_submit_button(t("add_button", lang()))
             if add_clicked:
+                st.session_state.pending_category = None  # a new name replaces an open question
                 with write_errors("action_add_category"):
-                    kind, message = add_category(user_id, new_category)
+                    kind, message = add_category(user_id, new_category, categories)
                     if kind == "success":
                         flash(kind, message)
                         st.rerun()
-                    st.error(message)
+                    if kind == "similar":
+                        # Asked below; the name waits in session state for the answer.
+                        st.session_state.pending_category = (new_category.strip(), message)
+                    else:
+                        st.error(message)
+            render_similar_category_question(user_id, categories)
 
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
@@ -483,15 +493,48 @@ def render_category_manager(user_id, categories):
                     st.error(message)
 
 
-def add_category(user_id, name):
+def add_category(user_id, name, categories, confirmed=False):
     """Add a category for the user; returns (kind, message) to show. Run it inside write_errors.
 
     Used by "Manage categories" and by the review popup, so both follow the
     same rules (db.add_category: length, no duplicates, no reserved names).
+    A name the user already has is refused with its own message. A name that
+    only differs from an existing category in letter case or spacing ("mjölk"
+    next to "Mjölk") is not added until the user confirms it: then kind is
+    "similar" and message is the existing category's name (not escaped).
     """
+    clash = None if is_reserved(name) else category_clash(name, categories)
+    if clash and clash.exact:
+        return "error", t("category_exists", lang(), name=escape_markdown(clash.existing))
+    if clash and not confirmed:
+        return "similar", clash.existing
     if db.add_category(user_id, name):
         return "success", t("category_added", lang(), name=escape_markdown(name.strip()))
     return "error", t("category_name_invalid", lang(), max=MAX_NAME_LENGTH)
+
+
+def render_similar_category_question(user_id, categories):
+    """Ask whether to add a name that looks like an existing category, if one is waiting.
+
+    The answer is an active choice: "Add anyway" adds it, "Cancel" forgets it.
+    """
+    pending = st.session_state.pending_category
+    if not pending:
+        return
+    name, existing = pending
+    st.warning(t("category_similar", lang(), name=escape_markdown(name), existing=escape_markdown(existing)))
+    col_yes, col_no = st.columns(2)
+    if col_yes.button(t("category_add_anyway", lang()), key="add_similar_category"):
+        with write_errors("action_add_category"):
+            kind, message = add_category(user_id, name, categories, confirmed=True)
+            st.session_state.pending_category = None
+            if kind == "success":
+                flash(kind, message)
+                st.rerun()
+            st.error(message)
+    if col_no.button(t("cancel_button", lang()), key="cancel_similar_category"):
+        st.session_state.pending_category = None
+        st.rerun()
 
 
 def take_confirmation(key):
@@ -844,8 +887,10 @@ def handle_review_category_forms(user_id):
     """Add or remove a category sent from the popup on the previous click."""
     if st.session_state.get("review_add_submit"):
         with write_errors("action_add_category"):
+            # The popup asks about similar names in the next step; until then it adds them.
             st.session_state.review_category_message = add_category(
-                user_id, st.session_state.get("review_new_category", "")
+                user_id, st.session_state.get("review_new_category", ""),
+                db.get_categories(user_id), confirmed=True,
             )
     to_remove = st.session_state.get("review_remove_choice")
     confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
