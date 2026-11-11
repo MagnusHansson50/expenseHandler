@@ -115,6 +115,11 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   exempel "mjölk" när du har "Mjölk"), frågar appen först: **Lägg till ändå** ger dig båda,
   **Avbryt** lägger inte till något. Exakt samma namn går inte att lägga till.
 - **Historik:** välj en period och se totalsumma, utgifter per kategori och alla köp.
+  Vill du bara se vissa kategorier väljer du dem under **Kategorier** (tomt betyder alla).
+  Totalsumman, antalet köp, diagrammet och listan visar då bara de kategorierna, och valet står
+  kvar när du byter period. Kategorier du tagit bort men som finns på sparade köp går också att
+  välja. Filtret gäller inte borttagning av ett datum (alla köp det datumet tas bort) eller
+  säkerhetskopian och CSV-filen (de innehåller allt).
   Har du sparat ett köp med fel kategori kan du rätta den under **Visa alla köp**: klicka på
   kategorin, välj en annan och klicka **💾 Spara ändringar**. Appen kommer då ihåg den nya
   kategorin för varan till nästa kvitto. Datum, vara och pris går inte att ändra; är något av

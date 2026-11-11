@@ -73,7 +73,8 @@ Architecture
   rules (see Backup and CSV export).
 - `services/backup.py`: `export_backup`, `export_history_csv`, `import_backup`.
 - `core/history.py`: `category_changes` - which saved purchases got another category in the
-  history list (editor rows -> history ids, labels -> stored names, unchanged left out).
+  history list (editor rows -> history ids, labels -> stored names, unchanged left out);
+  `filter_categories` / `filter_by_categories` for the History tab's category filter.
 - `services/history.py`: `change_categories(user_id, history, editor_changes, lang)` - saves them
   with `db.update_history_categories` (nothing is written if nothing changed).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
@@ -142,6 +143,10 @@ Architecture
     a name that looks like an existing category (see Look-alike categories). Cleared by the answer,
     a new name, logging in or out. `review_pending_category` is the same inside the review popup,
     also cleared when the review stops or starts.
+  - `history_categories`: the categories (stored names) the History tab is filtered on; empty
+    means all. Kept when the period or language changes, cleared on logging in or out. The
+    multiselect (`history_filter`) is set from it on every run, leaving out what it does not
+    offer for this period, and its `on_change` copies the choice back and bumps `history_version`.
 
 Database (`expenses.db`)
 Every table except `users` MUST be tied to a `user_id`, and every query on those tables MUST filter on it.
@@ -407,11 +412,16 @@ Reviewing items without a category
   (`review_kept_fallback`) and is remembered. "Other" picked in the table or left as the manual
   form's default is not (it cannot be told apart from the default). Changing a saved purchase's
   category in the History list is a choice too and is remembered (also "Other").
-- Tab "📜 History" ("📜 Historik"): pick a start and end date, show total spent, an `st.bar_chart` per category,
+- Tab "📜 History" ("📜 Historik"): pick a start and end date and optionally some categories
+  ("Categories", empty = "All categories"; the user's categories plus removed ones still used in
+  the period, as labels; `history_categories`), show total spent, an `st.bar_chart` per category,
   the list of purchases (an `st.data_editor` in a form where only the category can be changed, a
   selectbox of the user's categories as labels; "💾 Save changes" saves them through
   `services.history.change_categories` and remembers them, see `db.update_history_categories`), delete all purchases saved on a date (with confirmation), and the backup
-  section (see Backup and CSV export).
+  section (see Backup and CSV export). The category filter applies to the total, the count
+  (with "Showing 2 of 9 categories."), the chart and the list, which is numbered from 0 again
+  because `category_changes` maps editor rows by position. Deleting a date ignores it (and says
+  so), and so do backups and the CSV export.
 
 Languages
 - Supported: Swedish (`sv`, the default) and English (`en`), listed in `core.i18n.LANGUAGES`.
@@ -515,6 +525,8 @@ Testing
   count, one item at a time with tags, skip, stop, reopening, escaping, what is remembered on save,
   adding and removing categories in the popup, removing an item from the receipt).
   Opening by itself after a PDF upload is checked in a browser (`AppTest` cannot upload).
+- `tests/test_app_history_filter.py`: the History tab's category filter (total, count, chart and
+  list follow it, kept across period and language, removed categories, logout, other users).
 - `tests/test_categories.py`, `tests/test_app_similar_category.py`: look-alike category names
   (which names clash, the question in "Manage categories" and in the popup, add anyway, cancel,
   only the user's own categories, escaping, Swedish texts).
@@ -624,7 +636,7 @@ Project structure
 │   ├── auth.py         # Password hashing and rules
 │   ├── categories.py   # Look-alike category names
 │   ├── backup.py       # Backup file format, CSV export, import merge rules
-│   ├── history.py      # Category changes in the history list
+│   ├── history.py      # Category changes and the category filter in the history
 │   ├── constants.py
 │   ├── parser.py       # Reads the PDF, picks the layout
 │   ├── receipt_formats/  # One module per receipt layout (kivra.py, willys.py)
@@ -639,6 +651,7 @@ Project structure
 │   ├── test_app_db_errors.py
 │   ├── test_app_delete_account.py
 │   ├── test_app_history_edit.py
+│   ├── test_app_history_filter.py
 │   ├── test_app_language.py
 │   ├── test_app_login.py
 │   ├── test_app_missing_item.py
@@ -683,7 +696,8 @@ Commits
   `Code Quality Step 3: handle database errors in the UI with retry`, `Security step 2: ...`,
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
-  `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...`.
+  `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...` or
+  `History Filter Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
