@@ -27,3 +27,27 @@ def category_changes(history, editor_changes, lang):
         if category != purchase["Category"]:
             changes[int(purchase["Id"])] = category
     return changes
+
+
+def filter_categories(categories, history):
+    """The categories the history can be filtered on, as stored names.
+
+    The user's categories in their order, then any other category found in
+    `history` (one the user has removed since; saved purchases keep it),
+    so those purchases can be found and given a new category.
+    """
+    known = list(dict.fromkeys(categories))
+    older = sorted(set(history["Category"]) - set(known), key=str.casefold)
+    return known + older
+
+
+def filter_by_categories(history, chosen):
+    """The purchases in one of the `chosen` categories (stored names).
+
+    Nothing chosen means no filter: every purchase. The result is numbered
+    from 0 again, since the history list maps its rows by position
+    (see category_changes).
+    """
+    if not chosen:
+        return history
+    return history[history["Category"].isin(list(chosen))].reset_index(drop=True)
