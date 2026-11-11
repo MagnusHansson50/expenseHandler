@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
+from core.history import filter_by_categories, filter_categories
 from core.categories import category_clash, is_reserved
 from core.calculator import paid_difference, sum_by_category, total_cost
 from core.constants import (
@@ -130,6 +131,7 @@ def init_session_state():
         "review_kept_fallback": [],
         "pending_category": None,
         "review_pending_category": None,
+        "history_categories": [],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -174,6 +176,7 @@ def switch_user(user_id):
     """Select a user and drop the previous user's unsaved receipt."""
     st.session_state.current_user = user_id
     st.session_state.pending_category = None
+    st.session_state.history_categories = []
     set_draft(draft_ops.empty_receipt())
     set_purchase_date(date.today())
 
@@ -289,6 +292,7 @@ def log_out():
     """End the session: forget the user and everything they had on screen (not the language)."""
     st.session_state.current_user = None
     st.session_state.pending_category = None
+    st.session_state.history_categories = []
     set_draft(draft_ops.empty_receipt())
     set_purchase_date(date.today())
     st.session_state.flash = None
@@ -1068,6 +1072,7 @@ def render_delete_date(user_id):
         return
 
     with st.expander(t("delete_receipt_expander", lang())):
+        st.caption(t("delete_date_all_categories", lang()))
         with st.form("delete_date_form"):
             to_delete = st.selectbox(t("col_date", lang()), options=saved_dates)
             confirmed = st.checkbox(t("confirm_delete", lang()))
@@ -1127,6 +1132,38 @@ def render_history_list(user_id, history, start_date, end_date):
             st.rerun()
 
 
+def keep_history_filter():
+    """on_change for the category filter: remember the choice and rebuild the history list."""
+    st.session_state.history_categories = list(st.session_state.history_filter)
+    st.session_state.history_version += 1  # the list shows other rows now
+
+
+def render_history_filter(user_id, history):
+    """Multiselect for showing only some categories; returns the categories it offers.
+
+    The choice (stored names) is kept in history_categories, so it stays
+    when the period or the language changes. The options depend on the
+    period (categories removed since only show up where they were used), so
+    a choice that is not offered now is left out of the widget.
+    """
+    categories = load(db.get_categories, user_id, what="what_categories")
+    options = filter_categories(categories, history)
+    chosen = [name for name in st.session_state.history_categories if name in options]
+    st.session_state.history_categories = chosen
+    st.session_state.history_filter = chosen
+    # Labels worked out here: AppTest calls format_func outside a run, where lang() is unavailable.
+    labels = {name: category_label(name, lang()) for name in options}
+    st.multiselect(
+        t("history_filter_label", lang()),
+        options=options,
+        format_func=labels.__getitem__,
+        placeholder=t("history_filter_all", lang()),
+        key="history_filter",
+        on_change=keep_history_filter,
+    )
+    return options
+
+
 def render_history_tab():
     """Tab 2: total spent and spending per category for a period."""
     user_id = st.session_state.current_user
@@ -1140,13 +1177,20 @@ def render_history_tab():
         st.error(t("start_after_end", lang()))
         return
 
-    history = load(db.get_history, user_id, start_date, end_date, what="what_history")
-    if history.empty:
+    period_history = load(db.get_history, user_id, start_date, end_date, what="what_history")
+    options = render_history_filter(user_id, period_history)
+    chosen = st.session_state.history_categories
+    history = filter_by_categories(period_history, chosen)
+    if period_history.empty:
         st.info(t("no_purchases_period", lang()))
+    elif history.empty:
+        st.info(t("no_purchases_filtered", lang()))
     else:
         col_total, col_count = st.columns(2)
         col_total.metric(t("total_spent", lang()), format_amount(total_cost(history), lang()))
         col_count.metric(t("purchases", lang()), format_number(len(history), lang()))
+        if chosen:
+            st.caption(t("history_filter_active", lang(), shown=len(chosen), total=len(options)))
 
         # The chart's tooltip shows the column names, so they are named in the user's language.
         category_column, amount_column = t("col_category", lang()), t("chart_amount", lang())
