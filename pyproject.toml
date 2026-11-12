@@ -1,0 +1,19 @@
+# Tool settings only; the app is not a package. pytest reads pytest.ini.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes (unused names, undefined names), I: import
+# order, B: bugbear (likely bugs, e.g. zip() of lists of different lengths).
+select = ["E", "F", "W", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Translations are whole sentences; breaking them up makes them harder to read and translate.
+"core/i18n.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+# Imported from the tests' own folder (pytest puts it on sys.path).
+known-local-folder = ["test_app", "test_app_review", "test_app_history_edit", "conftest"]

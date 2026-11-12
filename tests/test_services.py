@@ -3,13 +3,13 @@ from datetime import date
 
 import pandas as pd
 import pytest
+from test_parser import SAMPLE_RECEIPT, make_pdf
 
 from core.constants import FALLBACK_CATEGORY, MAX_PRICE, RECEIPT_COLUMNS
 from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from core.receipt import Problem
 from integrations import db
 from services import receipts
-from test_parser import SAMPLE_RECEIPT, make_pdf
 
 KIVRA_HEADER = "Beskrivning Artikelnummer Pris Mängd Summa(SEK)"  # a Kivra receipt, but no items
 

@@ -43,7 +43,9 @@ def with_paid_total(at, paid):
 
 def test_missing_amount_is_shown_until_the_item_is_added(anna):
     at = with_paid_total(anna, 48.4)
-    assert at.main.warning[0].value.startswith("The list is 32.50\xa0kr less than the receipt's Betalat (paid) 48.40\xa0kr.")
+    assert at.main.warning[0].value.startswith(
+        "The list is 32.50\xa0kr less than the receipt's Betalat (paid) 48.40\xa0kr."
+    )
     add_manual_purchase(at, "Bread", 32.5)
     assert not at.main.warning
     assert any(c.value == "✔️ The list matches the receipt's Betalat (paid) 48.40\xa0kr." for c in at.caption)
@@ -52,7 +54,9 @@ def test_missing_amount_is_shown_until_the_item_is_added(anna):
 def test_too_much_is_shown_until_the_item_is_removed(anna):
     at = with_paid_total(anna, 15.9)
     add_manual_purchase(at, "Gift", 99.0)  # added by hand after the upload: not on the receipt
-    assert at.main.warning[0].value.startswith("The list is 99.00\xa0kr more than the receipt's Betalat (paid) 15.90\xa0kr.")
+    assert at.main.warning[0].value.startswith(
+        "The list is 99.00\xa0kr more than the receipt's Betalat (paid) 15.90\xa0kr."
+    )
     next(box for box in at.selectbox if box.label == "Item to remove").set_value(1)
     at.button(key="remove_item").click().run()
     assert not at.main.warning

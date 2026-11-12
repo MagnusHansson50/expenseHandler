@@ -12,9 +12,9 @@ import pandas as pd
 import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
-from core.history import filter_by_categories, filter_categories
-from core.categories import category_clash, is_reserved
+from core.backup import InvalidBackup, download_name
 from core.calculator import paid_difference, sum_by_category, total_cost
+from core.categories import category_clash, is_reserved
 from core.constants import (
     FALLBACK_CATEGORY,
     MAX_ITEM_LENGTH,
@@ -22,6 +22,7 @@ from core.constants import (
     MAX_PASSWORD_LENGTH,
     MAX_PRICE,
 )
+from core.history import filter_by_categories, filter_categories
 from core.i18n import (
     DEFAULT_CATEGORIES,
     LANGUAGES,
@@ -32,7 +33,6 @@ from core.i18n import (
     resolve_language,
     t,
 )
-from core.backup import InvalidBackup, download_name
 from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from core.text import escape_markdown
 from integrations import db
@@ -248,7 +248,7 @@ def note_removed(rows):
     """
     if st.session_state.paid_total is None:
         return
-    for item, price in zip(rows["Item"], rows["Price"]):
+    for item, price in zip(rows["Item"], rows["Price"], strict=True):
         key = [item, price]
         if key in st.session_state.imported_rows:
             st.session_state.imported_rows.remove(key)
@@ -650,7 +650,8 @@ def render_pdf_upload(user_id, categories):
         st.session_state.paid_total = paid
         # Which rows came from receipts, so removing one counts as removed on purpose (note_removed).
         st.session_state.imported_rows = (
-            st.session_state.imported_rows + [[item, price] for item, price in zip(result.items["Item"], result.items["Price"])]
+            st.session_state.imported_rows
+            + [[item, price] for item, price in zip(result.items["Item"], result.items["Price"], strict=True)]
             if paid is not None else []
         )
         if result.purchase_date:
@@ -743,7 +744,7 @@ def render_remove_item():
             item=item if isinstance(item, str) else "",
             amount=format_amount(price, lang()) if pd.notna(price) else "",
         )
-        for number, (item, price) in enumerate(zip(draft["Item"], draft["Price"]), 1)
+        for number, (item, price) in enumerate(zip(draft["Item"], draft["Price"], strict=True), 1)
     ]
     with st.expander(t("remove_item_header", lang())):
         st.caption(t("remove_item_note", lang()))
@@ -924,7 +925,7 @@ def handle_review_category_forms(user_id):
             st.session_state.review_category_message = ("error", t("tick_to_confirm", lang()))
             return
         draft = st.session_state.receipt_df
-        in_removed = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"])
+        in_removed = {str(item).strip() for item, category in zip(draft["Item"], draft["Category"], strict=True)
                       if category == to_remove}
         with write_errors("action_remove_category"):
             kind, message = remove_category(user_id, to_remove)
@@ -1275,7 +1276,10 @@ def backup_problems_text(problems):
     """The reasons a backup was not imported, as a Markdown list (names from the file escaped)."""
     lines = []
     for problem in problems[:MAX_PROBLEMS_SHOWN]:
-        params = {key: escape_markdown(value) if isinstance(value, str) else value for key, value in problem.params.items()}
+        params = {
+            key: escape_markdown(value) if isinstance(value, str) else value
+            for key, value in problem.params.items()
+        }
         lines.append(f"- {t(problem.key, lang(), **params)}")
     if len(problems) > MAX_PROBLEMS_SHOWN:
         lines.append(f"- {t('backup_more_problems', lang(), count=len(problems) - MAX_PROBLEMS_SHOWN)}")

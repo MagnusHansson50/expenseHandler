@@ -112,7 +112,9 @@ def test_the_fallback_category_itself_is_allowed():
     assert FALLBACK_CATEGORY in read_backup(backup_bytes(categories=[FALLBACK_CATEGORY])).categories
 
 
-@pytest.mark.parametrize("memory", [{"": "Mejeri"}, {"x" * (MAX_ITEM_LENGTH + 1): "Mejeri"}, {"Mjölk": 3}, {"Mjölk": ""}])
+@pytest.mark.parametrize(
+    "memory", [{"": "Mejeri"}, {"x" * (MAX_ITEM_LENGTH + 1): "Mejeri"}, {"Mjölk": 3}, {"Mjölk": ""}]
+)
 def test_bad_memory_entries_are_reported(memory):
     assert [key for key, _ in problem_keys(backup_bytes(memory=memory))] == ["backup_bad_memory"]
 
@@ -147,7 +149,9 @@ def test_item_and_price_limits_are_the_same_as_for_a_receipt():
 
 def test_every_problem_is_reported_at_once():
     keys = problem_keys(backup_bytes(categories=[""], memory={"": "x"}, history=[entry(date="x"), "y"]))
-    assert [key for key, _ in keys] == ["backup_bad_category", "backup_bad_memory", "backup_bad_date", "backup_bad_entry"]
+    assert [key for key, _ in keys] == [
+        "backup_bad_category", "backup_bad_memory", "backup_bad_date", "backup_bad_entry"
+    ]
 
 
 # --- CSV -----------------------------------------------------------------------
@@ -206,8 +210,12 @@ def test_identical_purchases_are_counted_not_merged():
 
 @pytest.mark.parametrize(
     "name, expected",
-    [("Anna", "ExpenseHandler-Anna-2026-11-05.json"), ("Åsa Öberg", "ExpenseHandler-Åsa_Öberg-2026-11-05.json"),
-     ('a/b\\c:d*e?"f<g>h|',"ExpenseHandler-a_b_c_d_e__f_g_h_-2026-11-05.json"), ("   ", "ExpenseHandler-user-2026-11-05.json")],
+    [
+        ("Anna", "ExpenseHandler-Anna-2026-11-05.json"),
+        ("Åsa Öberg", "ExpenseHandler-Åsa_Öberg-2026-11-05.json"),
+        ('a/b\\c:d*e?"f<g>h|', "ExpenseHandler-a_b_c_d_e__f_g_h_-2026-11-05.json"),
+        ("   ", "ExpenseHandler-user-2026-11-05.json"),
+    ],
 )
 def test_download_names_are_safe_file_names(name, expected):
     assert download_name(name, date(2026, 11, 5), "json") == expected

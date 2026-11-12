@@ -125,7 +125,8 @@ def ui_keys_used_in_app():
 
 
 def keys_produced_below_the_ui():
-    """Keys created in core/receipt.py, core/auth.py and core/backup.py (Problem("key", ...)) and db.py (class attribute key = "...")."""
+    """Keys created in core/receipt.py, core/auth.py and core/backup.py (Problem("key", ...))
+    and db.py (class attribute key = "...")."""
     import ast
     from pathlib import Path
 

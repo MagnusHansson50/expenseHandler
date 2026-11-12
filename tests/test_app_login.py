@@ -5,6 +5,7 @@ import pytest
 from core.constants import MIN_PASSWORD_LENGTH
 from services import auth
 from services.auth import MAX_FAILED_LOGINS
+
 from test_app import (
     TEST_PASSWORD,
     add_manual_purchase,

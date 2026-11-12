@@ -29,7 +29,7 @@ def anna_and_bo(temp_db):
 
 def ids_and_categories(user_id):
     history = db.get_all_history(user_id)
-    return dict(zip(history["Id"], history["Category"]))
+    return dict(zip(history["Id"], history["Category"], strict=True))
 
 
 def ids_of(user_id, item):

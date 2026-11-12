@@ -7,6 +7,7 @@ window's X (on_dismiss) cannot be clicked here and is checked in a browser.
 import pytest
 
 from core.constants import FALLBACK_CATEGORY
+
 from test_app import add_manual_purchase, create_user, log_out, start_app, widget
 
 
@@ -37,7 +38,8 @@ def choose(at, label):
 
 
 def draft_categories(at):
-    return dict(zip(at.session_state["receipt_df"]["Item"], at.session_state["receipt_df"]["Category"]))
+    draft = at.session_state["receipt_df"]
+    return dict(zip(draft["Item"], draft["Category"], strict=True))
 
 
 def add_categorized_purchase(at, item, price, category):

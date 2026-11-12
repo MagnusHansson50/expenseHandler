@@ -7,11 +7,11 @@ store and no card or member numbers. Real receipts are never committed.
 from datetime import date
 
 import pytest
+from test_parser import SAMPLE_RECEIPT, make_pdf
 
 from core.parser import read_receipt, receipt_format
 from core.receipt_formats import kivra, willys
 from core.receipt_formats.willys import parse_items, parse_paid_total
-from test_parser import SAMPLE_RECEIPT, make_pdf
 
 WILLYS_RECEIPT = """            TESTBUTIKEN STORGATAN
           TELEFON: 000-000 000

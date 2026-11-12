@@ -31,7 +31,11 @@ def logging_calls(tree):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id in ("logger", "logging"):
+        if (
+            isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id in ("logger", "logging")
+        ):
             yield node
         elif isinstance(func, ast.Name) and func.id == "print":
             yield node

@@ -111,7 +111,7 @@ def uncategorized_items(receipt, memory, categories):
     under FALLBACK_CATEGORY on purpose is not asked about again.
     """
     names = []
-    for item, category in zip(receipt["Item"], receipt["Category"]):
+    for item, category in zip(receipt["Item"], receipt["Category"], strict=True):
         name = str(item).strip() if isinstance(item, str) else ""
         if not name or name in names:
             continue
@@ -205,6 +205,6 @@ def memory_from_receipt(receipt, undecided=()):
     rows = receipt.dropna(subset=["Item", "Category"])
     return {
         str(item).strip(): category
-        for item, category in zip(rows["Item"], rows["Category"])
+        for item, category in zip(rows["Item"], rows["Category"], strict=True)
         if str(item).strip() and str(category).strip() and str(item).strip() not in undecided
     }

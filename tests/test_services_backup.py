@@ -50,7 +50,9 @@ def test_export_contains_only_that_users_data(anna, temp_db):
 
 def test_csv_export_has_all_purchases(anna):
     lines = backup.export_history_csv(anna, "sv").decode("utf-8").lstrip("﻿").splitlines()
-    assert lines[1:] == ["2026-10-20;Mjölk;15,90;Mejeri", "2026-10-20;Kaffe;59,90;Övrigt", "2026-10-21;Juice;25,00;Dryck"]
+    assert lines[1:] == [
+        "2026-10-20;Mjölk;15,90;Mejeri", "2026-10-20;Kaffe;59,90;Övrigt", "2026-10-21;Juice;25,00;Dryck"
+    ]
 
 
 def test_all_history_is_oldest_first_and_only_that_users(anna, temp_db):
@@ -151,6 +153,7 @@ def test_a_purchase_in_an_unknown_category_is_kept_as_other(temp_db):
 
 def test_reserved_or_invalid_category_names_are_never_added(temp_db):
     user_id = temp_db.create_user("Anna", [])
-    counts = db.import_user_data(user_id, ["Övrigt", " ", "x" * 51, "Ny"], {}, pd.DataFrame(columns=["Date", "Item", "Price", "Category"]))
+    no_history = pd.DataFrame(columns=["Date", "Item", "Price", "Category"])
+    counts = db.import_user_data(user_id, ["Övrigt", " ", "x" * 51, "Ny"], {}, no_history)
     assert counts.categories == 1
     assert sorted(temp_db.get_categories(user_id)) == ["Ny", FALLBACK_CATEGORY]

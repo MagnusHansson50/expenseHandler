@@ -29,6 +29,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt -r requirements-build.txt
+      - run: python -m ruff check .
       - run: python -m pytest
       - run: python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm
       - run: python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe

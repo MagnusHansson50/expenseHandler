@@ -4,6 +4,7 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from core.i18n import DEFAULT_LANGUAGE
+
 from test_app import APP_PATH, add_manual_purchase, create_user, log_out, logged_in_caption
 
 

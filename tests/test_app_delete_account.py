@@ -1,6 +1,7 @@
 """Deleting your own account from the sidebar. Only test passwords are used here."""
 
 from services.auth import MAX_FAILED_LOGINS
+
 from test_app import (
     TEST_PASSWORD,
     add_manual_purchase,

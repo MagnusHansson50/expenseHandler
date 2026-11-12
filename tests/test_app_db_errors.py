@@ -9,6 +9,7 @@ import sqlite3
 import pytest
 
 from integrations import db
+
 from test_app import add_manual_purchase, create_user, log_in, log_out, logged_in_caption, start_app
 
 

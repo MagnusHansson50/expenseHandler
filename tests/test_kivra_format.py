@@ -1,10 +1,10 @@
 """The Kivra layout (core/receipt_formats/kivra.py)."""
 
 import pytest
+from test_parser import SAMPLE_RECEIPT, WRAPPED_RECEIPT
 
 from core.receipt_formats import kivra
 from core.receipt_formats.kivra import parse_items, parse_paid_total
-from test_parser import SAMPLE_RECEIPT, WRAPPED_RECEIPT
 
 
 def test_kivra_is_recognized_by_its_column_header():
