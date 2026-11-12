@@ -22,6 +22,7 @@ Tech stack
 - pypdf (PDF text extraction; replaces the unmaintained PyPDF2)
 - SQLite3 (local persistent database)
 - pytest (tests, dev only)
+- Ruff (linter, dev only; settings in `pyproject.toml`)
 - PyInstaller (builds the desktop program, build only: `requirements-build.txt`)
 - Versions are pinned in `requirements.txt` / `requirements-dev.txt` (see Security).
 
@@ -314,11 +315,17 @@ Desktop program
 - Check a build: `python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe` (starts it with
   a throwaway database and waits for the health endpoint and the page). PDF upload and the data
   editor still need a manual check in the built program.
-- GitHub Actions: `.github/workflows/tests.yml` runs pytest on Windows and Ubuntu (Python 3.12) for
-  pushes to master and pull requests. `.github/workflows/release.yml` runs on a pushed tag `v*`:
-  tests, build, smoke test, then `ExpenseHandler-<tag>-windows.zip` on a new GitHub release. Actions
-  are pinned to commit SHAs (tag in a comment); the tag name reaches scripts only through `$env:TAG`.
-  Pushing a tag publishes a release, so only do it when the user asks.
+- GitHub Actions: `.github/workflows/tests.yml` runs for pushes to master and pull requests, as
+  three jobs that each wait for the one before: `lint` (Ruff, Ubuntu), `test` (pytest on Windows and
+  Ubuntu, Python 3.12) and `build` (Windows: PyInstaller, smoke test, and the program uploaded as
+  the artifact `ExpenseHandler-windows`, kept 7 days; nothing is published).
+  `.github/workflows/release.yml` runs on a pushed tag `v*`: Ruff, tests, build, smoke test, then
+  `ExpenseHandler-<tag>-windows.zip` on a new GitHub release. Actions are pinned to commit SHAs (tag
+  in a comment); the tag name reaches scripts only through `$env:TAG`. No secrets are needed (only
+  the automatic `GITHUB_TOKEN`). Pushing a tag publishes a release, so only do it when the user asks.
+- There is no cloud deployment, on purpose: the app must only listen on localhost (see Security),
+  and hosting it would need HTTPS, closed registration, a shared throttle and server-side storage
+  of everyone's receipts first. The "deployment" is the GitHub release of the desktop program.
 
 Authentication
 - Login is by user name and password; there is open registration (anyone who can open the app can
@@ -502,6 +509,10 @@ Rules
 Testing
 - Install dev dependencies: `pip install -r requirements-dev.txt`
 - Run: `python -m pytest`
+- Lint: `python -m ruff check .` (`--fix` sorts imports). Rules in `pyproject.toml`: pycodestyle,
+  pyflakes, import order and bugbear, 120-character lines (`core/i18n.py` excepted, its texts are
+  whole sentences). `zip()` of columns gets `strict=True`. The CI stops before the tests on a lint
+  error.
 - `tests/test_db.py`: data layer, including user isolation, input limits, transactions and atomic
   `save_receipt`. Each test uses its own temporary database.
 - `tests/test_db_update_categories.py`: changing the category of saved purchases (only the user's
@@ -613,9 +624,10 @@ Project structure
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
 ├── requirements-build.txt  # PyInstaller pin for the desktop build
+├── pyproject.toml      # Ruff settings (the app is not a package)
 ├── .github/
 │   └── workflows/
-│       ├── tests.yml   # pytest on Windows and Ubuntu
+│       ├── tests.yml   # Ruff, pytest on Windows and Ubuntu, build and smoke test
 │       └── release.yml # build, smoke test and release on a v* tag
 ├── desktop/
 │   ├── __init__.py
@@ -697,7 +709,7 @@ Commits
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
   `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...` or
-  `History Filter Step 1: ...`.
+  `History Filter Step 1: ...` or `CI Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup
