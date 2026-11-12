@@ -11,6 +11,7 @@ This is an admin tool, so its messages are in English.
 """
 
 import getpass
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ EXIT_OK = 0
 EXIT_UNKNOWN_USER = 1
 EXIT_BAD_INPUT = 2
 EXIT_DATABASE_TOO_NEW = 3
+EXIT_DATABASE_ERROR = 4
 
 
 def main(argv, ask_password=getpass.getpass, out=print):
@@ -36,10 +38,13 @@ def main(argv, ask_password=getpass.getpass, out=print):
 
     try:
         db.init_db()
+        user = db.get_user_by_name(name)
     except db.DatabaseTooNew as error:
         out(f"{error} Install the latest version of ExpenseHandler. Nothing was changed.")
         return EXIT_DATABASE_TOO_NEW
-    if db.get_user_by_name(name) is None:
+    except sqlite3.Error:
+        return database_error(out)
+    if user is None:
         out(f"No user named '{name.strip()}' in {db.DB_PATH}.")
         return EXIT_UNKNOWN_USER
 
@@ -54,9 +59,20 @@ def main(argv, ask_password=getpass.getpass, out=print):
     except auth.InvalidPassword as error:
         out(f"The password was not accepted ({error.problem.key}). Nothing was changed.")
         return EXIT_BAD_INPUT
+    except sqlite3.Error:
+        return database_error(out)
 
     out(f"The password for '{name.strip()}' has been changed.")
     return EXIT_OK
+
+
+def database_error(out):
+    """SQLite could not open or write the file (a missing folder, a locked or damaged file)."""
+    out(
+        f"Could not open or write the database {db.DB_PATH}. Check that the folder exists, "
+        "that ExpenseHandler is not writing to it right now, and try again. Nothing was changed."
+    )
+    return EXIT_DATABASE_ERROR
 
 
 if __name__ == "__main__":

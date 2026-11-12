@@ -21,11 +21,21 @@ from core.constants import (
     MAX_PRICE,
 )
 
-# EXPENSES_DB_PATH lets tests and local experiments use a separate database file.
-DB_PATH = Path(
-    os.environ.get("EXPENSES_DB_PATH")
-    or Path(__file__).resolve().parent.parent / "expenses.db"
-)
+DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "expenses.db"
+
+
+def database_path(env=os.environ):
+    """The database file: EXPENSES_DB_PATH if it is set, else expenses.db next to the code.
+
+    EXPENSES_DB_PATH lets the desktop program, tests and local experiments use
+    another file. An empty or blank value counts as not set, so it never
+    becomes a file named " ".
+    """
+    configured = env.get("EXPENSES_DB_PATH", "").strip()
+    return Path(configured) if configured else DEFAULT_DB_PATH
+
+
+DB_PATH = database_path()
 
 DEFAULT_CATEGORIES = [
     "Dairy",

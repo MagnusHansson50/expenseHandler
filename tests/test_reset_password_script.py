@@ -2,6 +2,7 @@
 
 import pytest
 
+from integrations import db
 from scripts import reset_password
 from services import auth
 
@@ -87,3 +88,13 @@ def test_a_database_from_a_newer_version_is_not_touched(temp_db):
     assert code == reset_password.EXIT_DATABASE_TOO_NEW
     assert "newer" in output[0]
     assert prompts == []
+
+
+def test_a_database_that_cannot_be_opened_is_reported_without_a_traceback(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "no_such_folder" / "expenses.db")
+    code, output, prompts = run(["Anna"], [NEW, NEW])
+    assert code == reset_password.EXIT_DATABASE_ERROR
+    assert output[0].startswith("Could not open or write the database ")
+    assert output[0].endswith("Nothing was changed.")
+    assert prompts == []  # no password is asked for
+    assert not (tmp_path / "no_such_folder").exists()

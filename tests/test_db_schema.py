@@ -84,3 +84,16 @@ def test_a_failing_migration_changes_nothing(temp_db, monkeypatch):
     with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
         columns = [row[1] for row in conn.execute("PRAGMA table_info(history)")]
     assert "note" not in columns
+
+
+# --- Which file is used (EXPENSES_DB_PATH) ------------------------------------
+
+
+@pytest.mark.parametrize("env", [{}, {"EXPENSES_DB_PATH": ""}, {"EXPENSES_DB_PATH": "   "}])
+def test_without_expenses_db_path_the_file_next_to_the_code_is_used(env):
+    assert db.database_path(env) == db.DEFAULT_DB_PATH
+    assert db.DEFAULT_DB_PATH.name == "expenses.db"
+
+
+def test_expenses_db_path_picks_another_file(tmp_path):
+    assert db.database_path({"EXPENSES_DB_PATH": f" {tmp_path / 'other.db'} "}) == tmp_path / "other.db"

@@ -85,8 +85,10 @@ def use_data_dir(env=os.environ):
 
     Returns the database path in use.
     """
-    if env.get("EXPENSES_DB_PATH"):
-        return Path(env["EXPENSES_DB_PATH"])
+    configured = env.get("EXPENSES_DB_PATH", "").strip()  # blank counts as not set, as in db.database_path
+    if configured:
+        env["EXPENSES_DB_PATH"] = configured
+        return Path(configured)
     folder = data_dir(env=env)
     folder.mkdir(parents=True, exist_ok=True)
     env["EXPENSES_DB_PATH"] = str(folder / DB_FILE_NAME)

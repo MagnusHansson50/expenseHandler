@@ -215,7 +215,9 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   The version is written with an f-string only because PRAGMA takes no `?` parameters; it is an int
   constant.
 - The `EXPENSES_DB_PATH` environment variable points the app at another database file
-  (used for manual testing; the test suite patches `db.DB_PATH` instead).
+  (used for manual testing; the test suite patches `db.DB_PATH` instead). `db.database_path(env)`
+  reads it: surrounding spaces are removed, and an empty or blank value counts as not set
+  (`DEFAULT_DB_PATH`, `expenses.db` next to the code); the launcher's `use_data_dir` does the same.
 - The legacy `kvitto_minne.db` (tables `minne`, `kategorier`, `historik`) belongs to the old receipt-splitter version and is not used.
 
 PDF parsing
@@ -345,7 +347,9 @@ Authentication
   mentions a password or salt.
 - Forgotten password: the app cannot send e-mail, so whoever runs it sets a new one on the same
   computer: `python scripts/reset_password.py "<user name>"` (asks twice with `getpass`; uses
-  `EXPENSES_DB_PATH` if set). Its messages are in English (admin tool).
+  `EXPENSES_DB_PATH` if set). Its messages are in English (admin tool). A file SQLite cannot open
+  or write (a missing folder, a locked or damaged file) gives a short message and exit code 4
+  (`EXIT_DATABASE_ERROR`) instead of a traceback, before any password is asked for.
 - The session lasts while the browser tab is open; a reload or a new tab starts logged out.
 - Deleting an account: `services.auth.delete_account(user_id, password)` checks the password again
   through `authenticate`, so wrong passwords count towards the same lock as logins, and only then

@@ -172,3 +172,17 @@ def test_port_can_be_chosen_and_the_browser_skipped(tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap, "run", lambda *args: runs.append(args))
     assert launcher.main(["--port", "8601", "--no-browser"]) == 0
     assert runs[0][3]["server_port"] == 8601
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_a_blank_database_path_counts_as_not_set(tmp_path, monkeypatch, value):
+    monkeypatch.setattr(launcher, "data_dir", lambda env: tmp_path / "ExpenseHandler")
+    env = {"EXPENSES_DB_PATH": value}
+    assert launcher.use_data_dir(env) == tmp_path / "ExpenseHandler" / "expenses.db"
+    assert env["EXPENSES_DB_PATH"] == str(tmp_path / "ExpenseHandler" / "expenses.db")
+
+
+def test_spaces_around_the_database_path_are_removed(tmp_path):
+    env = {"EXPENSES_DB_PATH": f"  {tmp_path / 'manual.db'}  "}
+    assert launcher.use_data_dir(env) == tmp_path / "manual.db"
+    assert env["EXPENSES_DB_PATH"] == str(tmp_path / "manual.db")
