@@ -1,5 +1,7 @@
 # Lints the code and runs the test suite on every push to master and on pull
-# requests. The tests only start once the lint check has passed.
+# requests. The tests only start once the lint check has passed, and the
+# desktop program is only built once the tests have passed. The build is kept
+# for a week as a download on the run's page; nothing is published.
 # Actions are pinned to commit SHAs (the tag in the comment), so a moved tag
 # cannot change what runs here.
 name: Tests
@@ -42,3 +44,24 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: python -m pip install -r requirements.txt -r requirements-build.txt
+      - run: python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm
+      # Starts the built program with a throwaway database and checks that it answers.
+      - run: python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: ExpenseHandler-windows
+          path: dist/ExpenseHandler/
+          retention-days: 7
+          if-no-files-found: error
