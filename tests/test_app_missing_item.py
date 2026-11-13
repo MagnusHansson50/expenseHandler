@@ -100,10 +100,18 @@ def test_clearing_the_list_with_the_button_forgets_it_too(anna):
     assert at.session_state["paid_total"] is None
 
 
-def test_an_item_for_0_kr_is_not_added(anna):
-    add_manual_purchase(anna, "Milk", 0.0)
+def test_an_item_without_a_price_is_not_added(anna):
+    widget = next(w for w in anna.number_input if w.label == "Price (kr)")
+    assert widget.value is None  # the field starts empty, so a forgotten price is caught
+    next(w for w in anna.text_input if w.label == "Item").input("Milk")
+    next(b for b in anna.button if "Add to list" in b.label).click().run()
     assert anna.session_state["receipt_df"].empty
-    assert anna.error[0].value.startswith("Enter a price. An item for 0 kr is not added")
+    assert anna.error[0].value == "Enter a price. Type 0 for a gift, and a discount with a minus, e.g. -10."
+
+
+def test_an_item_for_0_kr_is_added_as_a_gift(anna):
+    add_manual_purchase(anna, "Gift", 0.0)
+    assert anna.session_state["receipt_df"][["Item", "Price"]].values.tolist() == [["Gift", 0.0]]
 
 
 def test_a_negative_amount_is_still_added_as_a_discount(anna):

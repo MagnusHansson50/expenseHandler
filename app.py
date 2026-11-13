@@ -578,7 +578,7 @@ def render_manual_entry(categories, header):
                 t("col_price", lang()),
                 min_value=float(-MAX_PRICE),
                 max_value=float(MAX_PRICE),
-                value=0.0,
+                value=None,  # empty, so a forgotten price is caught; 0 typed in is a gift
                 step=1.0,
                 format=PRICE_INPUT_FORMAT,
             )
@@ -594,10 +594,10 @@ def render_manual_entry(categories, header):
         if submitted:
             if not item.strip():
                 st.error(t("item_missing", lang()))
-            elif price == 0:
-                # The field starts at 0,00: a 0 kr row is almost always a forgotten price.
-                # Negative amounts are allowed (discounts).
-                st.error(t("price_zero", lang()))
+            elif price is None:
+                # The field starts empty. 0 kr typed in is allowed (a gift), and so are
+                # negative amounts (discounts).
+                st.error(t("price_missing", lang()))
             else:
                 category = category_value(category_shown, lang())
                 add_to_draft(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))

@@ -381,8 +381,9 @@ UI
   receipts have been deleted."
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price,
   category; "✍️ Add a purchase manually" above the upload while the list is empty, then "➕ Add a
-  missing item" below the table, the same form; 0 kr is refused with `price_zero`, since the field
-  starts at 0,00, while negative amounts are discounts), PDF upload
+  missing item" below the table, the same form; the price starts empty and a missing one is
+  refused with `price_missing`, while 0 kr typed in (a gift) and negative amounts (discounts) are
+  added), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list (a caption above it says items, prices and categories can be changed there
   and where to add a missing item; rows can also be added and deleted in the table itself),
