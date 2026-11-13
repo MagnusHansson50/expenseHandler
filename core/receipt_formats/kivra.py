@@ -25,8 +25,15 @@ So is a deposit printed below a drink without article number or unit:
     Läsk 89kr/st  -44,08
     *Pant  40,00 1 40,00
 
+A deposit or discount with no item above it (first on the receipt) becomes a
+row of its own, so its amount is never lost.
+
 Back-to-back lines with the same article number (e.g. the same product at two
 prices) are combined into one row, since a multi-buy discount after them covers both.
+
+Store and address lines above the column header, and summary lines ("Totalt",
+"Summa", "Moms"), are never items; parsing stops at the payment section
+("Delavstämning", "Betalat", "Betalningsinformation").
 
 The total paid is read from the "Betalat" line, so callers can check that the
 items add up to it.
@@ -118,7 +125,25 @@ def matches(text):
 
 
 def parse_items(text):
-    """Parse receipt text into a DataFrame with the columns Item and Price."""
+    """Parse receipt text into a DataFrame with the columns Item and Price.
+
+    Each non-empty line is tried in this order (the module docstring has
+    examples of each kind):
+
+    1. A payment-section marker ends the items; summary lines are skipped.
+    2. The column header clears the collected lines (store and address
+       lines above it must never become a name).
+    3. An item line (name and columns), or the columns alone after a name
+       printed on the line(s) above: a new row, or added to the row above
+       when the article number is the same as on the line just before.
+       Columns with no name at all fall back to the article number.
+    4. A deposit line: added to the row above (or a row of its own).
+    5. A discount line: added to the row above (or a row of its own).
+    6. Anything else is collected as a possible name for the next columns.
+
+    Deposits and discounts end a run of the same article and clear the
+    collected lines. Prices are rounded to öre after every addition.
+    """
     items = []
     previous_article = None  # Article number of the line just before, if it was an item
     name_lines = []  # Unmatched lines since the last item: the name of a wrapped item

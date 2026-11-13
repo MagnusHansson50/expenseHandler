@@ -339,6 +339,13 @@ def take_password(key):
 
 
 def on_login_submit():
+    """Login form's submit callback: check the name and password, and log in on success.
+
+    The password field is emptied first (take_password), so the password
+    never stays in session state. A wrong password and an unknown name give
+    the same message; a locked name says how long to wait. Only log_in, on
+    success, sets current_user.
+    """
     name = st.session_state.get("login_name", "")
     password = take_password("login_password")
     try:
@@ -358,6 +365,13 @@ def on_login_submit():
 
 
 def on_register_submit():
+    """Register form's submit callback: create the account and log in on success.
+
+    Both password fields are emptied first (take_password). The new user
+    gets the starting categories of the language selected now. Problems
+    (passwords that differ or break the rules, a taken or bad name, a
+    database error) are shown in the form via set_auth_message.
+    """
     name = st.session_state.get("register_name", "")
     password = take_password("register_password")
     repeated = take_password("register_password_repeat")
@@ -409,6 +423,12 @@ def render_register_form():
 
 
 def on_delete_account_submit():
+    """Delete-account form's submit callback: delete the account and log out on success.
+
+    Needs the ticked confirmation box and the password again; the password
+    is checked through services.auth (so wrong attempts count towards the
+    same lock as logins) and emptied from session state first.
+    """
     password = take_password("delete_password")
     if not st.session_state.get("delete_confirm"):
         set_auth_message("delete", "delete_confirm_required")

@@ -87,7 +87,21 @@ def _belongs_to_item_above(match):
 
 
 def parse_items(text):
-    """Parse receipt text into a DataFrame with the columns Item and Price."""
+    """Parse receipt text into a DataFrame with the columns Item and Price.
+
+    Each line is tried in this order (the module docstring has examples):
+
+    1. "Totalt N varor" ends the items.
+    2. An empty line or a separator ("-----", "=== ... ===") is skipped.
+    3. A line without an amount at the end is remembered: it is a store
+       line, or the name of a weighed item whose amount is on the next line.
+    4. An indented amount right after such a name line: a weighed item.
+    5. A line that belongs to the item above (indented, "+PANT ...", or a
+       negative amount) is added to it, unless that would make its price
+       negative (a multi-buy discount covering several items).
+    6. Anything else with an amount is a new row; so is the large discount
+       from step 5, with its own text as the name.
+    """
     items = []
     name_line = None  # a line without an amount just before: the name of a weighed item
 
