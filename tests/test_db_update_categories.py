@@ -40,7 +40,7 @@ def ids_of(user_id, item):
 def test_changes_the_category_and_remembers_it(anna_and_bo):
     anna, _ = anna_and_bo
     chips = ids_of(anna, "Chips")[0]
-    assert db.update_history_categories(anna, {chips: "Snacks"}) == 1
+    assert db.update_history_categories(anna, {chips: "Snacks"}) == (1, 0)
     assert ids_and_categories(anna)[chips] == "Snacks"
     assert db.load_memory(anna) == {"Mjölk": "Dryck", "Chips": "Snacks"}
 
@@ -59,14 +59,14 @@ def test_other_purchases_keep_their_category(anna_and_bo):
 def test_several_purchases_at_once(anna_and_bo):
     anna, _ = anna_and_bo
     first, second = ids_of(anna, "Mjölk")
-    assert db.update_history_categories(anna, {first: "Mejeri", second: "Mejeri"}) == 2
+    assert db.update_history_categories(anna, {first: "Mejeri", second: "Mejeri"}) == (2, 0)
     assert db.load_memory(anna)["Mjölk"] == "Mejeri"
 
 
 def test_another_users_purchase_is_never_changed(anna_and_bo):
     anna, bo = anna_and_bo
     bos_milk = ids_of(bo, "Mjölk")[0]
-    assert db.update_history_categories(anna, {bos_milk: "Mejeri"}) == 0
+    assert db.update_history_categories(anna, {bos_milk: "Mejeri"}) == (0, 1)
     assert ids_and_categories(bo)[bos_milk] == "Dryck"
     assert db.load_memory(bo) == {"Mjölk": "Dryck"}
     assert db.load_memory(anna) == {"Mjölk": "Dryck", "Chips": "Mejeri"}  # nothing remembered
@@ -75,7 +75,7 @@ def test_another_users_purchase_is_never_changed(anna_and_bo):
 def test_unknown_id_changes_nothing(anna_and_bo):
     anna, _ = anna_and_bo
     before = ids_and_categories(anna)
-    assert db.update_history_categories(anna, {999_999: "Snacks"}) == 0
+    assert db.update_history_categories(anna, {999_999: "Snacks"}) == (0, 1)
     assert ids_and_categories(anna) == before
 
 
@@ -83,7 +83,7 @@ def test_a_category_the_user_does_not_have_becomes_the_fallback(anna_and_bo):
     anna, bo = anna_and_bo
     db.add_category(bo, "Bos egen")
     chips = ids_of(anna, "Chips")[0]
-    assert db.update_history_categories(anna, {chips: "Bos egen"}) == 1
+    assert db.update_history_categories(anna, {chips: "Bos egen"}) == (1, 0)
     assert ids_and_categories(anna)[chips] == FALLBACK_CATEGORY
     assert db.load_memory(anna)["Chips"] == FALLBACK_CATEGORY  # chosen, so remembered
 
@@ -92,7 +92,7 @@ def test_the_same_category_again_counts_as_no_change_but_is_remembered(anna_and_
     anna, _ = anna_and_bo
     db.save_memory(anna, {"Chips": "Snacks"})  # memory and history disagree
     chips = ids_of(anna, "Chips")[0]
-    assert db.update_history_categories(anna, {chips: "Mejeri"}) == 0
+    assert db.update_history_categories(anna, {chips: "Mejeri"}) == (0, 0)
     assert db.load_memory(anna)["Chips"] == "Mejeri"
 
 

@@ -172,6 +172,10 @@ TRANSLATIONS = {
         "save_category_changes": "💾 Spara ändringar",
         "categories_changed": "{count} köp fick en ny kategori.",
         "no_category_changes": "Ingen kategori ändrades.",
+        "categories_changed_some_gone": (
+            "{count} köp fick en ny kategori. {gone} av köpen du ändrade finns inte längre (de har "
+            "kanske tagits bort i en annan flik) och hoppades över. Listan visar nu det som finns."
+        ),
         "delete_receipt_expander": "🗑️ Radera ett sparat kvitto",
         "confirm_delete": "Ja, radera alla köp som sparats detta datum",
         "delete_button": "Radera",
@@ -355,6 +359,10 @@ TRANSLATIONS = {
         "save_category_changes": "💾 Save changes",
         "categories_changed": "{count} purchases got a new category.",
         "no_category_changes": "No category was changed.",
+        "categories_changed_some_gone": (
+            "{count} purchases got a new category. {gone} of the purchases you changed no longer exist "
+            "(perhaps deleted in another tab) and were skipped. The list now shows what is there."
+        ),
         "delete_receipt_expander": "🗑️ Delete a saved receipt",
         "confirm_delete": "Yes, delete every purchase saved on this date",
         "delete_button": "Delete",

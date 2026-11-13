@@ -583,6 +583,13 @@ def get_history_dates(user_id):
     return [row[0] for row in rows]
 
 
+class HistoryUpdate(NamedTuple):
+    """What update_history_categories did: purchases changed, and ids that were not found."""
+
+    changed: int
+    missing: int
+
+
 def update_history_categories(user_id, categories_by_id):
     """Give saved purchases a new category and remember it for their items, all or nothing.
 
@@ -592,11 +599,13 @@ def update_history_categories(user_id, categories_by_id):
     FALLBACK_CATEGORY, as in save_history. Each changed item's category is
     remembered as in save_memory (FALLBACK_CATEGORY too: it was chosen);
     if one item gets several categories, the purchase with the highest id
-    wins. Returns the number of purchases whose category changed.
+    wins. Returns HistoryUpdate(changed, missing): how many purchases got
+    another category, and how many ids were not found (deleted since the
+    list was shown, e.g. in another tab, or not the user's).
     """
     with transaction() as conn:
         categories = _category_names(conn, user_id)
-        changed = 0
+        changed = missing = 0
         memory = {}
         for history_id, category in sorted(categories_by_id.items()):
             stored = category if category in categories else FALLBACK_CATEGORY
@@ -605,7 +614,8 @@ def update_history_categories(user_id, categories_by_id):
                 (int(history_id), user_id),
             ).fetchone()
             if row is None:
-                continue  # not this user's purchase, or no such purchase
+                missing += 1  # not this user's purchase, or no such purchase (any more)
+                continue
             item, old_category = row
             if stored != old_category:
                 conn.execute(
@@ -615,7 +625,7 @@ def update_history_categories(user_id, categories_by_id):
                 changed += 1
             memory[item] = stored
         _write_memory(conn, user_id, memory)
-    return changed
+    return HistoryUpdate(changed, missing)
 
 
 def delete_history_date(user_id, purchase_date):

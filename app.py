@@ -132,6 +132,7 @@ def init_session_state():
         "pending_category": None,
         "review_pending_category": None,
         "history_categories": [],
+        "history_shown": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -1094,14 +1095,25 @@ def render_history_list(user_id, history, start_date, end_date):
     The editor is in a form, so edits are sent together with "Save changes".
     Its key holds the period, the language and history_version (bumped after
     saving), so the edits of one list are never applied to another.
+    The editor reports edits by row position, so the rows it showed are kept
+    in history_shown. On the run "Save changes" sends, the editor gets that
+    same list again and the edits are mapped on it, not on the one loaded
+    again in this run: that one may have lost rows (deleted in another tab),
+    which would move the others, and Streamlit drops edits of rows that are
+    no longer there. Saving bumps history_version, so the next run shows the
+    list as it is now.
     """
     categories = load(db.get_categories, user_id, what="what_categories")
     editor_key = f"history_editor_{lang()}_{start_date}_{end_date}_{st.session_state.history_version}"
+    shown_before = st.session_state.get("history_shown")
+    saving = st.session_state.get("history_save", False)  # the submit button's value on its own run
+    shown = shown_before[1] if saving and shown_before and shown_before[0] == editor_key else history
+    st.session_state.history_shown = (editor_key, shown)
     with st.expander(t("show_all_purchases", lang())):
         st.caption(t("change_category_hint", lang()))
         with st.form("history_form", border=False):
             st.data_editor(
-                draft_ops.with_category_labels(history, lang()),
+                draft_ops.with_category_labels(shown, lang()),
                 key=editor_key,
                 hide_index=True,
                 width="stretch",
@@ -1122,12 +1134,14 @@ def render_history_list(user_id, history, start_date, end_date):
             save_clicked = st.form_submit_button(t("save_category_changes", lang()), key="history_save")
     if save_clicked:
         with write_errors("action_change_categories"):
-            changed = history_service.change_categories(
-                user_id, history, st.session_state.get(editor_key, {}), lang()
+            result = history_service.change_categories(
+                user_id, shown, st.session_state.get(editor_key, {}), lang()
             )
             st.session_state.history_version += 1
-            if changed:
-                flash("success", t("categories_changed", lang(), count=changed))
+            if result.missing:
+                flash("warning", t("categories_changed_some_gone", lang(), count=result.changed, gone=result.missing))
+            elif result.changed:
+                flash("success", t("categories_changed", lang(), count=result.changed))
             else:
                 flash("info", t("no_category_changes", lang()))
             st.rerun()

@@ -121,6 +121,10 @@ Architecture
   - `backup_upload_version`: the same for the backup uploader.
   - `history_version`: part of the history list's `st.data_editor` key (with the language and the
     period); bumped after saving changed categories, so the list is rebuilt from the database.
+  - `history_shown`: (editor key, the rows the history list showed). The editor reports edits by
+    row position, so on the run "Save changes" sends, the editor gets these same rows again and
+    the edits are mapped on them, not on the list loaded again in that run (another tab may have
+    deleted purchases, which would move the rows, and Streamlit drops edits of rows that are gone).
   - `paid_total`: the amount paid on the uploaded receipt(s) in the draft, to compare the list with
     while editing (`render_paid_comparison`); a second upload into the same list adds its amount,
     and it is `None` when there is nothing to compare with (no upload, a receipt without a paid
@@ -172,7 +176,9 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 - `update_history_categories(user_id, categories_by_id)` gives saved purchases (history ids) a
   new category and remembers it for their items, in one transaction. Only the user's own rows
   (`WHERE id = ? AND user_id = ?`); other ids are skipped. A category the user does not have becomes
-  `FALLBACK_CATEGORY`, which is remembered too (it was chosen). Returns how many purchases changed.
+  `FALLBACK_CATEGORY`, which is remembered too (it was chosen). Returns `HistoryUpdate(changed,
+  missing)`: how many purchases changed, and how many ids were not found (deleted since the list
+  was shown); the UI then warns that those were skipped (`categories_changed_some_gone`).
   Only the category of a saved purchase can be changed, never its date, item or price.
 - `delete_user(user_id)` deletes the user; their categories, memory, history and credentials go with
   them through `ON DELETE CASCADE` (foreign keys are on for every connection), in one transaction.

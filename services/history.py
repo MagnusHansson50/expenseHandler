@@ -7,14 +7,17 @@ from core.history import category_changes
 from integrations import db
 
 
-def change_categories(user_id, history, editor_changes, lang):
+def change_categories(user_id, shown, editor_changes, lang):
     """Save the categories changed in the history list, and remember them for their items.
 
-    `history` and `editor_changes` are as in core.history.category_changes.
-    Returns the number of purchases whose category changed (0 if none did,
-    without touching the database).
+    `shown` is the list exactly as it was shown when the edits were made (the
+    editor reports rows by position, so they must be mapped on that list, not
+    on one loaded again since: another tab may have deleted purchases in
+    between). `editor_changes` is as in core.history.category_changes.
+    Returns db.HistoryUpdate(changed, missing); (0, 0) without touching the
+    database when nothing was changed.
     """
-    changes = category_changes(history, editor_changes, lang)
+    changes = category_changes(shown, editor_changes, lang)
     if not changes:
-        return 0
+        return db.HistoryUpdate(0, 0)
     return db.update_history_categories(user_id, changes)
