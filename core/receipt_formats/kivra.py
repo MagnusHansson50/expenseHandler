@@ -84,7 +84,7 @@ COLUMN_HEADER_MARKER = "Artikelnummer"
 # It applies to the item above it; summary lines are skipped before this is tried.
 DISCOUNT_LINE = re.compile(
     r"""
-    ^.+\s                          # description, separated from the amount by whitespace
+    ^(?P<text>.+)\s                # description, separated from the amount by whitespace
     (?P<discount>-\d+,\d{2})$      # negative amount with two decimals at the end
     """,
     re.VERBOSE,
@@ -168,9 +168,13 @@ def parse_items(text):
         if discount_match:
             previous_article = None  # a discount ends a run of the same article
             name_lines = []
+            discount = to_float(discount_match["discount"])
             if items:
-                discounted = items[-1]["Price"] + to_float(discount_match["discount"])
-                items[-1]["Price"] = round(discounted, 2)
+                items[-1]["Price"] = round(items[-1]["Price"] + discount, 2)
+            else:
+                # Nothing above to discount: keep it as its own row, like a deposit, so the
+                # amount is never lost (the list would not add up to Betalat otherwise).
+                items.append({"Item": discount_match["text"].replace("*", "").strip(), "Price": discount})
             continue
 
         name_lines.append(line)

@@ -245,8 +245,9 @@ PDF parsing
   Stadium, ...) with the same columns: name, article number, unit price, quantity, `st`/`kg`, total.
   Process line by line, pick up item lines ending in those columns, parse the total, and capture
   discounts (negative amounts), which are merged into the item above. So is a deposit line without
-  article number or unit (`*Pant  40,00 1 40,00`, `Pant  2,00 2 4,00`) below a drink. Back-to-back lines with the
-  same article number are combined into one row.
+  article number or unit (`*Pant  40,00 1 40,00`, `Pant  2,00 2 4,00`) below a drink. A deposit
+  or discount with no item above it becomes a row of its own, so no amount is lost. Back-to-back
+  lines with the same article number are combined into one row.
   A name too long for one line is printed on the line(s) above, with the columns alone on the last
   line; those name lines are joined. The column header and
   discounts clear the collected lines, so store and address lines never become a name.
@@ -380,7 +381,8 @@ UI
   receipts have been deleted."
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price,
   category; "✍️ Add a purchase manually" above the upload while the list is empty, then "➕ Add a
-  missing item" below the table, the same form), PDF upload
+  missing item" below the table, the same form; 0 kr is refused with `price_zero`, since the field
+  starts at 0,00, while negative amounts are discounts), PDF upload
   (categories pre-filled from the user's memory, purchase date from the receipt), `st.data_editor`
   for the current list (a caption above it says items, prices and categories can be changed there
   and where to add a missing item; rows can also be added and deleted in the table itself),

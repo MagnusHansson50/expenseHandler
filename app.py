@@ -594,6 +594,10 @@ def render_manual_entry(categories, header):
         if submitted:
             if not item.strip():
                 st.error(t("item_missing", lang()))
+            elif price == 0:
+                # The field starts at 0,00: a 0 kr row is almost always a forgotten price.
+                # Negative amounts are allowed (discounts).
+                st.error(t("price_zero", lang()))
             else:
                 category = category_value(category_shown, lang())
                 add_to_draft(pd.DataFrame([{"Item": item.strip(), "Price": price, "Category": category}]))

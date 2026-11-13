@@ -98,3 +98,14 @@ def test_clearing_the_list_with_the_button_forgets_it_too(anna):
     at = with_paid_total(anna, 48.4)
     next(b for b in at.button if "Clear list" in b.label).click().run()
     assert at.session_state["paid_total"] is None
+
+
+def test_an_item_for_0_kr_is_not_added(anna):
+    add_manual_purchase(anna, "Milk", 0.0)
+    assert anna.session_state["receipt_df"].empty
+    assert anna.error[0].value.startswith("Enter a price. An item for 0 kr is not added")
+
+
+def test_a_negative_amount_is_still_added_as_a_discount(anna):
+    add_manual_purchase(anna, "Discount", -10.0)
+    assert anna.session_state["receipt_df"][["Item", "Price"]].values.tolist() == [["Discount", -10.0]]

@@ -202,5 +202,6 @@ def test_fallback_is_shown_as_ovrigt_but_stored_as_other(temp_db):
     assert category_box.value == "Övrigt"  # default choice
 
     next(w for w in at.text_input if w.label == "Vara").input("Tuggummi")
+    next(w for w in at.number_input if w.label == "Pris (kr)").set_value(12.0)
     next(b for b in at.button if "Lägg till i listan" in b.label).click().run()
     assert at.session_state["receipt_df"]["Category"].tolist() == ["Other"]

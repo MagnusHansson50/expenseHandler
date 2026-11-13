@@ -93,8 +93,10 @@ def test_header_lines_are_not_used_as_an_item_name():
 
 
 def test_columns_without_any_name_keep_the_amount():
+    # The discount line is not used as the name (it clears the collected lines); with no item
+    # above it is a row of its own, and the nameless item falls back to its article number.
     items = parse_items("Rabatt  -5,00\n033409 799,00 1,00 st 799,00")
-    assert items.to_dict("records") == [{"Item": "033409", "Price": 799.0}]
+    assert items.to_dict("records") == [{"Item": "Rabatt", "Price": -5.0}, {"Item": "033409", "Price": 799.0}]
 
 
 def test_wrapped_items_with_the_same_article_are_combined():
@@ -106,7 +108,7 @@ def test_wrapped_items_with_the_same_article_are_combined():
 
 
 def test_no_items_gives_empty_frame_with_columns():
-    items = parse_items("Nothing here\nRabatt -5,00")
+    items = parse_items("Nothing here\nStorgatan 1")
     assert items.empty
     assert list(items.columns) == ["Item", "Price"]
 
@@ -131,3 +133,23 @@ def test_paid_total_with_grouped_thousands(line):
 )
 def test_receipt_without_paid_total_returns_none(text):
     assert parse_paid_total(text) is None
+
+
+def test_discount_with_no_item_above_is_kept_as_its_own_row():
+    # Like a deposit with nothing above: the amount must not be lost, or the list
+    # would not add up to Betalat.
+    assert parse_items("Rabatt: 2 för 25  -6,80").to_dict("records") == [
+        {"Item": "Rabatt: 2 för 25", "Price": -6.8}
+    ]
+
+
+def test_discount_after_the_column_header_with_no_item_yet_is_kept():
+    items = parse_items(
+        "Beskrivning Artikelnummer Pris Mängd Summa(SEK)\n"
+        "*Medlemsrabatt  -10,00\n"
+        "Mjölk 3% 7310865004703 15,90 1,00 st 15,90"
+    )
+    assert items.to_dict("records") == [
+        {"Item": "Medlemsrabatt", "Price": -10.0},
+        {"Item": "Mjölk 3%", "Price": 15.9},
+    ]
