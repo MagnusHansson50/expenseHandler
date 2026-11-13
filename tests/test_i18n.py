@@ -99,7 +99,7 @@ def test_format_amount_unknown_language_uses_default():
 
 def ui_keys_used_in_app():
     """Translation keys used in app.py and desktop/launcher.py: t("key", ...), load(..., what="key"),
-    write_errors("key") and set_auth_message(form, "key", ...)."""
+    write_errors("key"), say("key", ...) (launcher) and set_auth_message(form, "key", ...)."""
     import ast
     from pathlib import Path
 
@@ -112,7 +112,7 @@ def ui_keys_used_in_app():
         if not isinstance(node, ast.Call):
             continue
         name = getattr(node.func, "id", None)
-        if name in ("t", "write_errors") and node.args and isinstance(node.args[0], ast.Constant):
+        if name in ("t", "write_errors", "say") and node.args and isinstance(node.args[0], ast.Constant):
             keys.add(node.args[0].value)
         if name == "set_auth_message" and len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
             keys.add(node.args[1].value)  # set_auth_message(form, "key", ...)

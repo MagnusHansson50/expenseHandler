@@ -186,3 +186,51 @@ def test_spaces_around_the_database_path_are_removed(tmp_path):
     env = {"EXPENSES_DB_PATH": f"  {tmp_path / 'manual.db'}  "}
     assert launcher.use_data_dir(env) == tmp_path / "manual.db"
     assert env["EXPENSES_DB_PATH"] == str(tmp_path / "manual.db")
+
+
+# --- Errors at start-up --------------------------------------------------------
+
+
+def test_a_data_folder_that_cannot_be_created_is_explained_and_the_window_stays_open(tmp_path, monkeypatch, capsys):
+    blocker = tmp_path / "ExpenseHandler"
+    blocker.write_text("a file where the folder should be")
+    monkeypatch.delenv("EXPENSES_DB_PATH", raising=False)
+    monkeypatch.setattr(launcher, "data_dir", lambda env=None: blocker)
+    prompts = []
+
+    assert launcher.main([], pause=prompts.append) == launcher.EXIT_DATA_FOLDER
+    output = capsys.readouterr().out
+    assert "ExpenseHandler kunde inte skapa mappen för dina kvitton" in output
+    assert "ExpenseHandler could not create the folder for your receipts" in output
+    assert str(blocker) in output
+    assert prompts == ["Tryck Enter för att stänga. / Press Enter to close. "]
+
+
+def test_without_a_keyboard_the_launcher_does_not_wait(tmp_path, monkeypatch):
+    blocker = tmp_path / "ExpenseHandler"
+    blocker.write_text("x")
+    monkeypatch.delenv("EXPENSES_DB_PATH", raising=False)
+    monkeypatch.setattr(launcher, "data_dir", lambda env=None: blocker)
+
+    def no_keyboard(prompt):
+        raise EOFError
+
+    assert launcher.main([], pause=no_keyboard) == launcher.EXIT_DATA_FOLDER
+
+
+@pytest.mark.parametrize("argv", [["--port"], ["--port", "abc"], ["--port", "0"], ["--port", "70000"],
+                                  ["--port", "-1"], ["--no-browser", "--port"]])
+def test_a_bad_port_shows_how_to_use_it(tmp_path, monkeypatch, capsys, argv):
+    from streamlit.web import bootstrap
+
+    monkeypatch.setenv("EXPENSES_DB_PATH", str(tmp_path / "expenses.db"))
+    monkeypatch.setattr(bootstrap, "run", lambda *args: pytest.fail("started with a bad port"))
+    assert launcher.main(argv) == launcher.EXIT_BAD_ARGUMENTS
+    output = capsys.readouterr().out
+    assert "Use --port with a number from 1 to 65535" in output
+    assert "Använd --port med ett nummer mellan 1 och 65535" in output
+
+
+@pytest.mark.parametrize("argv, port", [([], None), (["--port", "8501"], 8501), (["--no-browser", "--port", "1"], 1)])
+def test_port_argument(argv, port):
+    assert launcher.port_argument(argv) == port

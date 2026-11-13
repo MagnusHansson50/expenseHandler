@@ -134,7 +134,9 @@ def read_backup(data):
         raise InvalidBackup([Problem("backup_too_large", {"max": MAX_BACKUP_BYTES // (1024 * 1024)})])
     try:
         content = json.loads(data.decode("utf-8-sig"))
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):  # not text, not JSON, nested too deep
+    # UnicodeDecodeError: not text; JSONDecodeError: not JSON; other ValueError: a number Python
+    # will not convert (an integer of more than 4300 digits); RecursionError: nested too deep.
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError):
         raise InvalidBackup([Problem("backup_unreadable", {})]) from None
     if not isinstance(content, dict) or content.get("format") != BACKUP_FORMAT:
         raise InvalidBackup([Problem("backup_unreadable", {})])

@@ -219,3 +219,10 @@ def test_identical_purchases_are_counted_not_merged():
 )
 def test_download_names_are_safe_file_names(name, expected):
     assert download_name(name, date(2026, 11, 5), "json") == expected
+
+
+def test_a_number_too_long_to_convert_is_an_unreadable_file():
+    # Python refuses to convert integers of more than 4300 digits (a ValueError, not a JSONDecodeError).
+    text = backup_bytes(history=[]).decode("utf-8").replace('"history": []', '"history": [' + "1" * 5000 + "]")
+    assert text.count("1" * 5000) == 1
+    assert problem_keys(text.encode("utf-8")) == [("backup_unreadable", {})]

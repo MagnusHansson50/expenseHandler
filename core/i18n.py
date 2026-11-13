@@ -33,6 +33,12 @@ TRANSLATIONS = {
             "ExpenseHandler körs på {url} och öppnas i webbläsaren. Dina kvitton sparas i {path}. "
             "Stäng det här fönstret för att avsluta."
         ),
+        "desktop_data_folder_failed": (
+            "ExpenseHandler kunde inte skapa mappen för dina kvitton: {path}. Kontrollera att du får "
+            "skriva där och att det inte finns en fil med samma namn, och starta sedan programmet igen."
+        ),
+        "desktop_bad_port": "Använd --port med ett nummer mellan 1 och 65535, till exempel --port 8501.",
+        "desktop_press_enter": "Tryck Enter för att stänga.",
         "language_label": "Språk",
         "tab_receipt": "🛒 Aktuellt kvitto",
         "tab_history": "📜 Historik",
@@ -210,6 +216,12 @@ TRANSLATIONS = {
             "ExpenseHandler is running at {url} and opens in your browser. Your receipts are saved in {path}. "
             "Close this window to quit."
         ),
+        "desktop_data_folder_failed": (
+            "ExpenseHandler could not create the folder for your receipts: {path}. Check that you may "
+            "write there and that no file has the same name, then start the program again."
+        ),
+        "desktop_bad_port": "Use --port with a number from 1 to 65535, for example --port 8501.",
+        "desktop_press_enter": "Press Enter to close.",
         "language_label": "Language",
         "tab_receipt": "🛒 Current Receipt",
         "tab_history": "📜 History",

@@ -108,9 +108,41 @@ def open_browser_when_ready(url, wait_seconds=BROWSER_WAIT_SECONDS):
     return False
 
 
-def main(argv=None):
+EXIT_OK = 0
+EXIT_DATA_FOLDER = 1
+EXIT_BAD_ARGUMENTS = 2
+
+
+def port_argument(argv):
+    """The port after --port, None without --port; raises ValueError for a missing or bad number."""
+    if "--port" not in argv:
+        return None
+    position = argv.index("--port") + 1
+    if position >= len(argv) or not argv[position].isdigit() or not 0 < int(argv[position]) < 65536:
+        raise ValueError("--port needs a number from 1 to 65535")
+    return int(argv[position])
+
+
+def say(key, pause=None, **params):
+    """Print a message in every language; with `pause`, wait for Enter so the window stays open."""
+    for lang in LANGUAGES:
+        print(t(key, lang, **params))
+    if pause is not None:
+        try:
+            pause(" / ".join(t("desktop_press_enter", lang) for lang in LANGUAGES) + " ")
+        except EOFError:
+            pass  # no keyboard (started without a console): nothing to wait for
+
+
+def main(argv=None, pause=input):
     argv = sys.argv[1:] if argv is None else argv
-    db_path = use_data_dir()
+    try:
+        db_path = use_data_dir()
+    except OSError as error:
+        # The data folder cannot be created (no permission, a file with that name, ...).
+        # Double-clicked, the console window would close at once and hide a traceback.
+        say("desktop_data_folder_failed", pause, path=str(error.filename or data_dir()))
+        return EXIT_DATA_FOLDER
 
     if argv[:1] == ["--reset-password"]:
         from scripts import reset_password  # after use_data_dir: it reads EXPENSES_DB_PATH
@@ -118,7 +150,11 @@ def main(argv=None):
         return reset_password.main(argv[1:])
 
     # --port N picks the port (for testing the build); --no-browser skips opening it.
-    port = int(argv[argv.index("--port") + 1]) if "--port" in argv else free_port()
+    try:
+        port = port_argument(argv) or free_port()
+    except ValueError:
+        say("desktop_bad_port")
+        return EXIT_BAD_ARGUMENTS
     url = f"http://{HOST}:{port}"
     for lang in LANGUAGES:
         print(t("desktop_running", lang, url=url, path=str(db_path)))
@@ -126,7 +162,7 @@ def main(argv=None):
         threading.Thread(target=open_browser_when_ready, args=(url,), daemon=True).start()
 
     start_streamlit(str(bundle_dir() / "app.py"), streamlit_flags(port))
-    return 0
+    return EXIT_OK
 
 
 def start_streamlit(script, flags):

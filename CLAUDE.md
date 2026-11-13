@@ -274,7 +274,8 @@ Backup and CSV export
   (`backup_too_new`); when the format changes, bump `BACKUP_VERSION` and keep reading older versions.
 - `read_backup` checks everything before anything is written and reports every problem at once as
   `Problem` keys (`backup_*`, and the receipt's item/price problems with the entry's row number):
-  at most `MAX_BACKUP_BYTES` (5 MB), JSON that is not nested too deep, the format and version,
+  at most `MAX_BACKUP_BYTES` (5 MB), JSON that is not nested too deep (and has no number Python will
+  not convert, such as an integer of more than 4300 digits), the format and version,
   category names (length, reserved labels), memory, and each purchase's fields, types,
   `YYYY-MM-DD` date and limits. Names in the problems come from the file: the UI escapes them.
 - Import merges (`new_categories`, `new_memory`, `new_history_rows`): missing categories are added,
@@ -297,6 +298,10 @@ Desktop program
   (or `--port N`), prints where it runs (sv and en, `desktop_running`), opens the browser once
   `/_stcore/health` answers (not with `--no-browser`), and runs Streamlit. `--reset-password "Name"`
   runs `scripts/reset_password.py` on the same database.
+- Start-up errors are explained in both languages (`say`) instead of a traceback: a data folder
+  that cannot be created (`OSError`; `desktop_data_folder_failed`, exit 1) waits for Enter
+  (`desktop_press_enter`), since a double-clicked console window would otherwise close at once; a
+  missing or bad `--port` (`port_argument`, 1-65535; `desktop_bad_port`, exit 2) does not wait.
 - `.streamlit/config.toml` is not read inside a packaged program, so `streamlit_flags()` passes the
   security settings as flags (localhost, 5 MB uploads, no error details) plus no usage statistics,
   no file watching and `global.developmentMode` off (Streamlit guesses dev mode when it is not in
@@ -559,7 +564,7 @@ Testing
 - `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing) and refusing
   a database from a newer version.
 - `tests/test_launcher.py`: the desktop launcher (data folders, port, flags matching `config.toml` and
-  in effect when the server starts, `--reset-password`, `--port`, `--no-browser`).
+  in effect when the server starts, `--reset-password`, `--port`, `--no-browser`, start-up errors).
 - Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
   and log in through the forms with the helpers in `tests/test_app.py`.
 - `tests/test_app.py`: headless UI tests with Streamlit's `AppTest` (including that user text is shown
