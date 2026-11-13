@@ -78,7 +78,7 @@ def test_the_same_name_is_refused_with_its_own_message(anna):
 def test_the_fallback_label_is_refused_without_a_question(anna):
     submit_category(anna, "other")
     assert not question(anna)
-    assert anna.error[0].value.startswith("Enter a name of 1–50 characters")
+    assert anna.error[0].value.startswith("'other' is already used for Other")
 
 
 def test_a_different_name_is_added_at_once(anna):

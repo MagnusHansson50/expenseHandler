@@ -14,7 +14,7 @@ import streamlit as st
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.backup import InvalidBackup, download_name
 from core.calculator import paid_difference, sum_by_category, total_cost
-from core.categories import category_clash, is_reserved
+from core.categories import category_clash, name_problem
 from core.constants import (
     FALLBACK_CATEGORY,
     MAX_ITEM_LENGTH,
@@ -482,13 +482,15 @@ def render_category_manager(user_id, categories):
         with col_delete:
             removable = [c for c in categories if c != FALLBACK_CATEGORY]
             with st.form("delete_category_form"):
-                to_delete = st.selectbox(t("category_to_remove", lang()), options=removable)
+                st.selectbox(t("category_to_remove", lang()), options=removable, key="category_remove_choice")
                 st.caption(t("remove_category_note", lang()))
                 st.checkbox(t("remove_category_confirm", lang()), key="category_remove_confirm")
                 delete_clicked = st.form_submit_button(
-                    t("remove_button", lang()), on_click=take_confirmation, args=("category_remove_confirm",)
+                    t("remove_button", lang()), on_click=take_removal,
+                    args=("category_remove_confirm", "category_remove_choice"),
                 )
             confirmed = st.session_state.pop("confirmed_category_remove_confirm", False)
+            to_delete = st.session_state.pop("chosen_category_remove_choice", None)  # see take_removal
             if delete_clicked and to_delete and not confirmed:
                 st.error(t("tick_to_confirm", lang()))
             elif delete_clicked and to_delete:
@@ -510,14 +512,20 @@ def add_category(user_id, name, categories, confirmed=False):
     next to "Mjölk") is not added until the user confirms it: then kind is
     "similar" and message is the existing category's name (not escaped).
     """
-    clash = None if is_reserved(name) else category_clash(name, categories)
+    problem = name_problem(name)
+    if problem:
+        params = {key: escape_markdown(value) if isinstance(value, str) else value
+                  for key, value in problem.params.items()}
+        return "error", t(problem.key, lang(), **params)
+    clash = category_clash(name, categories)
     if clash and clash.exact:
         return "error", t("category_exists", lang(), name=escape_markdown(clash.existing))
     if clash and not confirmed:
         return "similar", clash.existing
     if db.add_category(user_id, name):
         return "success", t("category_added", lang(), name=escape_markdown(name.strip()))
-    return "error", t("category_name_invalid", lang(), max=MAX_NAME_LENGTH)
+    # The name was allowed above, so it was added in another tab in the meantime.
+    return "error", t("category_exists", lang(), name=escape_markdown(name.strip()))
 
 
 def render_similar_category_question(user_id, categories):
@@ -552,6 +560,20 @@ def take_confirmation(key):
     """
     st.session_state[f"confirmed_{key}"] = st.session_state.get(key, False)
     st.session_state[key] = False
+
+
+def take_removal(confirm_key, choice_key):
+    """Submit callback of a remove form: keep the confirmation and the chosen option.
+
+    The choice must be read here, in the callback, with the value the user
+    sent. In the run that follows, Streamlit checks the select box against
+    its options again: if the chosen category or date was removed in another
+    tab meanwhile, it silently returns the FIRST option instead, and that
+    one would be removed. The chosen value is kept in "chosen_<choice_key>"
+    for this run only.
+    """
+    take_confirmation(confirm_key)
+    st.session_state[f"chosen_{choice_key}"] = st.session_state.get(choice_key)
 
 
 def remove_category(user_id, name):
@@ -923,7 +945,7 @@ def handle_review_category_forms(user_id):
             st.session_state.review_pending_category = None
     elif pending and st.session_state.get("review_cancel_similar"):
         st.session_state.review_pending_category = None
-    to_remove = st.session_state.get("review_remove_choice")
+    to_remove = st.session_state.pop("chosen_review_remove_choice", None)  # see take_removal
     confirmed = st.session_state.pop("confirmed_review_remove_confirm", False)
     if st.session_state.get("review_remove_submit") and to_remove:
         if not confirmed:
@@ -1007,7 +1029,7 @@ def open_review_dialog(user_id):
                 st.checkbox(t("remove_category_confirm", lang()), key="review_remove_confirm")
                 st.form_submit_button(
                     t("remove_button", lang()), key="review_remove_submit",
-                    on_click=take_confirmation, args=("review_remove_confirm",),
+                    on_click=take_removal, args=("review_remove_confirm", "review_remove_choice"),
                 )
         if st.session_state.review_category_message:  # shown once
             kind, message = st.session_state.review_category_message
@@ -1080,16 +1102,23 @@ def render_delete_date(user_id):
     with st.expander(t("delete_receipt_expander", lang())):
         st.caption(t("delete_date_all_categories", lang()))
         with st.form("delete_date_form"):
-            to_delete = st.selectbox(t("col_date", lang()), options=saved_dates)
-            confirmed = st.checkbox(t("confirm_delete", lang()))
-            delete_clicked = st.form_submit_button(t("delete_button", lang()))
+            st.selectbox(t("col_date", lang()), options=saved_dates, key="delete_date_choice")
+            st.checkbox(t("confirm_delete", lang()), key="delete_date_confirm")
+            delete_clicked = st.form_submit_button(
+                t("delete_button", lang()), on_click=take_removal, args=("delete_date_confirm", "delete_date_choice")
+            )
+        confirmed = st.session_state.pop("confirmed_delete_date_confirm", False)
+        to_delete = st.session_state.pop("chosen_delete_date_choice", None)  # see take_removal
         if delete_clicked:
             if not confirmed:
                 st.error(t("tick_to_confirm", lang()))
             else:
                 with write_errors("action_delete_receipt"):
                     removed = db.delete_history_date(user_id, to_delete)
-                    flash("success", t("deleted_rows", lang(), count=removed, date=to_delete))
+                    if removed:
+                        flash("success", t("deleted_rows", lang(), count=removed, date=to_delete))
+                    else:
+                        flash("info", t("date_already_deleted", lang(), date=to_delete))
                     st.rerun()
 
 

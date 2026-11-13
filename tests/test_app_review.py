@@ -219,13 +219,23 @@ def test_a_category_added_in_the_popup_becomes_a_tag_and_the_item_stays(temp_db)
     assert popup_item(at)[1] == "**Gloves**"
 
 
-@pytest.mark.parametrize("name", ["", "   ", "Övrigt", "other"])
-def test_empty_or_reserved_names_are_refused_in_the_popup(temp_db, name):
+@pytest.mark.parametrize(
+    "name, message",
+    [
+        ("", "Enter a name for the category."),
+        ("   ", "Enter a name for the category."),
+        ("Övrigt", "'Övrigt' is already used for Other, which always exists and cannot be added again. "
+                   "Choose another name."),
+        ("other", "'other' is already used for Other, which always exists and cannot be added again. "
+                  "Choose another name."),
+    ],
+)
+def test_empty_or_reserved_names_are_refused_in_the_popup_with_the_reason(temp_db, name, message):
     at = start_app()
     create_user(at, "Anna")
     start_with(at, ("Drill", 799.0))
     add_category_in_popup(at, name)
-    assert at.error[0].value == "Enter a name of 1–50 characters that is not already in the list."
+    assert at.error[0].value == message
     assert popup_item(at)[1] == "**Drill**"
 
 
@@ -346,3 +356,17 @@ def test_removing_the_last_item_closes_the_popup(temp_db):
     assert popup_item(at) is None
     assert at.session_state["review_active"] is False
     assert at.session_state["receipt_df"].empty
+
+
+def test_removing_a_category_removed_elsewhere_in_the_popup_never_removes_another(temp_db):
+    at = start_app()
+    create_user(at, "Anna")
+    anna = temp_db.get_user_by_name("Anna").id
+    start_with(at, ("Drill", 799.0))
+    before = temp_db.get_categories(anna)
+    at.selectbox(key="review_remove_choice").set_value("Snacks")
+    temp_db.delete_category(anna, "Snacks")  # as another tab could
+    at.checkbox(key="review_remove_confirm").check()
+    at.button(key="review_remove_submit").click().run()
+    assert temp_db.get_categories(anna) == [name for name in before if name != "Snacks"]
+    assert at.error[0].value == "Category 'Snacks' no longer exists; it may have been removed in another tab."

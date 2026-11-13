@@ -6,7 +6,8 @@ it. The database still allows it: the user may choose to keep both.
 
 from typing import NamedTuple
 
-from core.constants import FALLBACK_CATEGORY, FALLBACK_CATEGORY_LABELS
+from core.constants import FALLBACK_CATEGORY, FALLBACK_CATEGORY_LABELS, MAX_NAME_LENGTH
+from core.receipt import Problem
 
 # The fallback category's labels in every language, in comparable form. They
 # are reserved (the database refuses them), so asking "add it anyway?" would
@@ -39,6 +40,22 @@ def comparable(name):
 def is_reserved(name):
     """True for the fallback category's labels ("Övrigt", "Other") in any case or spacing."""
     return comparable(name) in _RESERVED
+
+
+def name_problem(name):
+    """Why a new category name cannot be used, as a Problem, or None if it can.
+
+    The same rules as db.add_category (the last guard), so the UI can say
+    which one was broken instead of one message for all of them.
+    """
+    stripped = str(name).strip()
+    if not stripped:
+        return Problem("category_name_empty", {})
+    if len(stripped) > MAX_NAME_LENGTH:
+        return Problem("category_name_too_long", {"max": MAX_NAME_LENGTH})
+    if is_reserved(stripped):
+        return Problem("category_name_reserved", {"name": stripped})
+    return None
 
 
 def category_clash(name, categories):

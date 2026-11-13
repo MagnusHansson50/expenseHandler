@@ -169,24 +169,24 @@ def _category_problems(categories):
     reserved = {label.casefold() for label in FALLBACK_CATEGORY_LABELS.values()}
     problems = []
     for name in categories:
-        if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_NAME_LENGTH:
-            problems.append(Problem("backup_bad_category", {"name": str(name)[:MAX_NAME_LENGTH]}))
+        if not isinstance(name, str) or not name.strip():
+            problems.append(Problem("backup_category_empty", {}))
+        elif len(name.strip()) > MAX_NAME_LENGTH:
+            problems.append(Problem("backup_category_too_long", {"name": name.strip()[:MAX_NAME_LENGTH],
+                                                                 "max": MAX_NAME_LENGTH}))
         elif name.strip() != FALLBACK_CATEGORY and name.strip().casefold() in reserved:
-            problems.append(Problem("backup_bad_category", {"name": name.strip()}))
+            problems.append(Problem("backup_category_reserved", {"name": name.strip()}))
     return problems
 
 
 def _memory_problems(memory):
     problems = []
     for item, category in memory.items():
-        if (
-            not item.strip()
-            or len(item.strip()) > MAX_ITEM_LENGTH
-            or not isinstance(category, str)
-            or not category.strip()
-            or len(category.strip()) > MAX_NAME_LENGTH
-        ):
-            problems.append(Problem("backup_bad_memory", {"item": item[:MAX_ITEM_LENGTH]}))
+        if not item.strip() or len(item.strip()) > MAX_ITEM_LENGTH:
+            problems.append(Problem("backup_memory_bad_item", {"item": item[:MAX_ITEM_LENGTH],
+                                                               "max": MAX_ITEM_LENGTH}))
+        elif not isinstance(category, str) or not category.strip() or len(category.strip()) > MAX_NAME_LENGTH:
+            problems.append(Problem("backup_memory_bad_category", {"item": item.strip(), "max": MAX_NAME_LENGTH}))
     return problems
 
 
@@ -194,8 +194,9 @@ def _history_rows(entries):
     """Check the shape and values of each history entry; return (rows, problems)."""
     rows, problems = [], []
     for number, entry in enumerate(entries, 1):
-        if not _well_formed(entry):
-            problems.append(Problem("backup_bad_entry", {"row": number}))
+        shape_problem = _entry_shape_problem(entry, number)
+        if shape_problem:
+            problems.append(shape_problem)
             rows.append({"Date": None, "Item": None, "Price": None, "Category": None})
             continue
         if not _is_iso_date(entry["date"]):
@@ -213,19 +214,27 @@ def _history_rows(entries):
     return rows, sorted(problems, key=lambda problem: problem.params["row"])
 
 
-def _well_formed(entry):
-    if not isinstance(entry, dict) or set(entry) != set(HISTORY_FIELDS):
-        return False
+def _entry_shape_problem(entry, row):
+    """What is wrong with the shape or value types of one history entry, or None.
+
+    Checked in order, so the first thing wrong is reported: not an object,
+    the wrong set of fields, then each field. The date's format and the
+    item and price limits are checked afterwards (backup_bad_date, and
+    validate_receipt as for a receipt).
+    """
+    if not isinstance(entry, dict):
+        return Problem("backup_entry_not_purchase", {"row": row})
+    if set(entry) != set(HISTORY_FIELDS):
+        return Problem("backup_entry_fields", {"row": row})
+    for field in ("date", "item", "category"):
+        if not isinstance(entry[field], str):
+            return Problem("backup_entry_not_text", {"row": row, "field": field})
     price = entry["price"]
-    return (
-        isinstance(entry["date"], str)
-        and isinstance(entry["item"], str)
-        and isinstance(price, (int, float))
-        and not isinstance(price, bool)
-        and math.isfinite(price)
-        and isinstance(entry["category"], str)
-        and len(entry["category"].strip()) <= MAX_NAME_LENGTH
-    )
+    if not isinstance(price, (int, float)) or isinstance(price, bool) or not math.isfinite(price):
+        return Problem("backup_entry_bad_price", {"row": row})
+    if len(entry["category"].strip()) > MAX_NAME_LENGTH:
+        return Problem("backup_entry_category_too_long", {"row": row, "max": MAX_NAME_LENGTH})
+    return None
 
 
 def _is_iso_date(text):

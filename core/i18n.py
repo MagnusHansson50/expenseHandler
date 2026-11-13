@@ -71,7 +71,12 @@ TRANSLATIONS = {
         "new_category": "Ny kategori",
         "add_button": "➕ Lägg till",
         "category_added": "Kategorin '{name}' har lagts till.",
-        "category_name_invalid": "Ange ett namn på 1–{max} tecken som inte redan finns i listan.",
+        "category_name_empty": "Ange ett namn på kategorin.",
+        "category_name_too_long": "Namnet är för långt; en kategori får ha högst {max} tecken.",
+        "category_name_reserved": (
+            "'{name}' används redan för Övrigt, som alltid finns och inte kan läggas till igen. "
+            "Välj ett annat namn."
+        ),
         "category_exists": "Kategorin '{name}' finns redan.",
         "category_similar": "Du har redan kategorin '{existing}'. Vill du ändå lägga till '{name}'?",
         "category_add_anyway": "Lägg till ändå",
@@ -79,7 +84,7 @@ TRANSLATIONS = {
         "category_to_remove": "Kategori att ta bort",
         "remove_button": "🗑️ Ta bort",
         "category_removed": "Kategorin '{name}' har tagits bort.",
-        "category_not_removed": "Kategorin '{name}' kunde inte tas bort.",
+        "category_not_removed": "Kategorin '{name}' finns inte längre; den har kanske tagits bort i en annan flik.",
         # Manual entry and PDF upload
         "manual_entry": "✍️ Lägg till ett köp manuellt",
         "add_missing_item": "➕ Lägg till en vara som saknas",
@@ -144,9 +149,16 @@ TRANSLATIONS = {
         "backup_too_large": "Filen är större än {max} MB och kan inte vara en säkerhetskopia från ExpenseHandler.",
         "backup_unreadable": "Filen är ingen säkerhetskopia från ExpenseHandler, eller så är den skadad.",
         "backup_too_new": "Säkerhetskopian kommer från en nyare version av ExpenseHandler (format {version}, den här versionen klarar {supported}). Installera den senaste versionen.",
-        "backup_bad_category": "Kategorin \"{name}\" är tom, för lång eller ett reserverat namn.",
-        "backup_bad_memory": "Det sparade kategorivalet för \"{item}\" är ogiltigt.",
-        "backup_bad_entry": "Rad {row}: köpet saknar datum, vara, pris eller kategori, eller har fel typ av värde.",
+        "backup_category_empty": "En kategori i filen är tom.",
+        "backup_category_too_long": "Kategorin \"{name}\" är längre än {max} tecken.",
+        "backup_category_reserved": "Kategorin \"{name}\" använder namnet på Övrigt, som är reserverat.",
+        "backup_memory_bad_item": "Ett sparat kategorival gäller en vara som är tom eller längre än {max} tecken: \"{item}\".",
+        "backup_memory_bad_category": "Det sparade kategorivalet för \"{item}\" saknar kategori eller har ett namn längre än {max} tecken.",
+        "backup_entry_not_purchase": "Rad {row}: posten är inte ett köp.",
+        "backup_entry_fields": "Rad {row}: köpet ska ha exakt fälten date, item, price och category.",
+        "backup_entry_not_text": "Rad {row}: fältet \"{field}\" ska vara text.",
+        "backup_entry_bad_price": "Rad {row}: priset är inte ett tal.",
+        "backup_entry_category_too_long": "Rad {row}: kategorin är längre än {max} tecken.",
         "backup_bad_date": "Rad {row}: datumet är inte ett giltigt datum (ÅÅÅÅ-MM-DD).",
         # Rejected user names from db.create_user
         "user_name_empty": "Användarnamnet får inte vara tomt.",
@@ -179,13 +191,21 @@ TRANSLATIONS = {
         ),
         "delete_receipt_expander": "🗑️ Radera ett sparat kvitto",
         "confirm_delete": "Ja, radera alla köp som sparats detta datum",
+        "date_already_deleted": "Det finns inga köp sparade {date} längre; de har kanske raderats i en annan flik.",
         "delete_button": "Radera",
         "tick_to_confirm": "Kryssa i rutan för att bekräfta.",
         "deleted_rows": "{count} rader raderades från {date}.",
         # Database errors: "Kunde inte läsa in <what>" / "Kunde inte <action>"
-        "load_failed": "Kunde inte läsa in {what}. Databasen kan vara upptagen.",
+        "load_failed": (
+            "Kunde inte läsa in {what}. Databasfilen kan vara upptagen av ett annat program eller skadad. "
+            "Försök igen; hjälper det inte, stäng och starta om ExpenseHandler. Felet står i konsolfönstret."
+        ),
         "try_again": "🔄 Försök igen",
-        "write_failed": "Kunde inte {action}. Databasen kan vara upptagen – försök igen.",
+        "write_failed": (
+            "Kunde inte {action}. Databasfilen kan vara upptagen av ett annat program, skadad eller "
+            "disken full. Det du skrev finns kvar: försök igen. Hjälper det inte, starta om ExpenseHandler; "
+            "felet står i konsolfönstret."
+        ),
         "database_too_new": (
             "Databasen har skapats av en nyare version av ExpenseHandler (databasversion {found}, "
             "den här versionen klarar {supported}). Installera den senaste versionen. Inget har ändrats i dina data."
@@ -259,7 +279,12 @@ TRANSLATIONS = {
         "new_category": "New category",
         "add_button": "➕ Add",
         "category_added": "Added category '{name}'.",
-        "category_name_invalid": "Enter a name of 1–{max} characters that is not already in the list.",
+        "category_name_empty": "Enter a name for the category.",
+        "category_name_too_long": "The name is too long; a category may have at most {max} characters.",
+        "category_name_reserved": (
+            "'{name}' is already used for Other, which always exists and cannot be added again. "
+            "Choose another name."
+        ),
         "category_exists": "Category '{name}' already exists.",
         "category_similar": "You already have the category '{existing}'. Add '{name}' anyway?",
         "category_add_anyway": "Add anyway",
@@ -267,7 +292,7 @@ TRANSLATIONS = {
         "category_to_remove": "Category to remove",
         "remove_button": "🗑️ Remove",
         "category_removed": "Removed category '{name}'.",
-        "category_not_removed": "Category '{name}' could not be removed.",
+        "category_not_removed": "Category '{name}' no longer exists; it may have been removed in another tab.",
         # Manual entry and PDF upload
         "manual_entry": "✍️ Add a purchase manually",
         "add_missing_item": "➕ Add a missing item",
@@ -332,9 +357,16 @@ TRANSLATIONS = {
         "backup_too_large": "The file is larger than {max} MB and cannot be an ExpenseHandler backup.",
         "backup_unreadable": "The file is not an ExpenseHandler backup, or it is damaged.",
         "backup_too_new": "The backup comes from a newer version of ExpenseHandler (format {version}, this version supports {supported}). Install the latest version.",
-        "backup_bad_category": "The category \"{name}\" is empty, too long or a reserved name.",
-        "backup_bad_memory": "The remembered category for \"{item}\" is not valid.",
-        "backup_bad_entry": "Row {row}: the purchase lacks a date, item, price or category, or has the wrong kind of value.",
+        "backup_category_empty": "A category in the file is empty.",
+        "backup_category_too_long": "The category \"{name}\" is longer than {max} characters.",
+        "backup_category_reserved": "The category \"{name}\" uses the name of Other, which is reserved.",
+        "backup_memory_bad_item": "A remembered category is for an item that is empty or longer than {max} characters: \"{item}\".",
+        "backup_memory_bad_category": "The remembered category for \"{item}\" is missing or longer than {max} characters.",
+        "backup_entry_not_purchase": "Row {row}: the entry is not a purchase.",
+        "backup_entry_fields": "Row {row}: a purchase must have exactly the fields date, item, price and category.",
+        "backup_entry_not_text": "Row {row}: the field \"{field}\" must be text.",
+        "backup_entry_bad_price": "Row {row}: the price is not a number.",
+        "backup_entry_category_too_long": "Row {row}: the category is longer than {max} characters.",
         "backup_bad_date": "Row {row}: the date is not a valid date (YYYY-MM-DD).",
         # Rejected user names from db.create_user
         "user_name_empty": "User name cannot be empty.",
@@ -367,13 +399,21 @@ TRANSLATIONS = {
         ),
         "delete_receipt_expander": "🗑️ Delete a saved receipt",
         "confirm_delete": "Yes, delete every purchase saved on this date",
+        "date_already_deleted": "No purchases are saved on {date} any more; they may have been deleted in another tab.",
         "delete_button": "Delete",
         "tick_to_confirm": "Tick the box to confirm.",
         "deleted_rows": "Deleted {count} rows from {date}.",
         # Database errors: "Could not load <what>" / "Could not <action>"
-        "load_failed": "Could not load {what}. The database may be busy.",
+        "load_failed": (
+            "Could not load {what}. The database file may be in use by another program, or damaged. "
+            "Try again; if that does not help, close and restart ExpenseHandler. The error is in the console window."
+        ),
         "try_again": "🔄 Try again",
-        "write_failed": "Could not {action}. The database may be busy; please try again.",
+        "write_failed": (
+            "Could not {action}. The database file may be in use by another program, damaged, or the "
+            "disk full. What you entered is still here: try again. If that does not help, restart "
+            "ExpenseHandler; the error is in the console window."
+        ),
         "database_too_new": (
             "The database was created by a newer version of ExpenseHandler (database version {found}, "
             "this version supports {supported}). Install the latest version. Nothing in your data was changed."

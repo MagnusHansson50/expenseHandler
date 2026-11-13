@@ -102,10 +102,16 @@ def test_a_backup_from_a_newer_version_is_refused():
     assert problem_keys(backup_bytes(version=2)) == [("backup_too_new", {"version": 2, "supported": 1})]
 
 
-@pytest.mark.parametrize("name", ["", "   ", "x" * (MAX_NAME_LENGTH + 1), "Övrigt", "övrigt", "OTHER ", 7])
-def test_bad_category_names_are_reported(name):
+@pytest.mark.parametrize(
+    "name, key",
+    [("", "backup_category_empty"), ("   ", "backup_category_empty"), (7, "backup_category_empty"),
+     ("x" * (MAX_NAME_LENGTH + 1), "backup_category_too_long"),
+     ("Övrigt", "backup_category_reserved"), ("övrigt", "backup_category_reserved"),
+     ("OTHER ", "backup_category_reserved")],
+)
+def test_bad_category_names_are_reported_with_the_reason(name, key):
     keys = problem_keys(backup_bytes(categories=["Mejeri", name]))
-    assert [key for key, _ in keys] == ["backup_bad_category"]
+    assert [found for found, _ in keys] == [key]
 
 
 def test_the_fallback_category_itself_is_allowed():
@@ -113,10 +119,12 @@ def test_the_fallback_category_itself_is_allowed():
 
 
 @pytest.mark.parametrize(
-    "memory", [{"": "Mejeri"}, {"x" * (MAX_ITEM_LENGTH + 1): "Mejeri"}, {"Mjölk": 3}, {"Mjölk": ""}]
+    "memory, key",
+    [({"": "Mejeri"}, "backup_memory_bad_item"), ({"x" * (MAX_ITEM_LENGTH + 1): "Mejeri"}, "backup_memory_bad_item"),
+     ({"Mjölk": 3}, "backup_memory_bad_category"), ({"Mjölk": ""}, "backup_memory_bad_category")],
 )
-def test_bad_memory_entries_are_reported(memory):
-    assert [key for key, _ in problem_keys(backup_bytes(memory=memory))] == ["backup_bad_memory"]
+def test_bad_memory_entries_are_reported_with_the_reason(memory, key):
+    assert [found for found, _ in problem_keys(backup_bytes(memory=memory))] == [key]
 
 
 def entry(**changes):
@@ -124,13 +132,24 @@ def entry(**changes):
 
 
 @pytest.mark.parametrize(
-    "bad",
-    [entry(price="59,90"), entry(price=True), entry(item=None), entry(date=20261020),
-     entry(category=None), entry(category="x" * (MAX_NAME_LENGTH + 1)), {"date": "2026-10-20"},
-     {**entry(), "password": "x"}, "Kaffe"],
+    "bad, problem",
+    [
+        (entry(price="59,90"), ("backup_entry_bad_price", {"row": 2})),
+        (entry(price=True), ("backup_entry_bad_price", {"row": 2})),
+        (entry(item=None), ("backup_entry_not_text", {"row": 2, "field": "item"})),
+        (entry(date=20261020), ("backup_entry_not_text", {"row": 2, "field": "date"})),
+        (entry(category=None), ("backup_entry_not_text", {"row": 2, "field": "category"})),
+        (
+            entry(category="x" * (MAX_NAME_LENGTH + 1)),
+            ("backup_entry_category_too_long", {"row": 2, "max": MAX_NAME_LENGTH}),
+        ),
+        ({"date": "2026-10-20"}, ("backup_entry_fields", {"row": 2})),
+        ({**entry(), "password": "x"}, ("backup_entry_fields", {"row": 2})),
+        ("Kaffe", ("backup_entry_not_purchase", {"row": 2})),
+    ],
 )
-def test_malformed_purchases_are_reported_with_their_row(bad):
-    assert problem_keys(backup_bytes(history=[entry(), bad])) == [("backup_bad_entry", {"row": 2})]
+def test_malformed_purchases_are_reported_with_their_row_and_what_is_wrong(bad, problem):
+    assert problem_keys(backup_bytes(history=[entry(), bad])) == [problem]
 
 
 @pytest.mark.parametrize("value", ["2026-13-01", "20261020", "2026-10-20T10:00", "igår"])
@@ -150,7 +169,7 @@ def test_item_and_price_limits_are_the_same_as_for_a_receipt():
 def test_every_problem_is_reported_at_once():
     keys = problem_keys(backup_bytes(categories=[""], memory={"": "x"}, history=[entry(date="x"), "y"]))
     assert [key for key, _ in keys] == [
-        "backup_bad_category", "backup_bad_memory", "backup_bad_date", "backup_bad_entry"
+        "backup_category_empty", "backup_memory_bad_item", "backup_bad_date", "backup_entry_not_purchase"
     ]
 
 

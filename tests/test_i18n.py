@@ -125,14 +125,14 @@ def ui_keys_used_in_app():
 
 
 def keys_produced_below_the_ui():
-    """Keys created in core/receipt.py, core/auth.py and core/backup.py (Problem("key", ...))
-    and db.py (class attribute key = "...")."""
+    """Keys created in core/receipt.py, core/auth.py, core/backup.py and core/categories.py
+    (Problem("key", ...)) and db.py (class attribute key = "...")."""
     import ast
     from pathlib import Path
 
     repo = Path(__file__).resolve().parent.parent
     keys = set()
-    for module in ("receipt.py", "auth.py", "backup.py"):
+    for module in ("receipt.py", "auth.py", "backup.py", "categories.py"):
         tree = ast.parse((repo / "core" / module).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
@@ -177,10 +177,20 @@ def test_keys_from_core_and_db_are_found():
         "backup_too_large",
         "backup_unreadable",
         "backup_too_new",
-        "backup_bad_category",
-        "backup_bad_memory",
-        "backup_bad_entry",
+        "backup_category_empty",
+        "backup_category_too_long",
+        "backup_category_reserved",
+        "backup_memory_bad_item",
+        "backup_memory_bad_category",
+        "backup_entry_not_purchase",
+        "backup_entry_fields",
+        "backup_entry_not_text",
+        "backup_entry_bad_price",
+        "backup_entry_category_too_long",
         "backup_bad_date",
+        "category_name_empty",
+        "category_name_too_long",
+        "category_name_reserved",
     }
 
 

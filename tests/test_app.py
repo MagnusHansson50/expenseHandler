@@ -214,3 +214,30 @@ def test_fallback_category_cannot_be_chosen_for_removal(app):
     options = widget(app.selectbox, "Category to remove").options
     assert "Other" not in options
     assert "Dairy" in options
+
+
+def test_removing_a_category_already_removed_elsewhere_says_so(app, temp_db):
+    create_user(app, "Anna")
+    widget(app.selectbox, "Category to remove").set_value("Snacks")
+    temp_db.delete_category(temp_db.get_users()[0].id, "Snacks")  # as another tab could
+    app.checkbox(key="category_remove_confirm").check()
+    next(b for b in app.button if "Remove" in b.label).click().run()
+    assert app.error[0].value == "Category 'Snacks' no longer exists; it may have been removed in another tab."
+
+
+def test_deleting_a_date_already_deleted_elsewhere_never_deletes_another_date(app, temp_db):
+    import pandas as pd
+
+    create_user(app, "Anna")
+    anna = temp_db.get_users()[0].id
+    for day in ("2026-11-01", "2026-11-02"):
+        temp_db.save_receipt(anna, day, pd.DataFrame([("X", 1.0, "Other")], columns=["Item", "Price", "Category"]), {})
+    app.run()
+    app.selectbox(key="delete_date_choice").set_value("2026-11-02")
+    temp_db.delete_history_date(anna, "2026-11-02")  # as another tab could
+    app.checkbox(key="delete_date_confirm").check()
+    next(b for b in app.button if b.label == "Delete").click().run()
+    assert temp_db.get_history_dates(anna) == ["2026-11-01"]  # the other date is untouched
+    assert app.info[0].value == (
+        "No purchases are saved on 2026-11-02 any more; they may have been deleted in another tab."
+    )

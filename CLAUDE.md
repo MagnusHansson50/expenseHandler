@@ -80,9 +80,10 @@ Architecture
   with `db.update_history_categories` (nothing is written if nothing changed).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
-- `core/categories.py`: `category_clash(name, categories)` -> `CategoryClash(existing, exact)` or
-  `None`, `comparable` (letter case and extra spaces ignored) and `is_reserved` (the fallback
-  labels), for asking before adding a category that looks like an existing one.
+- `core/categories.py`: `name_problem(name)` (why a new category name is refused: empty, too long
+  or reserved, as a `Problem`), `category_clash(name, categories)` -> `CategoryClash(existing,
+  exact)` or `None`, `comparable` (letter case and extra spaces ignored) and `is_reserved` (the
+  fallback labels), for asking before adding a category that looks like an existing one.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
   rules (`password_problem`).
 - `scripts/reset_password.py`: command-line tool for whoever runs the app to set a new password
@@ -280,7 +281,8 @@ Backup and CSV export
   `history` (date, item, price, category). Never passwords. A newer version is refused
   (`backup_too_new`); when the format changes, bump `BACKUP_VERSION` and keep reading older versions.
 - `read_backup` checks everything before anything is written and reports every problem at once as
-  `Problem` keys (`backup_*`, and the receipt's item/price problems with the entry's row number):
+  `Problem` keys that say what is wrong (`backup_category_*`, `backup_memory_*`, `backup_entry_*` with
+  the field, `backup_bad_date`, and the receipt's item/price problems with the entry's row number):
   at most `MAX_BACKUP_BYTES` (5 MB), JSON that is not nested too deep (and has no number Python will
   not convert, such as an integer of more than 4300 digits), the format and version,
   category names (length, reserved labels), memory, and each purchase's fields, types,
@@ -514,6 +516,11 @@ Security
 Rules
 - Do not break Streamlit's reactive loop. Use `st.form` for input and `st.session_state` for anything
   that triggers heavy updates.
+- A form that removes or deletes what a select box names (a category, a date) reads the choice in
+  the submit button's callback (`take_removal`), never from the select box's return value: if the
+  option was removed in another tab meanwhile, Streamlit silently returns the FIRST option on the
+  next run, and that one would be removed. The db function then finds nothing and the UI says so
+  (`category_not_removed`, `date_already_deleted`).
 - All file operations on uploaded PDFs must use `io.BytesIO`.
 - Never read or write another user's rows: every function in `db.py` except the `users` functions
   (create, look up by id or name, `get_login`) takes `user_id`.
