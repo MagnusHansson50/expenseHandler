@@ -1,5 +1,7 @@
 # ExpenseHandler
 
+[![Tests](https://github.com/MagnusHansson50/expenseHandler/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/MagnusHansson50/expenseHandler/actions/workflows/tests.yml)
+
 En webbapp för att hålla koll på vad du handlar för. Ladda upp kvittokopior från Kivra eller
 digitala kvitton från Willys (PDF) eller lägg in köp för hand, sortera varorna i kategorier och följ upp utgifterna över tid.
 Flera personer kan använda samma app; var och en loggar in och ser bara sina egna kvitton.
