@@ -20,6 +20,7 @@ from ui.draft import set_draft, set_purchase_date
 from ui.history import render_history_tab
 from ui.receipt import render_current_receipt_tab
 from ui.settings import render_settings
+from ui.style import apply_style
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +302,7 @@ def render_account_sidebar(user):
 
 def main():
     st.set_page_config(page_title="ExpenseHandler", page_icon="🧾", layout="centered")
+    apply_style()
     init_session_state()
     sync_language_to_url()
     render_language_selector()

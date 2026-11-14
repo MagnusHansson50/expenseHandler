@@ -72,6 +72,12 @@ Architecture
   - `ui/history.py`: the History tab (period, category filter, chart, list, deleting a date).
   - `ui/backup.py`: the Backup section of the History tab.
   - `ui/settings.py`: the user's Settings section in the sidebar (the highest price per item).
+  - `ui/style.py`: the app's own CSS on top of the theme (`apply_style`, called right after
+    `st.set_page_config`): a faint linen pattern behind the page and light cards (`#FFFDF8`) for
+    expanders, bordered forms, metrics and bordered containers; forms inside expanders, the sidebar
+    and dialogs stay plain. The pattern is an inline SVG `data:` URI: never load CSS, fonts or images
+    from the network (the app works offline and tells no server it was opened); `tests/test_style.py`
+    checks this. Selectors are Streamlit's `data-testid`s; after a Streamlit update, check the look.
 - `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
   `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
@@ -641,6 +647,8 @@ Testing
   key exists, no unused keys), number/amount formatting and category labels.
 - `tests/test_app_language.py`: the UI in both languages (`?lang=`, switching, kept state, translated
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
+- `tests/test_style.py`: the CSS loads nothing from the network, the pattern is valid SVG, the style
+  is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
 - Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local receipt PDFs (Kivra or Willys)
@@ -777,6 +785,7 @@ Project structure
 │   ├── test_services_history.py
 │   ├── test_settings.py
 │   ├── test_streamlit_config.py
+│   ├── test_style.py
 │   └── test_text.py
 ├── requirements.txt
 ├── requirements-dev.txt
