@@ -227,7 +227,10 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   question and get the usual refusal. Backup import adds only missing exact names and asks nothing.
 - Input limits are enforced here as the last guard: `create_user` / `add_category` reject names longer
   than `MAX_NAME_LENGTH`; `save_history` rejects (and saves nothing) if an item is longer than
-  `MAX_ITEM_LENGTH` or a price is outside -`MAX_PRICE`..`MAX_PRICE`.
+  `MAX_ITEM_LENGTH` or a price is outside -`MAX_PRICE_CEILING`..`MAX_PRICE_CEILING`. The user's own
+  highest price per item (`get_max_price`) is checked before saving, in `services.receipts.save_receipt`
+  (`validate_receipt(draft, max_price)`); the database only guards the ceiling, so a backup can hold
+  purchases saved under a higher limit than the user has now.
 - Only the user's own categories are accepted: `save_history` stores any other category as
   `FALLBACK_CATEGORY`, and `save_memory` skips it. Another user's category can never be used.
 - A flow that writes more than once must do so in ONE transaction, so a failure leaves nothing
@@ -302,18 +305,22 @@ Backup and CSV export
   `export_history_csv(user_id, lang)` and `import_backup(user_id, data)` -> `db.ImportCounts(categories,
   memory, purchases)`, raising `core.backup.InvalidBackup(problems)` (nothing added) for a bad file.
 - File format (`core/backup.py`): JSON with `format` ("expensehandler-backup"), `version`
-  (`BACKUP_VERSION`, now 1), `exported`, `categories` (stored names), `memory` (item -> category) and
-  `history` (date, item, price, category). Never passwords. A newer version is refused
+  (`BACKUP_VERSION`, now 2), `exported`, `categories` (stored names), `memory` (item -> category),
+  `history` (date, item, price, category) and `settings` (`max_price` if the user chose one, else
+  `{}`; version 2). Version 1 files (no `settings`) are still read. Never passwords. A newer version is refused
   (`backup_too_new`); when the format changes, bump `BACKUP_VERSION` and keep reading older versions.
 - `read_backup` checks everything before anything is written and reports every problem at once as
   `Problem` keys that say what is wrong (`backup_category_*`, `backup_memory_*`, `backup_entry_*` with
   the field, `backup_bad_date`, and the receipt's item/price problems with the entry's row number):
   at most `MAX_BACKUP_BYTES` (5 MB), JSON that is not nested too deep (and has no number Python will
   not convert, such as an integer of more than 4300 digits), the format and version,
-  category names (length, reserved labels), memory, and each purchase's fields, types,
-  `YYYY-MM-DD` date and limits. Names in the problems come from the file: the UI escapes them.
+  category names (length, reserved labels), memory, the max amount (`backup_bad_max_price`), and each
+  purchase's fields, types, `YYYY-MM-DD` date and limits (prices against `MAX_PRICE_CEILING`, not the
+  user's own limit). Names in the problems come from the file: the UI escapes them.
 - Import merges (`new_categories`, `new_memory`, `new_history_rows`): missing categories are added,
-  the user's own remembered choices win, and purchases are compared on (date, item, price,
+  the user's own remembered choices win, the file's max amount is only taken if the user has not
+  chosen one (`new_max_price`; `ImportCounts.max_price_set`, `backup_max_price_set`), and purchases
+  are compared on (date, item, price,
   category) and counted, so identical purchases stay separate and importing the same file twice adds
   nothing. `db.import_user_data` writes it all in one transaction with the usual rules (a category the
   user does not have becomes `FALLBACK_CATEGORY`).
@@ -530,8 +537,10 @@ Security
   load remote images or create links. Plain-text widgets (selectbox options, tables, chart labels)
   do not need it.
 - Input limits (`core/constants.py`): names 1-`MAX_NAME_LENGTH` (50) characters, items up to
-  `MAX_ITEM_LENGTH` (100) characters, prices within -`MAX_PRICE`..`MAX_PRICE` (100 000 kr). Enforce them
-  in the UI (`max_chars`, `min_value`/`max_value`), in `validate_receipt` before saving, and in `db.py`.
+  `MAX_ITEM_LENGTH` (100) characters, prices within -max..max, where max is the user's highest price
+  per item (`db.get_max_price`: their choice in `MAX_PRICE_SETTING_MIN`..`MAX_PRICE_CEILING`, default
+  `MAX_PRICE`, 100 000 kr). Enforce them in the UI (`max_chars`, `min_value`/`max_value` from the
+  user's max), in `validate_receipt(draft, max_price)` before saving, and in `db.py` (the ceiling).
 - Dependencies are pinned with `~=X.Y.Z` (patch releases only). Raise a pin deliberately, run the tests,
   and check release notes for security fixes when doing so; minor releases are not picked up automatically.
 - The repository is public. Never commit real receipts, databases, personal paths (e.g. a user's home or

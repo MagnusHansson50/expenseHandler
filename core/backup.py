@@ -33,13 +33,16 @@ from core.constants import (
     FALLBACK_CATEGORY_LABELS,
     MAX_ITEM_LENGTH,
     MAX_NAME_LENGTH,
+    MAX_PRICE_CEILING,
+    MAX_PRICE_SETTING_MIN,
     MAX_UPLOAD_MB,
 )
 from core.i18n import category_label, resolve_language, t
 from core.receipt import Problem, validate_receipt
+from core.settings import max_price_problem
 
 BACKUP_FORMAT = "expensehandler-backup"
-BACKUP_VERSION = 1
+BACKUP_VERSION = 2  # 2 added "settings" (max_price); version 1 files are still read
 MAX_BACKUP_BYTES = MAX_UPLOAD_MB * 1024 * 1024  # a larger file could not be uploaded anyway
 HISTORY_FIELDS = ("date", "item", "price", "category")
 BACKUP_HISTORY_COLUMNS = ["Date", "Item", "Price", "Category"]
@@ -55,6 +58,7 @@ class Backup(NamedTuple):
     categories: list  # stored category names
     memory: dict  # item -> stored category name
     history: pd.DataFrame  # columns Date (YYYY-MM-DD text), Item, Price, Category
+    max_price: float | None = None  # the highest price per item chosen, None if not in the file
 
 
 class InvalidBackup(ValueError):
@@ -68,8 +72,12 @@ class InvalidBackup(ValueError):
 # --- Writing -----------------------------------------------------------------
 
 
-def make_backup(categories, memory, history, exported_on):
-    """The backup file (UTF-8 JSON bytes) for one user's categories, memory and history."""
+def make_backup(categories, memory, history, exported_on, max_price=None):
+    """The backup file (UTF-8 JSON bytes) for one user's categories, memory, history and settings.
+
+    `max_price` is the highest price per item the user has chosen, or None if
+    they kept the default; then the file has no setting for it.
+    """
     content = {
         "format": BACKUP_FORMAT,
         "version": BACKUP_VERSION,
@@ -85,6 +93,7 @@ def make_backup(categories, memory, history, exported_on):
             }
             for row in history.itertuples(index=False)
         ],
+        "settings": {} if max_price is None else {"max_price": max_price},
     }
     return json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
 
@@ -150,10 +159,16 @@ def read_backup(data):
     categories = content.get("categories", [])
     memory = content.get("memory", {})
     entries = content.get("history", [])
-    if not (isinstance(categories, list) and isinstance(memory, dict) and isinstance(entries, list)):
+    settings = content.get("settings", {})  # not in version 1 files
+    if not all(isinstance(value, kind) for value, kind in
+               ((categories, list), (memory, dict), (entries, list), (settings, dict))):
         raise InvalidBackup([Problem("backup_unreadable", {})])
 
     problems = []
+    max_price = settings.get("max_price")
+    if max_price is not None and max_price_problem(max_price):
+        # One message for "not a number" and "out of range": both say what the value must be.
+        problems.append(Problem("backup_bad_max_price", {"min": MAX_PRICE_SETTING_MIN, "max": MAX_PRICE_CEILING}))
     problems += _category_problems(categories)
     problems += _memory_problems(memory)
     rows, history_problems = _history_rows(entries)
@@ -163,7 +178,7 @@ def read_backup(data):
 
     names = list(dict.fromkeys(name.strip() for name in categories))
     remembered = {item.strip(): category.strip() for item, category in memory.items()}
-    return Backup(names, remembered, pd.DataFrame(rows, columns=BACKUP_HISTORY_COLUMNS))
+    return Backup(names, remembered, pd.DataFrame(rows, columns=BACKUP_HISTORY_COLUMNS), max_price)
 
 
 def _category_problems(categories):
@@ -210,8 +225,10 @@ def _history_rows(entries):
         })
     # Item and price limits as for a receipt, with the same row numbers. The
     # placeholder rows of malformed entries have neither, so they are skipped.
+    # Prices are checked against the ceiling, not a user's own limit: these
+    # purchases were saved before, perhaps under a higher limit.
     shaped = pd.DataFrame(rows, columns=BACKUP_HISTORY_COLUMNS)
-    problems += validate_receipt(shaped[["Item", "Price", "Category"]])
+    problems += validate_receipt(shaped[["Item", "Price", "Category"]], MAX_PRICE_CEILING)
     return rows, sorted(problems, key=lambda problem: problem.params["row"])
 
 
@@ -249,6 +266,15 @@ def _is_iso_date(text):
 
 
 # --- Merging -----------------------------------------------------------------
+
+
+def new_max_price(chosen, in_file):
+    """The highest price per item to take from a backup, or None to keep the user's.
+
+    Like remembered categories, the user's own choice wins: the file's value
+    is only used when the user has not chosen one (`chosen` is None).
+    """
+    return in_file if chosen is None else None
 
 
 def new_categories(existing, backup_categories):

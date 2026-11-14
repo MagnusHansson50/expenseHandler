@@ -270,3 +270,15 @@ def test_item_rows_returns_the_rows_with_that_name():
     draft = receipt(("Milk", 15.9, "Dairy"), (" Gift ", 99.0, FALLBACK_CATEGORY), ("Gift", 49.0, FALLBACK_CATEGORY))
     assert item_rows(draft, "Gift")["Price"].tolist() == [99.0, 49.0]
     assert item_rows(draft, "Bread").empty
+
+
+# --- A user's own highest price per item ----------------------------------------
+
+
+def test_validation_uses_the_given_max_price():
+    import pandas as pd
+
+    receipt = pd.DataFrame([("Car repair", 150_000.0, "Other")], columns=["Item", "Price", "Category"])
+    assert [p.key for p in validate_receipt(receipt)] == ["problem_price_out_of_range"]  # default 100 000
+    assert validate_receipt(receipt, max_price=200_000) == []
+    assert validate_receipt(receipt, max_price=1_000)[0].params == {"row": 1, "max": 1_000}

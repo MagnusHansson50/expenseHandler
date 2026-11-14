@@ -117,3 +117,14 @@ def test_an_item_for_0_kr_is_added_as_a_gift(anna):
 def test_a_negative_amount_is_still_added_as_a_discount(anna):
     add_manual_purchase(anna, "Discount", -10.0)
     assert anna.session_state["receipt_df"][["Item", "Price"]].values.tolist() == [["Discount", -10.0]]
+
+
+def test_the_price_field_follows_the_users_max_amount(anna, temp_db):
+    field = next(w for w in anna.number_input if w.label == "Price (kr)")
+    assert (field.proto.max, field.proto.min) == (100_000, -100_000)  # the default
+    temp_db.set_max_price(temp_db.get_users()[0].id, 250_000)
+    anna.run()
+    field = next(w for w in anna.number_input if w.label == "Price (kr)")
+    assert (field.proto.max, field.proto.min) == (250_000, -250_000)
+    add_manual_purchase(anna, "Car repair", 150_000.0)
+    assert anna.session_state["receipt_df"]["Price"].tolist() == [150_000.0]

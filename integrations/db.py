@@ -332,11 +332,17 @@ def set_password(user_id, password_hash, salt):
     return True
 
 
-def get_max_price(user_id):
-    """The user's highest price per item: their own choice, or MAX_PRICE if they made none."""
+def get_chosen_max_price(user_id):
+    """The highest price per item the user has chosen, or None if they kept the default."""
     with closing(get_connection()) as conn:
         row = conn.execute("SELECT max_price FROM settings WHERE user_id = ?", (user_id,)).fetchone()
-    return row[0] if row else float(MAX_PRICE)
+    return row[0] if row else None
+
+
+def get_max_price(user_id):
+    """The user's highest price per item: their own choice, or MAX_PRICE if they made none."""
+    chosen = get_chosen_max_price(user_id)
+    return float(MAX_PRICE) if chosen is None else chosen
 
 
 def set_max_price(user_id, max_price):
@@ -524,8 +530,10 @@ def _checked_history_rows(items_df):
     for item, price, _ in rows:
         if len(item) > MAX_ITEM_LENGTH:
             raise ValueError(f"Item names can be at most {MAX_ITEM_LENGTH} characters.")
-        if not -MAX_PRICE <= price <= MAX_PRICE:
-            raise ValueError(f"Prices must be between -{MAX_PRICE} and {MAX_PRICE} kr.")
+        # The last guard is the ceiling, not the user's own limit: that one is checked before
+        # saving (services.receipts), and a backup may hold purchases saved under a higher limit.
+        if not -MAX_PRICE_CEILING <= price <= MAX_PRICE_CEILING:
+            raise ValueError(f"Prices must be between -{MAX_PRICE_CEILING} and {MAX_PRICE_CEILING} kr.")
     return rows
 
 
@@ -590,15 +598,20 @@ def get_all_history(user_id):
 
 
 class ImportCounts(NamedTuple):
-    """How much import_user_data added."""
+    """How much import_user_data added, and whether it set the highest price per item."""
 
     categories: int
     memory: int
     purchases: int
+    max_price_set: bool = False
 
 
-def import_user_data(user_id, categories, memory, history_df):
+def import_user_data(user_id, categories, memory, history_df, max_price=None):
     """Add categories, remembered choices and purchases from a backup, all or nothing.
+
+    `max_price`, if given, becomes the user's highest price per item, but only
+    if they have not chosen one themselves (their own choice wins, as for
+    remembered categories); a value outside the allowed range raises ValueError.
 
     The usual rules apply: category names that are empty, too long or
     reserved are skipped (FALLBACK_CATEGORY is always there already);
@@ -619,7 +632,16 @@ def import_user_data(user_id, categories, memory, history_df):
             _write_history(conn, user_id, purchase_date, rows[["Item", "Price", "Category"]])
             for purchase_date, rows in history_df.groupby("Date", sort=True)
         )
-    return ImportCounts(added_categories, added_memory, added_purchases)
+        max_price_set = False
+        if max_price is not None:
+            if not MAX_PRICE_SETTING_MIN <= max_price <= MAX_PRICE_CEILING:
+                raise ValueError("max price outside the allowed range")
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO settings (user_id, max_price) VALUES (?, ?)",
+                (user_id, float(max_price)),
+            )
+            max_price_set = cursor.rowcount == 1
+    return ImportCounts(added_categories, added_memory, added_purchases, max_price_set)
 
 
 def get_history_dates(user_id):

@@ -120,3 +120,32 @@ def test_items_kept_in_the_fallback_category_on_purpose_are_remembered(two_users
     rows = draft(("Drill", 799.0, FALLBACK_CATEGORY), ("Saw", 199.0, FALLBACK_CATEGORY))
     receipts.save_receipt(anna, date(2026, 10, 1), rows, kept_in_fallback=["Drill"])
     assert db.load_memory(anna) == {"Drill": FALLBACK_CATEGORY}
+
+
+# --- The user's own highest price per item -----------------------------------------
+
+
+def test_saving_uses_the_users_max_price(temp_db):
+    import pandas as pd
+
+    from services import receipts as receipt_service
+
+    anna = temp_db.create_user("Anna")
+    draft = pd.DataFrame([("Car repair", 150_000.0, "Other")], columns=["Item", "Price", "Category"])
+    with pytest.raises(receipt_service.InvalidReceipt) as caught:
+        receipt_service.save_receipt(anna, "2026-11-01", draft)
+    assert caught.value.problems[0].params == {"row": 1, "max": 100_000}
+    temp_db.set_max_price(anna, 200_000)
+    assert receipt_service.save_receipt(anna, "2026-11-01", draft) == 1
+
+
+def test_another_users_max_price_does_not_apply(temp_db):
+    import pandas as pd
+
+    from services import receipts as receipt_service
+
+    anna, bo = temp_db.create_user("Anna"), temp_db.create_user("Bo")
+    temp_db.set_max_price(anna, 200_000)
+    draft = pd.DataFrame([("Car repair", 150_000.0, "Other")], columns=["Item", "Price", "Category"])
+    with pytest.raises(receipt_service.InvalidReceipt):
+        receipt_service.save_receipt(bo, "2026-11-01", draft)

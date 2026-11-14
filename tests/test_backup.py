@@ -15,10 +15,11 @@ from core.backup import (
     make_backup,
     new_categories,
     new_history_rows,
+    new_max_price,
     new_memory,
     read_backup,
 )
-from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE, MAX_PRICE_CEILING
 
 
 def history(*rows):
@@ -68,9 +69,10 @@ def test_a_backup_reads_back_to_the_same_data():
 def test_the_file_is_readable_json_with_format_version_and_no_passwords():
     content = json.loads(make_backup(["Mejeri"], {}, SAMPLE, date(2026, 11, 5)).decode("utf-8"))
     assert content["format"] == BACKUP_FORMAT
-    assert content["version"] == 1
+    assert content["version"] == 2
     assert content["exported"] == "2026-11-05"
-    assert set(content) == {"format", "version", "exported", "categories", "memory", "history"}
+    assert set(content) == {"format", "version", "exported", "categories", "memory", "history", "settings"}
+    assert content["settings"] == {}  # no max amount chosen
     assert "Mjölk" in make_backup([], {}, SAMPLE, date(2026, 11, 5)).decode("utf-8")  # not \\u-escaped
 
 
@@ -99,7 +101,7 @@ def test_a_file_that_is_too_large_is_refused_before_reading():
 
 
 def test_a_backup_from_a_newer_version_is_refused():
-    assert problem_keys(backup_bytes(version=2)) == [("backup_too_new", {"version": 2, "supported": 1})]
+    assert problem_keys(backup_bytes(version=3)) == [("backup_too_new", {"version": 3, "supported": 2})]
 
 
 @pytest.mark.parametrize(
@@ -157,13 +159,19 @@ def test_invalid_dates_are_reported(value):
     assert problem_keys(backup_bytes(history=[entry(date=value)])) == [("backup_bad_date", {"row": 1})]
 
 
-def test_item_and_price_limits_are_the_same_as_for_a_receipt():
-    rows = [entry(item=" "), entry(item="x" * (MAX_ITEM_LENGTH + 1)), entry(price=MAX_PRICE + 1)]
+def test_item_and_price_limits_are_the_same_as_for_a_receipt_with_the_ceiling():
+    # Prices are checked against the ceiling: purchases may have been saved under a higher limit.
+    rows = [entry(item=" "), entry(item="x" * (MAX_ITEM_LENGTH + 1)), entry(price=MAX_PRICE_CEILING + 1)]
     assert problem_keys(backup_bytes(history=rows)) == [
         ("problem_item_missing", {"row": 1}),
         ("problem_item_too_long", {"row": 2, "max": MAX_ITEM_LENGTH}),
-        ("problem_price_out_of_range", {"row": 3, "max": MAX_PRICE}),
+        ("problem_price_out_of_range", {"row": 3, "max": MAX_PRICE_CEILING}),
     ]
+
+
+def test_a_purchase_above_the_default_limit_can_be_read_back():
+    backup = read_backup(backup_bytes(history=[entry(price=MAX_PRICE + 50_000)]))
+    assert backup.history["Price"].tolist() == [MAX_PRICE + 50_000]
 
 
 def test_every_problem_is_reported_at_once():
@@ -245,3 +253,44 @@ def test_a_number_too_long_to_convert_is_an_unreadable_file():
     text = backup_bytes(history=[]).decode("utf-8").replace('"history": []', '"history": [' + "1" * 5000 + "]")
     assert text.count("1" * 5000) == 1
     assert problem_keys(text.encode("utf-8")) == [("backup_unreadable", {})]
+
+
+# --- The max amount setting (version 2) ----------------------------------------
+
+
+def test_a_chosen_max_amount_is_written_and_read_back():
+    data = make_backup(["Mejeri"], {}, SAMPLE, date(2026, 11, 5), max_price=250_000)
+    assert json.loads(data)["settings"] == {"max_price": 250_000}
+    assert read_backup(data).max_price == 250_000
+
+
+def test_a_version_1_file_is_still_read_without_a_max_amount():
+    content = json.loads(backup_bytes())
+    content["version"] = 1
+    del content["settings"]
+    backup = read_backup(json.dumps(content).encode("utf-8"))
+    assert backup.max_price is None
+    assert backup.categories  # the rest is read as before
+
+
+@pytest.mark.parametrize("value", [10, MAX_PRICE_CEILING + 1, "250000", True])
+def test_a_bad_max_amount_in_the_file_is_reported(value):
+    content = json.loads(backup_bytes())
+    content["settings"] = {"max_price": value}
+    assert problem_keys(json.dumps(content).encode("utf-8")) == [
+        ("backup_bad_max_price", {"min": 1_000, "max": MAX_PRICE_CEILING})
+    ]
+
+
+def test_settings_that_are_not_an_object_make_the_file_unreadable():
+    content = json.loads(backup_bytes())
+    content["settings"] = [250_000]
+    assert problem_keys(json.dumps(content).encode("utf-8")) == [("backup_unreadable", {})]
+
+
+@pytest.mark.parametrize(
+    "chosen, in_file, expected",
+    [(None, 250_000, 250_000), (50_000, 250_000, None), (None, None, None), (50_000, None, None)],
+)
+def test_the_users_own_max_amount_wins(chosen, in_file, expected):
+    assert new_max_price(chosen, in_file) == expected

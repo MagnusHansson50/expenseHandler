@@ -192,6 +192,7 @@ def test_keys_from_core_and_db_are_found():
         "category_name_too_long",
         "category_name_reserved",
         "max_price_not_a_number",
+        "backup_bad_max_price",
         "max_price_out_of_range",
     }
 

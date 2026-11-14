@@ -10,7 +10,7 @@ import streamlit as st
 
 from core import receipt as draft_ops  # the draft receipt being edited
 from core.calculator import paid_difference, total_cost
-from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_PRICE
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH
 from core.i18n import category_label, category_value, format_amount, t
 from core.parser import NotAPdfError, ReceiptReadError, UnknownReceiptFormat
 from integrations import db
@@ -32,16 +32,19 @@ from ui.review import render_review, start_review
 logger = logging.getLogger(__name__)
 
 
-def render_manual_entry(categories, header):
-    """Form for adding a purchase by hand: above the upload while the list is empty, then below the table."""
+def render_manual_entry(categories, header, max_price):
+    """Form for adding a purchase by hand: above the upload while the list is empty, then below the table.
+
+    `max_price` is the user's highest price per item (db.get_max_price).
+    """
     with st.expander(header):
         with st.form("manual_entry_form", clear_on_submit=True):
             col_item, col_price, col_category = st.columns([2, 1, 1])
             item = col_item.text_input(t("col_item", lang()), max_chars=MAX_ITEM_LENGTH)
             price = col_price.number_input(
                 t("col_price", lang()),
-                min_value=float(-MAX_PRICE),
-                max_value=float(MAX_PRICE),
+                min_value=float(-max_price),
+                max_value=float(max_price),
                 value=None,  # empty, so a forgotten price is caught; 0 typed in is a gift
                 step=1.0,
                 format=PRICE_INPUT_FORMAT,
@@ -159,7 +162,7 @@ def import_message(result):
     return "warning", " ".join(parts)
 
 
-def render_receipt_editor(categories):
+def render_receipt_editor(categories, max_price):
     """Editable table of the current receipt."""
     # The editor shows category labels ("Övrigt"); on_editor_change maps them back.
     shown = draft_ops.with_category_labels(st.session_state.receipt_df, lang())
@@ -180,8 +183,8 @@ def render_receipt_editor(categories):
                 t("col_price", lang()),
                 format=PRICE_INPUT_FORMAT,
                 required=True,
-                min_value=-MAX_PRICE,
-                max_value=MAX_PRICE,
+                min_value=-max_price,
+                max_value=max_price,
             ),
             "Category": st.column_config.SelectboxColumn(
                 t("col_category", lang()), options=options, required=True
@@ -268,10 +271,11 @@ def render_current_receipt_tab():
     """Tab 1: build the current receipt and save it to history."""
     user_id = st.session_state.current_user
     categories = load(db.get_categories, user_id, what="what_categories")
+    max_price = load(db.get_max_price, user_id, what="what_settings")
 
     render_category_manager(user_id, categories)
     if st.session_state.receipt_df.empty:
-        render_manual_entry(categories, t("manual_entry", lang()))
+        render_manual_entry(categories, t("manual_entry", lang()), max_price)
     render_pdf_upload(user_id, categories)
 
     if st.session_state.receipt_df.empty:
@@ -281,9 +285,9 @@ def render_current_receipt_tab():
     st.subheader(t("current_list", lang()))
     render_review(user_id, categories)
     st.caption(t("receipt_table_hint", lang()))
-    render_receipt_editor(categories)
+    render_receipt_editor(categories, max_price)
     # Next to the table, so a missing item is added where the list is checked.
-    render_manual_entry(categories, t("add_missing_item", lang()))
+    render_manual_entry(categories, t("add_missing_item", lang()), max_price)
     render_remove_item()
     total = total_cost(st.session_state.receipt_df)
     st.metric(t("total", lang()), format_amount(total, lang()))

@@ -170,8 +170,11 @@ def item_total(receipt, item):
     return round(float(receipt.loc[_rows_named(receipt, item), "Price"].sum()), 2)
 
 
-def validate_receipt(receipt):
+def validate_receipt(receipt, max_price=MAX_PRICE):
     """Return a list of Problem that stop the receipt from being saved.
+
+    `max_price` is the user's highest price per item (db.get_max_price);
+    prices must lie within -max_price..max_price.
 
     Rows are numbered from 1 as shown to the user. An empty list means the
     receipt can be saved. Rows with neither item nor price are ignored, as
@@ -189,8 +192,8 @@ def validate_receipt(receipt):
             problems.append(Problem("problem_item_too_long", {"row": number, "max": MAX_ITEM_LENGTH}))
         if not has_price:
             problems.append(Problem("problem_price_missing", {"row": number}))
-        elif not -MAX_PRICE <= float(row.Price) <= MAX_PRICE:
-            problems.append(Problem("problem_price_out_of_range", {"row": number, "max": MAX_PRICE}))
+        elif not -max_price <= float(row.Price) <= max_price:
+            problems.append(Problem("problem_price_out_of_range", {"row": number, "max": max_price}))
     return problems
 
 

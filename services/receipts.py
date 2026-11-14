@@ -58,7 +58,7 @@ def save_receipt(user_id, purchase_date, draft, kept_in_fallback=()):
     Raises InvalidReceipt (nothing saved) if the draft has problems.
     Returns the number of history rows saved.
     """
-    problems = validate_receipt(draft)
+    problems = validate_receipt(draft, db.get_max_price(user_id))
     if problems:
         raise InvalidReceipt(problems)
     undecided = set(uncategorized_items(draft, db.load_memory(user_id), db.get_categories(user_id)))

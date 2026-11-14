@@ -4,7 +4,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE
+from core.constants import FALLBACK_CATEGORY, MAX_ITEM_LENGTH, MAX_NAME_LENGTH, MAX_PRICE_CEILING
 from integrations import db
 
 
@@ -195,8 +195,8 @@ def test_save_history_maps_unknown_category_to_fallback(two_users):
     "row",
     [
         ("x" * (MAX_ITEM_LENGTH + 1), 1.0, "Other"),
-        ("Too expensive", MAX_PRICE + 0.01, "Other"),
-        ("Too negative", -MAX_PRICE - 0.01, "Other"),
+        ("Too expensive", MAX_PRICE_CEILING + 0.01, "Other"),
+        ("Too negative", -MAX_PRICE_CEILING - 0.01, "Other"),
         ("Infinite", float("inf"), "Other"),
     ],
 )
@@ -209,7 +209,7 @@ def test_save_history_rejects_out_of_range_rows_and_saves_nothing(two_users, row
 
 def test_save_history_accepts_limits_exactly(two_users):
     anna, _ = two_users
-    rows = receipt(("x" * MAX_ITEM_LENGTH, MAX_PRICE, "Other"), ("Refund", -MAX_PRICE, "Other"))
+    rows = receipt(("x" * MAX_ITEM_LENGTH, MAX_PRICE_CEILING, "Other"), ("Refund", -MAX_PRICE_CEILING, "Other"))
     assert db.save_history(anna, "2026-10-01", rows) == 2
 
 
@@ -263,7 +263,7 @@ def test_retrying_after_a_failed_save_does_not_duplicate(two_users, monkeypatch)
 
 def test_save_receipt_with_invalid_row_saves_neither_history_nor_memory(two_users):
     anna, _ = two_users
-    rows = receipt(("Milk", 15.0, "Dairy"), ("Too expensive", MAX_PRICE + 1, "Other"))
+    rows = receipt(("Milk", 15.0, "Dairy"), ("Too expensive", MAX_PRICE_CEILING + 1, "Other"))
     with pytest.raises(ValueError):
         db.save_receipt(anna, "2026-10-01", rows, {"Milk": "Dairy"})
 

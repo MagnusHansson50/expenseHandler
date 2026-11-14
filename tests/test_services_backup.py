@@ -157,3 +157,34 @@ def test_reserved_or_invalid_category_names_are_never_added(temp_db):
     counts = db.import_user_data(user_id, ["Övrigt", " ", "x" * 51, "Ny"], {}, no_history)
     assert counts.categories == 1
     assert sorted(temp_db.get_categories(user_id)) == ["Ny", FALLBACK_CATEGORY]
+
+
+# --- The max amount setting ------------------------------------------------------
+
+
+def test_the_chosen_max_amount_goes_with_the_backup(temp_db):
+    import json
+
+    anna, bo = temp_db.create_user("Anna"), temp_db.create_user("Bo")
+    temp_db.set_max_price(anna, 250_000)
+    data = backup.export_backup(anna)
+    assert json.loads(data)["settings"] == {"max_price": 250_000}
+    counts = backup.import_backup(bo, data)
+    assert counts.max_price_set is True
+    assert temp_db.get_max_price(bo) == 250_000
+
+
+def test_a_default_max_amount_is_not_written_to_the_backup(temp_db):
+    import json
+
+    anna = temp_db.create_user("Anna")
+    assert json.loads(backup.export_backup(anna))["settings"] == {}
+
+
+def test_importing_never_overwrites_a_max_amount_the_user_chose(temp_db):
+    anna, bo = temp_db.create_user("Anna"), temp_db.create_user("Bo")
+    temp_db.set_max_price(anna, 250_000)
+    temp_db.set_max_price(bo, 20_000)
+    counts = backup.import_backup(bo, backup.export_backup(anna))
+    assert counts.max_price_set is False
+    assert temp_db.get_max_price(bo) == 20_000

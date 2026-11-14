@@ -6,7 +6,7 @@ from datetime import date
 import streamlit as st
 
 from core.backup import InvalidBackup, download_name
-from core.i18n import t
+from core.i18n import format_amount, t
 from core.text import escape_markdown
 from integrations import db
 from services import backup
@@ -62,10 +62,14 @@ def import_backup_file(user_id, data):
             st.error(backup_problems_text(error.problems))
             return
         if any(added):
-            flash("success", t(
+            message = t(
                 "backup_imported", lang(),
                 purchases=added.purchases, categories=added.categories, memory=added.memory,
-            ))
+            )
+            if added.max_price_set:
+                max_price = load(db.get_max_price, user_id, what="what_settings")
+                message += " " + t("backup_max_price_set", lang(), max=format_amount(max_price, lang()))
+            flash("success", message)
         else:
             flash("info", t("backup_nothing_new", lang()))
         st.rerun()
