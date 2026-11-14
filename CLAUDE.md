@@ -94,7 +94,7 @@ Architecture
 - `core/history.py`: `category_changes` - which saved purchases got another category in the
   history list (editor rows -> history ids, labels -> stored names, unchanged left out);
   `filter_categories` / `filter_by_categories` for the History tab's category filter.
-- `services/history.py`: `change_categories(user_id, history, editor_changes, lang)` - saves them
+- `services/history.py`: `change_categories(user_id, shown, editor_changes, lang)` - saves them
   with `db.update_history_categories` (nothing is written if nothing changed).
 - `core/calculator.py`: totals, per-category summaries and `paid_difference` (items vs. the paid total).
 - `core/text.py`: `escape_markdown` for showing user-provided text safely.
@@ -663,7 +663,10 @@ Known limitations
 - Deleting an account cannot be undone; download a backup first to keep the history. Backups and
   copies of `expenses.db` made earlier still contain the deleted data.
 - Backups are not encrypted and cannot be protected with a password, and they are not made
-  automatically. There is no CSV import (only CSV export).
+  automatically. There is no CSV import (only CSV export). An older program refuses a backup from a
+  newer one (`backup_too_new`), e.g. a version 2 file with the max amount in a version 1 program.
+- The highest price per item can be raised to at most `MAX_PRICE_CEILING` (10 000 000 kr); it is
+  a guard against typing mistakes, so it cannot be turned off.
 - If `expenses.db` is lost or damaged, whatever is not in a downloaded backup is gone. Copying the
   file while the app is stopped backs up all users at once.
 - Only receipt copies from Kivra and digital receipts from Willys (PDF) can be imported; other

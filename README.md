@@ -58,6 +58,14 @@ Kräver Python 3.12 eller senare.
 - Efter fem felaktiga lösenord i rad låses namnet i 30 sekunder.
 - Du loggas ut när du klickar **Logga ut**, laddar om sidan eller stänger fliken.
 
+### Inställningar
+
+Under **⚙️ Inställningar** i sidomenyn väljer du **Högsta belopp per vara**. Gränsen fångar
+felskrivningar, till exempel 15900 i stället för 159,00: ett pris över gränsen går inte att
+spara, och appen säger vilken rad som är fel. Från början är gränsen 100 000 kr. Köper du något
+dyrare, till exempel en bilreparation, höjer du den (mellan 1 000 och 10 000 000 kr) och klickar
+**💾 Spara inställningar**. Inställningen gäller bara ditt konto.
+
 ### Ta bort ditt konto
 
 Öppna **🗑️ Ta bort mitt konto** i sidomenyn, skriv ditt lösenord, kryssa i rutan och klicka
@@ -131,13 +139,15 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 Under **Historik → 💾 Säkerhetskopia**:
 
 - **Ladda ner säkerhetskopia** ger en fil, till exempel `ExpenseHandler-Anna-2026-11-05.json`,
-  med dina kategorier, dina kategorival och hela din historik. Lösenordet följer inte med.
+  med dina kategorier, dina kategorival, hela din historik och ditt högsta belopp per vara (om du
+  har ändrat det). Lösenordet följer inte med.
   Filen är inte krypterad och innehåller alla dina köp, så förvara den säkert (till exempel på
   ett USB-minne eller i din egen molnlagring).
 - **Ladda ner historiken som CSV (Excel)** ger alla köp som en tabell som går att öppna i Excel.
   Den kan inte läsas in igen; använd säkerhetskopian till det.
 - **Läs in en säkerhetskopia** lägger till det som finns i filen och som du inte redan har.
   Det du redan har lämnas orört, och läser du in samma fil två gånger läggs inget till andra gången.
+  Filens högsta belopp per vara används bara om du inte har valt ett eget.
   Är något fel i filen läses ingenting in, och du får se vad som är fel.
 
 Byta dator: ladda ner en säkerhetskopia på den gamla datorn, installera programmet på den nya,
@@ -163,7 +173,9 @@ skapa ett konto (eller logga in) och läs in filen.
 - **En borttagning går inte att ångra.** Vill du spara din historik, ladda ner en
   säkerhetskopia innan du tar bort kontot. Säkerhetskopior och kopior av `expenses.db` som du
   har sparat tidigare innehåller fortfarande det borttagna.
-- **Säkerhetskopian är inte krypterad** och kan inte skyddas med lösenord.
+- **Säkerhetskopian är inte krypterad** och kan inte skyddas med lösenord. En säkerhetskopia från
+  en nyare version av programmet kan inte läsas in av en äldre; uppdatera då programmet först.
+- **Högsta belopp per vara är som mest 10 000 000 kr**, även om du höjer gränsen.
 - **Bara två sorters PDF-kvitton kan läsas in:** kvittokopior från Kivra, oavsett butik (till
   exempel ICA, Jula, Kjell & Co, Rusta och Stadium; ladda ner kvittot som PDF i Kivra), och
   digitala kvitton från Willys. Andra kvitton ger meddelandet att formatet inte känns igen och
