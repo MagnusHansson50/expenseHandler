@@ -21,13 +21,19 @@ import streamlit as st
 from core.i18n import LANGUAGES
 
 CARD = "#FFFDF8"  # warm white, a step lighter than the background (#F4EFE6)
-CARD_BORDER = "#DDD3C2"  # the theme's borderColor
+CARD_BORDER = "#DDD3C2"  # a soft edge for the cards (decorative; controls have the theme's darker one)
+# Secondary text that Streamlit fades too much on its own (the upload box's "5MB per file"):
+# at least 4.5:1 on the sand, the background and the cards (tests/test_accessibility.py).
+MUTED_TEXT = "#56605A"
 
-# A faint linen weave: thin warm lines a few pixels apart, in both directions.
+# A faint linen weave: thin warm lines a few pixels apart, in both directions. Text
+# lies on it, so tests/test_accessibility.py checks the text against these colours too
+# (axe-core cannot measure contrast over a background image).
+LINEN_COLOURS = ("#E9E1D2", "#EEE7DA")
 _LINEN_SVG = (
     "<svg xmlns='http://www.w3.org/2000/svg' width='6' height='6'>"
-    "<path d='M0 1.5h6M0 4.5h6' stroke='#E9E1D2' stroke-width='0.6'/>"
-    "<path d='M1.5 0v6M4.5 0v6' stroke='#EEE7DA' stroke-width='0.6'/>"
+    f"<path d='M0 1.5h6M0 4.5h6' stroke='{LINEN_COLOURS[0]}' stroke-width='0.6'/>"
+    f"<path d='M1.5 0v6M4.5 0v6' stroke='{LINEN_COLOURS[1]}' stroke-width='0.6'/>"
     "</svg>"
 )
 LINEN_URI = "data:image/svg+xml," + quote(_LINEN_SVG)
@@ -53,6 +59,10 @@ CSS = f"""
 }}
 [data-testid="stHeader"] {{
   background: transparent;
+}}
+[data-testid="stFileUploaderDropzoneInstructions"] span,
+[data-testid="stFileUploaderDropzoneInstructions"] small {{
+  color: {MUTED_TEXT};
 }}
 .eh-brand {{
   display: flex;

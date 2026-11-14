@@ -34,6 +34,10 @@ SURFACES = {
     "background": THEME["backgroundColor"],
     "sand (sidebar, fields)": THEME["secondaryBackgroundColor"],
     "card": style.CARD,
+    # The linen pattern's lines lie under the text on the background; axe-core
+    # reports text over a background image as "incomplete", so it is checked here.
+    "linen line 1": style.LINEN_COLOURS[0],
+    "linen line 2": style.LINEN_COLOURS[1],
 }
 
 
@@ -46,6 +50,12 @@ def test_text_is_readable_on_every_surface(surface):
 def test_the_accent_is_readable_as_text(surface):
     # Tabs, links and outlined buttons use the accent green as text colour.
     assert contrast(THEME["primaryColor"], SURFACES[surface]) >= 4.5
+
+
+@pytest.mark.parametrize("surface", SURFACES)
+def test_muted_text_is_readable_on_every_surface(surface):
+    # The grey that replaces Streamlit's too faint secondary text (e.g. "5MB per file").
+    assert contrast(style.MUTED_TEXT, SURFACES[surface]) >= 4.5
 
 
 def test_text_on_primary_buttons_is_readable():

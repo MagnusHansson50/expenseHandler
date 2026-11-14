@@ -380,10 +380,11 @@ Desktop program
 - Check a build: `python desktop/smoke_test.py dist/ExpenseHandler/ExpenseHandler.exe` (starts it with
   a throwaway database and waits for the health endpoint and the page). PDF upload and the data
   editor still need a manual check in the built program.
-- GitHub Actions: `.github/workflows/tests.yml` runs for pushes to master and pull requests, as
-  three jobs that each wait for the one before: `lint` (Ruff, Ubuntu), `test` (pytest on Windows and
-  Ubuntu, Python 3.12) and `build` (Windows: PyInstaller, smoke test, and the program uploaded as
-  the artifact `ExpenseHandler-windows`, kept 7 days; nothing is published).
+- GitHub Actions: `.github/workflows/tests.yml` runs for pushes to master and pull requests: `lint`
+  (Ruff, Ubuntu), then `test` (pytest on Windows and Ubuntu, Python 3.12), then side by side `a11y`
+  (Ubuntu: `requirements-a11y.txt`, `playwright install --with-deps chromium`, `pytest tests/a11y`)
+  and `build` (Windows: PyInstaller, smoke test, and the program uploaded as the artifact
+  `ExpenseHandler-windows`, kept 7 days; nothing is published).
   `.github/workflows/release.yml` runs on a pushed tag `v*`: Ruff, tests, build, smoke test, then
   `ExpenseHandler-<tag>-windows.zip` on a new GitHub release. Actions are pinned to commit SHAs (tag
   in a comment); the tag name reaches scripts only through `$env:TAG`. No secrets are needed (only
@@ -429,8 +430,12 @@ UI
   fields and buttons 3:1 (`showWidgetBorder` with `borderColor #857A69`), and `<html lang>` set to the
   selected language (Streamlit always writes "en"; `render_title` adds `page_language_script(lang)`
   in the same `st.html` element, with JavaScript allowed, so no extra element adds a gap).
-  `tests/test_accessibility.py` checks the contrast from the theme's own values and the language.
-  Change a colour only if those tests still pass.
+  `tests/test_accessibility.py` checks the contrast from the theme's own values and the language
+  (also against the linen pattern's lines and `MUTED_TEXT`, which replaces Streamlit's too faint
+  grey in the upload box). `tests/a11y/test_axe.py` runs axe-core (WCAG 2.1 A/AA) on every view
+  of the real app in Chromium; a view fails on any violation not in `KNOWN_STREAMLIT_ISSUES`
+  (empty so far; an entry needs a reason). axe cannot measure contrast over the background image,
+  hence the unit test. Change a colour only if both still pass.
 - Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
   "Create account". Nothing about other users (not even their names) is shown. The login page is
   one `st.container()` in the place where the app's tabs come after logging in, so the next run
@@ -664,6 +669,10 @@ Testing
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
 - `tests/test_accessibility.py`: colour contrast of the theme (text 4.5:1, control edges 3:1) and the
   page language (follows the selector, only known languages reach the script).
+- `tests/a11y/test_axe.py`: the axe-core audit of every view (login, Current Receipt empty and with
+  an item, the review popup, History, Settings) against a throwaway database. Needs
+  `pip install -r requirements-a11y.txt` and `python -m playwright install chromium`; skipped
+  otherwise. Run with `python -m pytest tests/a11y`.
 - `tests/test_style.py`: the CSS loads nothing from the network, the pattern and the logo are valid
   inline SVG, the title shows the logo and the name, the style is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
@@ -728,10 +737,11 @@ Project structure
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)
 ├── requirements-build.txt  # PyInstaller pin for the desktop build
+├── requirements-a11y.txt   # Playwright and axe for the accessibility audit (tests/a11y)
 ├── pyproject.toml      # Ruff settings (the app is not a package)
 ├── .github/
 │   └── workflows/
-│       ├── tests.yml   # Ruff, pytest on Windows and Ubuntu, build and smoke test
+│       ├── tests.yml   # Ruff, pytest on Windows and Ubuntu, accessibility audit, build and smoke test
 │       └── release.yml # build, smoke test and release on a v* tag
 ├── desktop/
 │   ├── __init__.py
@@ -763,6 +773,8 @@ Project structure
 │   └── text.py
 ├── tests/
 │   ├── conftest.py
+│   ├── a11y/
+│   │   └── test_axe.py # axe-core audit of every view (Playwright, Chromium)
 │   ├── test_accessibility.py
 │   ├── test_app.py
 │   ├── test_app_backup.py

@@ -1,6 +1,6 @@
 # Lints the code and runs the test suite on every push to master and on pull
-# requests. The tests only start once the lint check has passed, and the
-# desktop program is only built once the tests have passed. The build is kept
+# requests. The tests only start once the lint check has passed; then the
+# accessibility audit (axe-core) and the desktop build run side by side. The build is kept
 # for a week as a download on the run's page; nothing is published.
 # Actions are pinned to commit SHAs (the tag in the comment), so a moved tag
 # cannot change what runs here.
@@ -44,6 +44,22 @@ jobs:
           cache-dependency-path: requirements*.txt
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest
+
+  a11y:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: python -m pip install -r requirements-a11y.txt
+      # Chromium and the system libraries it needs on Ubuntu.
+      - run: python -m playwright install --with-deps chromium
+      # Starts the app with a throwaway database and checks every view against WCAG 2.1 A/AA.
+      - run: python -m pytest tests/a11y
 
   build:
     needs: test
