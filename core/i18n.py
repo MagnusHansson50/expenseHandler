@@ -58,6 +58,15 @@ TRANSLATIONS = {
         "log_out_button": "🚪 Logga ut",
         "action_log_in": "logga in",
         "delete_account_header": "🗑️ Ta bort mitt konto",
+        "settings_header": "⚙️ Inställningar",
+        "max_price_label": "Högsta belopp per vara (kr)",
+        "max_price_help": (
+            "Fångar felskrivningar, till exempel 15900 i stället för 159,00. Köper du något dyrare kan du "
+            "höja gränsen (mellan {min} och {max} kr). Gäller bara ditt konto."
+        ),
+        "settings_save_button": "💾 Spara inställningar",
+        "max_price_saved": "Högsta belopp per vara är nu {max}.",
+        "action_save_settings": "spara inställningarna",
         "delete_account_warning": "Kontot, dina kategorier och hela din historik raderas för gott. Det går inte att ångra.",
         "delete_confirm_label": "Jag förstår att allt raderas",
         "delete_account_button": "Ta bort kontot",
@@ -147,7 +156,7 @@ TRANSLATIONS = {
         "problem_item_missing": "Rad {row}: beskrivning av varan saknas.",
         "problem_item_too_long": "Rad {row}: beskrivningen av varan är längre än {max} tecken.",
         "problem_price_missing": "Rad {row}: priset saknas.",
-        "problem_price_out_of_range": "Rad {row}: priset måste vara mellan -{max} och {max} kr.",
+        "problem_price_out_of_range": "Rad {row}: priset måste vara mellan -{max} och {max} kr. Gränsen ändrar du under ⚙️ Inställningar.",
         "backup_too_large": "Filen är större än {max} MB och kan inte vara en säkerhetskopia från ExpenseHandler.",
         "backup_unreadable": "Filen är ingen säkerhetskopia från ExpenseHandler, eller så är den skadad.",
         "backup_too_new": "Säkerhetskopian kommer från en nyare version av ExpenseHandler (format {version}, den här versionen klarar {supported}). Installera den senaste versionen.",
@@ -271,6 +280,15 @@ TRANSLATIONS = {
         "log_out_button": "🚪 Log out",
         "action_log_in": "log in",
         "delete_account_header": "🗑️ Delete my account",
+        "settings_header": "⚙️ Settings",
+        "max_price_label": "Highest price per item (kr)",
+        "max_price_help": (
+            "Catches typing mistakes, such as 15900 instead of 159.00. If you buy something more expensive "
+            "you can raise the limit (from {min} to {max} kr). Applies to your account only."
+        ),
+        "settings_save_button": "💾 Save settings",
+        "max_price_saved": "The highest price per item is now {max}.",
+        "action_save_settings": "save the settings",
         "delete_account_warning": "The account, your categories and your whole history are deleted for good. This cannot be undone.",
         "delete_confirm_label": "I understand that everything is deleted",
         "delete_account_button": "Delete the account",
@@ -360,7 +378,7 @@ TRANSLATIONS = {
         "problem_item_missing": "Row {row}: the item description is missing.",
         "problem_item_too_long": "Row {row}: the item description is longer than {max} characters.",
         "problem_price_missing": "Row {row}: the price is missing.",
-        "problem_price_out_of_range": "Row {row}: the price must be between -{max} and {max} kr.",
+        "problem_price_out_of_range": "Row {row}: the price must be between -{max} and {max} kr. You can change the limit under ⚙️ Settings.",
         "backup_too_large": "The file is larger than {max} MB and cannot be an ExpenseHandler backup.",
         "backup_unreadable": "The file is not an ExpenseHandler backup, or it is damaged.",
         "backup_too_new": "The backup comes from a newer version of ExpenseHandler (format {version}, this version supports {supported}). Install the latest version.",

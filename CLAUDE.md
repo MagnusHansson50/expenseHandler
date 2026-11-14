@@ -71,6 +71,7 @@ Architecture
   - `ui/review.py`: the popup for items without a category.
   - `ui/history.py`: the History tab (period, category filter, chart, list, deleting a date).
   - `ui/backup.py`: the Backup section of the History tab.
+  - `ui/settings.py`: the user's Settings section in the sidebar (the highest price per item).
 - `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
   `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
@@ -409,9 +410,13 @@ UI
   one `st.container()` in the place where the app's tabs come after logging in, so the next run
   replaces it at once; as separate elements, the old login box was pushed down below the new tabs
   until the run ended (`tests/test_app_login.py` checks the position).
-- Logged in: the sidebar shows the language selector, "Logged in as <name>", a "Log out" button and
-  a collapsed "🗑️ Delete my account" ("🗑️ Ta bort mitt konto") section: a warning, the password, a
-  confirmation box and a delete button. The login page then shows "Your account and all your
+- Logged in: the sidebar shows the language selector, "Logged in as <name>", a "Log out" button, a
+  collapsed "⚙️ Settings" ("⚙️ Inställningar") section and a collapsed "🗑️ Delete my account"
+  ("🗑️ Ta bort mitt konto") section: a warning, the password, a confirmation box and a delete button.
+  Settings has "Highest price per item (kr)" (`settings_max_price`, `MAX_PRICE_SETTING_MIN`..
+  `MAX_PRICE_CEILING`, the user's current value), a caption saying what it is for, and "💾 Save
+  settings": `db.set_max_price` in `write_errors`, then a flash (`max_price_saved`). The receipt form
+  and table follow it on the next run; `problem_price_out_of_range` points to Settings. The login page then shows "Your account and all your
   receipts have been deleted."
 - Tab "🛒 Current Receipt" ("🛒 Aktuellt kvitto"): add/remove categories, manual entry (item, price,
   category; "✍️ Add a purchase manually" above the upload while the list is empty, then "➕ Add a
@@ -614,8 +619,9 @@ Testing
   UI section. Uploading a backup is not supported by `AppTest`; check it in a browser.
 - `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing, a version 1
   file getting the settings table) and refusing a database from a newer version.
-- `tests/test_settings.py`, `tests/test_db_settings.py`: the max amount rule and its storage (default,
-  per user, range, removed with the user).
+- `tests/test_settings.py`, `tests/test_db_settings.py`, `tests/test_app_settings.py`: the max amount
+  rule, its storage (default, per user, range, removed with the user) and the Settings section (save,
+  the form follows, a receipt above the old limit saved after raising it, per user, Swedish).
 - `tests/test_launcher.py`: the desktop launcher (data folders, port, flags matching `config.toml` and
   in effect when the server starts, `--reset-password`, `--port`, `--no-browser`, start-up errors).
 - Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
@@ -733,6 +739,7 @@ Project structure
 │   ├── test_app_missing_item.py
 │   ├── test_app_remove_item.py
 │   ├── test_app_review.py
+│   ├── test_app_settings.py
 │   ├── test_app_similar_category.py
 │   ├── test_architecture.py
 │   ├── test_auth.py

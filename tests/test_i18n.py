@@ -253,10 +253,10 @@ def test_format_number_per_language(value, swedish, english):
 
 def test_t_formats_numeric_params_per_language():
     assert t("problem_price_out_of_range", "sv", row=3, max=100000) == (
-        "Rad 3: priset måste vara mellan -100 000 och 100 000 kr."
+        "Rad 3: priset måste vara mellan -100 000 och 100 000 kr. Gränsen ändrar du under ⚙️ Inställningar."
     )
     assert t("problem_price_out_of_range", "en", row=3, max=100000) == (
-        "Row 3: the price must be between -100,000 and 100,000 kr."
+        "Row 3: the price must be between -100,000 and 100,000 kr. You can change the limit under ⚙️ Settings."
     )
 
 

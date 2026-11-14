@@ -141,7 +141,8 @@ def test_save_problems_are_translated(temp_db):
     assert not at.exception
     assert MAX_PRICE == 100_000  # shown with a Swedish thousands separator below
     assert at.error[0].value == (
-        "Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -100 000 och 100 000 kr."
+        "Kvittot sparades inte:\n\n- Rad 1: priset måste vara mellan -100 000 och 100 000 kr. "
+        "Gränsen ändrar du under ⚙️ Inställningar."
     )
 
 

@@ -19,6 +19,7 @@ from ui.common import DataUnavailable, flash, lang, load, render_section, show_f
 from ui.draft import set_draft, set_purchase_date
 from ui.history import render_history_tab
 from ui.receipt import render_current_receipt_tab
+from ui.settings import render_settings
 
 logger = logging.getLogger(__name__)
 
@@ -288,12 +289,13 @@ def render_delete_account_form():
 
 
 def render_account_sidebar(user):
-    """Who is logged in, a button to log out, and the form to delete the account."""
+    """Who is logged in, a button to log out, the user's settings and the form to delete the account."""
     with st.sidebar:
         st.caption(t("logged_in_as", lang(), name=escape_markdown(user.name)))
         if st.button(t("log_out_button", lang()), key="log_out"):
             log_out()
             st.rerun()
+        render_section(render_settings, user.id)  # a failed load stops only this section
         render_delete_account_form()
 
 
