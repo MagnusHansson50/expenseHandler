@@ -35,7 +35,9 @@ Code conventions
 - `core/` modules are pure functions: no Streamlit and no database imports. They take plain values
   (DataFrames, dicts, lists, bytes) and return them; callers pass in whatever they loaded from `db`.
 - Shared values (`FALLBACK_CATEGORY`, `FALLBACK_CATEGORY_LABELS`, `RECEIPT_COLUMNS`, `MAX_NAME_LENGTH`,
-  `MAX_ITEM_LENGTH`, `MAX_PRICE`) live only in `core/constants.py`. Never redefine them.
+  `MAX_ITEM_LENGTH`, `MAX_PRICE`, `MAX_UPLOAD_MB`) live only in `core/constants.py`. Never redefine them.
+  `MAX_UPLOAD_MB` (5) is used by the launcher's flags and the backup size check; `config.toml`
+  cannot import it, so `tests/test_streamlit_config.py` checks that it says the same.
 - Code below the UI (`core/`, `services/`, `integrations/`) returns translation keys, not sentences,
   for anything the user will read: `core.receipt.Problem(key, params)` and `db.UserNameError` (with
   `key` and `params`). The UI turns them into text with `t()`.

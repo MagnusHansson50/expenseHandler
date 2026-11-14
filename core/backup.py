@@ -33,13 +33,14 @@ from core.constants import (
     FALLBACK_CATEGORY_LABELS,
     MAX_ITEM_LENGTH,
     MAX_NAME_LENGTH,
+    MAX_UPLOAD_MB,
 )
 from core.i18n import category_label, resolve_language, t
 from core.receipt import Problem, validate_receipt
 
 BACKUP_FORMAT = "expensehandler-backup"
 BACKUP_VERSION = 1
-MAX_BACKUP_BYTES = 5 * 1024 * 1024  # same as the upload limit
+MAX_BACKUP_BYTES = MAX_UPLOAD_MB * 1024 * 1024  # a larger file could not be uploaded anyway
 HISTORY_FIELDS = ("date", "item", "price", "category")
 BACKUP_HISTORY_COLUMNS = ["Date", "Item", "Price", "Category"]
 
@@ -131,7 +132,7 @@ def download_name(user_name, day, extension):
 def read_backup(data):
     """Read and check a backup file. Returns a Backup, or raises InvalidBackup."""
     if len(data) > MAX_BACKUP_BYTES:
-        raise InvalidBackup([Problem("backup_too_large", {"max": MAX_BACKUP_BYTES // (1024 * 1024)})])
+        raise InvalidBackup([Problem("backup_too_large", {"max": MAX_UPLOAD_MB})])
     try:
         content = json.loads(data.decode("utf-8-sig"))
     # UnicodeDecodeError: not text; JSONDecodeError: not JSON; other ValueError: a number Python

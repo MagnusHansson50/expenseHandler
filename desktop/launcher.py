@@ -28,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.constants import MAX_UPLOAD_MB  # noqa: E402
 from core.i18n import LANGUAGES, t  # noqa: E402
 
 APP_NAME = "ExpenseHandler"
@@ -72,7 +73,7 @@ def streamlit_flags(port):
         "server_address": HOST,
         "server_port": port,
         "server_headless": True,  # we open the browser ourselves, once the app answers
-        "server_maxUploadSize": 5,
+        "server_maxUploadSize": MAX_UPLOAD_MB,
         "server_fileWatcherType": "none",
         "client_showErrorDetails": "none",
         "browser_gatherUsageStats": False,

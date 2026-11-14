@@ -3,6 +3,8 @@
 import tomllib
 from pathlib import Path
 
+from core.constants import MAX_UPLOAD_MB
+
 CONFIG_PATH = Path(__file__).resolve().parent.parent / ".streamlit" / "config.toml"
 
 
@@ -17,6 +19,11 @@ def test_server_only_listens_on_localhost():
 
 def test_upload_size_is_limited():
     assert 0 < load_config()["server"]["maxUploadSize"] <= 5
+
+
+def test_upload_size_matches_the_shared_constant():
+    # config.toml cannot import MAX_UPLOAD_MB, which the launcher and the backup check use.
+    assert load_config()["server"]["maxUploadSize"] == MAX_UPLOAD_MB
 
 
 def test_error_details_are_hidden():
