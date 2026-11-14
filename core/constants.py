@@ -19,9 +19,11 @@ RECEIPT_COLUMNS = ["Item", "Price", "Category"]
 MAX_NAME_LENGTH = 50  # user and category names
 MAX_ITEM_LENGTH = 100  # item descriptions
 MAX_PRICE = 100_000  # kr; prices must lie within -MAX_PRICE..MAX_PRICE (discounts are negative)
-# Largest file a user may upload (receipt PDF or backup), in MB. Streamlit's own limit is
-# server.maxUploadSize in .streamlit/config.toml, which cannot import this: the launcher passes this
-# value as that flag, and tests/test_streamlit_config.py checks that the file says the same.
+# Largest file a user may upload (receipt PDF or backup), in MB. Used by the desktop
+# program (desktop/launcher.py passes it to Streamlit) and by the backup size check.
+# KEEP IN STEP: maxUploadSize in .streamlit/config.toml must have the same value. That
+# file is what `streamlit run` reads, and it cannot import this constant.
+# tests/test_streamlit_config.py fails, and says what differs, until both agree.
 MAX_UPLOAD_MB = 5
 
 # Password length limits. The upper limit keeps hashing a single login

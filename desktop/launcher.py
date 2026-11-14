@@ -64,10 +64,15 @@ def free_port():
 def streamlit_flags(port):
     """Streamlit config options for the desktop program, as bootstrap.run expects them.
 
-    The security settings match .streamlit/config.toml (tests/test_launcher.py
-    checks this). developmentMode must be off explicitly: Streamlit guesses it
-    from not being installed in site-packages, which is true in a bundle, and
-    would then try to load its UI from a development server.
+    KEEP IN STEP: the security settings (address, maxUploadSize,
+    showErrorDetails) must be the same as in .streamlit/config.toml, which a
+    packaged program does not read. If you change one here, change it there
+    too; tests/test_launcher.py fails, and says what differs, until both
+    agree. The upload limit comes from MAX_UPLOAD_MB in core/constants.py.
+
+    developmentMode must be off explicitly: Streamlit guesses it from not
+    being installed in site-packages, which is true in a bundle, and would
+    then try to load its UI from a development server.
     """
     return {
         "server_address": HOST,

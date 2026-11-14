@@ -1,12 +1,20 @@
 # Security-related Streamlit settings. Streamlit reads this file when the app
 # is started from the repository root (python -m streamlit run app.py).
+#
+# The desktop program does NOT read this file: desktop/launcher.py passes the
+# same settings as flags (streamlit_flags). If you change a setting here,
+# change it there too. tests/test_launcher.py and tests/test_streamlit_config.py
+# fail, and say what differs, until both agree.
 
 [server]
-# Only accept connections from this computer. The app has no login, so it
-# must not be reachable from the local network or the internet.
+# Only accept connections from this computer. The login is not built for a
+# network (no HTTPS, open registration), so the app must not be reachable from
+# the local network or the internet.
 address = "localhost"
 
-# Kivra receipt copies are ~0.05 MB; the Streamlit default is 200 MB.
+# Largest upload in MB (receipt PDFs are ~0.05 MB; the Streamlit default is 200).
+# KEEP IN STEP: MAX_UPLOAD_MB in core/constants.py must have the same value
+# (the desktop program and the backup check use that one).
 maxUploadSize = 5
 
 [client]
