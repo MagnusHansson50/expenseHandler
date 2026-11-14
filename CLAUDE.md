@@ -78,6 +78,9 @@ Architecture
     and dialogs stay plain. The pattern is an inline SVG `data:` URI: never load CSS, fonts or images
     from the network (the app works offline and tells no server it was opened); `tests/test_style.py`
     checks this. Selectors are Streamlit's `data-testid`s; after a Streamlit update, check the look.
+    The logo (`LOGO_SVG`: a warm-white receipt on a rounded green square) is the browser tab icon
+    (`page_icon`), the sidebar logo (`st.logo`) and stands next to the title (`render_title`, which
+    replaced `st.title`; the name is `app_title`, without the old emoji).
 - `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
   `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
@@ -647,8 +650,8 @@ Testing
   key exists, no unused keys), number/amount formatting and category labels.
 - `tests/test_app_language.py`: the UI in both languages (`?lang=`, switching, kept state, translated
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
-- `tests/test_style.py`: the CSS loads nothing from the network, the pattern is valid SVG, the style
-  is on every page.
+- `tests/test_style.py`: the CSS loads nothing from the network, the pattern and the logo are valid
+  inline SVG, the title shows the logo and the name, the style is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
 - Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local receipt PDFs (Kivra or Willys)

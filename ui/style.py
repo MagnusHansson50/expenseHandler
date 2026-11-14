@@ -12,6 +12,8 @@ Streamlit's data-testid attributes; if an update renames one, that part
 simply falls back to the plain theme.
 """
 
+from base64 import b64encode
+from html import escape
 from urllib.parse import quote
 
 import streamlit as st
@@ -28,6 +30,19 @@ _LINEN_SVG = (
 )
 LINEN_URI = "data:image/svg+xml," + quote(_LINEN_SVG)
 
+# The logo: a warm-white receipt with a torn bottom edge and three lines, on a
+# rounded square in the accent green. Used as the browser tab icon, in the
+# sidebar (st.logo) and next to the title.
+LOGO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+    '<rect width="64" height="64" rx="15" fill="#2F5D4E"/>'
+    '<path d="M20 13H44V49L40 46L36 49L32 46L28 49L24 46L20 49Z" fill="#FFFDF8"/>'
+    '<path d="M25.5 22.5H38.5M25.5 29H38.5M25.5 35.5H33" stroke="#2F5D4E" '
+    'stroke-width="2.6" stroke-linecap="round"/>'
+    "</svg>"
+)
+LOGO_URI = "data:image/svg+xml;base64," + b64encode(LOGO_SVG.encode("utf-8")).decode("ascii")
+
 CSS = f"""
 <style>
 [data-testid="stApp"] {{
@@ -36,6 +51,25 @@ CSS = f"""
 }}
 [data-testid="stHeader"] {{
   background: transparent;
+}}
+.eh-brand {{
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0.25rem 0 0.75rem;
+}}
+.eh-brand img {{
+  width: 3rem;
+  height: 3rem;
+}}
+.eh-brand h1 {{
+  margin: 0;
+  padding: 0;
+  font-family: "Source Serif", serif;
+  font-size: 2.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #24332D;
 }}
 [data-testid="stExpander"] details,
 [data-testid="stForm"],
@@ -64,5 +98,11 @@ CSS = f"""
 
 
 def apply_style():
-    """Add the CSS to the page; call once per run, right after st.set_page_config."""
+    """Add the CSS and the logo in the sidebar; call once per run, right after st.set_page_config."""
     st.html(CSS)
+    st.logo(LOGO_SVG, size="large")
+
+
+def render_title(title):
+    """The page title next to the logo, styled like the theme's headings (serif)."""
+    st.html(f'<div class="eh-brand"><img src="{LOGO_URI}" alt=""><h1>{escape(title)}</h1></div>')

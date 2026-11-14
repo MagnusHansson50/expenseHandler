@@ -28,7 +28,7 @@ DEFAULT_CATEGORIES = {
 TRANSLATIONS = {
     "sv": {
         # Page and navigation
-        "app_title": "🧾 ExpenseHandler",
+        "app_title": "ExpenseHandler",
         "desktop_running": (
             "ExpenseHandler körs på {url} och öppnas i webbläsaren. Dina kvitton sparas i {path}. "
             "Stäng det här fönstret för att avsluta."
@@ -250,7 +250,7 @@ TRANSLATIONS = {
     },
     "en": {
         # Page and navigation
-        "app_title": "🧾 ExpenseHandler",
+        "app_title": "ExpenseHandler",
         "desktop_running": (
             "ExpenseHandler is running at {url} and opens in your browser. Your receipts are saved in {path}. "
             "Close this window to quit."
