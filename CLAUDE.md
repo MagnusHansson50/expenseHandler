@@ -670,9 +670,14 @@ Testing
 - `tests/test_accessibility.py`: colour contrast of the theme (text 4.5:1, control edges 3:1) and the
   page language (follows the selector, only known languages reach the script).
 - `tests/a11y/test_axe.py`: the axe-core audit of every view (login, Current Receipt empty and with
-  an item, the review popup, History, Settings) against a throwaway database. Needs
-  `pip install -r requirements-a11y.txt` and `python -m playwright install chromium`; skipped
-  otherwise. Run with `python -m pytest tests/a11y`.
+  an item, the review popup, History, Settings) against a throwaway database.
+  `tests/a11y/test_keyboard.py`: the same journey with the keyboard only (register, add an item,
+  reach the list, choose a category in the popup, save, switch to History, open Settings); each
+  control must be reachable within a bounded number of Tab presses. Both need
+  `pip install -r requirements-a11y.txt` and `python -m playwright install chromium` and are
+  skipped otherwise; run with `python -m pytest tests/a11y`. Fixtures (the app, the browser) are in
+  `tests/a11y/conftest.py`, helpers in `tests/a11y/a11y_helpers.py` (not `conftest`, which
+  `tests/conftest.py` would shadow).
 - `tests/test_style.py`: the CSS loads nothing from the network, the pattern and the logo are valid
   inline SVG, the title shows the logo and the name, the style is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
@@ -720,6 +725,11 @@ Known limitations
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
 - The language is remembered per browser tab/URL, not per user.
+- Accessibility limits set by Streamlit: after an action the page is redrawn and keyboard focus
+  goes back to the top; the tables (canvas, with a hidden grid for screen readers) are harder to use
+  than plain fields; some of Streamlit's own texts are English ("Skip to main content", "Show
+  password", "5MB per file"); emojis in tabs and buttons are read aloud. No screen reader has been
+  tried; README says so.
 - The look is light only (no dark mode); `ui/style.py` relies on Streamlit's `data-testid`s, so a
   Streamlit update can drop parts of it back to the plain theme until the selectors are updated.
 - Prices in number inputs and tables (`PRICE_INPUT_FORMAT`) always use a decimal point ("1122.17"):
@@ -774,7 +784,10 @@ Project structure
 ├── tests/
 │   ├── conftest.py
 │   ├── a11y/
-│   │   └── test_axe.py # axe-core audit of every view (Playwright, Chromium)
+│   │   ├── conftest.py # The running app and a browser
+│   │   ├── a11y_helpers.py
+│   │   ├── test_axe.py # axe-core audit of every view (Playwright, Chromium)
+│   │   └── test_keyboard.py  # The main journey with the keyboard only
 │   ├── test_accessibility.py
 │   ├── test_app.py
 │   ├── test_app_backup.py

@@ -14,25 +14,14 @@ third of all accessibility problems; keyboard use and screen readers are
 checked by hand (see README).
 """
 
-import os
-import subprocess
-import sys
-import time
-import urllib.request
-from pathlib import Path
-
 import pytest
+from a11y_helpers import TEST_PASSWORD, open_app, settle
 
-sync_api = pytest.importorskip("playwright.sync_api", reason="Playwright is not installed (requirements-a11y.txt)")
 axe_module = pytest.importorskip(
     "axe_playwright_python.sync_playwright", reason="axe-playwright-python is not installed"
 )
 
-from desktop.launcher import free_port  # noqa: E402
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]
-TEST_PASSWORD = "test-password-1"  # made up, for a throwaway database only
 
 # Violations inside Streamlit's own widgets that the app cannot change. Each
 # entry: axe rule id -> why it is accepted. Keep this list short and explained.
@@ -40,42 +29,10 @@ KNOWN_STREAMLIT_ISSUES = {}
 
 
 @pytest.fixture(scope="module")
-def app_url(tmp_path_factory):
-    """The app running on localhost with a throwaway database; stopped afterwards."""
-    port = free_port()
-    database = tmp_path_factory.mktemp("a11y") / "a11y.db"
-    env = {**os.environ, "EXPENSES_DB_PATH": str(database)}
-    server = subprocess.Popen(
-        [sys.executable, "-m", "streamlit", "run", "app.py", "--server.port", str(port),
-         "--server.headless", "true", "--browser.gatherUsageStats", "false"],
-        cwd=REPO_ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    url = f"http://localhost:{port}"
-    try:
-        deadline = time.monotonic() + 60
-        while time.monotonic() < deadline:
-            try:
-                with urllib.request.urlopen(f"{url}/_stcore/health", timeout=2):
-                    break
-            except OSError:
-                time.sleep(0.5)
-        else:
-            pytest.fail("the app did not start")
-        yield url
-    finally:
-        server.terminate()
-        server.wait(timeout=30)
-
-
-@pytest.fixture(scope="module")
-def page(app_url):
-    with sync_api.sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        page = browser.new_page(viewport={"width": 1280, "height": 900})
-        page.goto(f"{app_url}/?lang=sv")
-        page.get_by_text("Logga in för att se dina kvitton").wait_for()
-        yield page
-        browser.close()
+def page(browser, app_url):
+    page = open_app(browser, app_url)
+    yield page
+    page.close()
 
 
 def violations(page):
@@ -93,13 +50,6 @@ def describe(found):
         targets = [", ".join(node["target"]) for node in violation["nodes"][:3]]
         lines.append(f"{violation['id']} ({violation['impact']}): {violation['help']} -> {targets}")
     return "\n".join(lines)
-
-
-def settle(page):
-    """Wait until Streamlit has finished the run the last action started."""
-    page.wait_for_timeout(300)
-    page.locator('[data-testid="stStatusWidget"]').wait_for(state="hidden", timeout=15_000)
-    page.wait_for_timeout(300)
 
 
 # The views are visited in order: each test continues where the previous one left off.

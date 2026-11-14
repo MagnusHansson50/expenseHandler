@@ -136,6 +136,32 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
   dem fel, ta bort det datumets köp och lägg in dem igen.
   Här kan du också ta bort allt som sparats ett visst datum.
 
+## Tillgänglighet
+
+Målet är WCAG 2.1 nivå AA. Det här är kontrollerat, automatiskt vid varje ändring:
+
+- **Kontrast:** text har minst 4,5 : 1 mot alla bakgrunder och kanterna på fält och knappar
+  minst 3 : 1.
+- **Skärmläsare:** sidans språk följer språkvalet, så svensk text läses med svensk röst.
+  Varje vy granskas med verktyget axe-core.
+- **Tangentbord:** allt går att göra utan mus. Tab och Skift+Tab flyttar mellan fälten,
+  piltangenterna byter flik, Enter trycker på knappar och öppnar sektioner, och i rutan för
+  varor utan kategori väljer du kategori med Tab och Enter. Det första Tab-stoppet är en länk
+  som hoppar direkt till innehållet.
+
+Det här fungerar sämre, eftersom det styrs av Streamlit och inte av appen:
+
+- Efter en åtgärd, till exempel när du lagt till en vara, ritas sidan om och fokus hamnar
+  överst igen.
+- Tabellerna går att nå med tangentbordet och har en dold tabell för skärmläsare, men de är
+  svårare att använda än vanliga fält. Varor kan också läggas till och tas bort med formulären
+  under tabellen.
+- Några av Streamlits egna texter är på engelska ("Skip to main content", "Show password",
+  "5MB per file").
+- Emojierna i flikar och knappar läses upp av skärmläsare.
+
+Appen är inte provad med en riktig skärmläsare (till exempel NVDA).
+
 ## Säkerhetskopiera och byta dator
 
 Under **Historik → 💾 Säkerhetskopia**:
