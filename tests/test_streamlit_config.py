@@ -23,7 +23,12 @@ def test_upload_size_is_limited():
 
 def test_upload_size_matches_the_shared_constant():
     # config.toml cannot import MAX_UPLOAD_MB, which the launcher and the backup check use.
-    assert load_config()["server"]["maxUploadSize"] == MAX_UPLOAD_MB
+    in_file = load_config()["server"]["maxUploadSize"]
+    assert in_file == MAX_UPLOAD_MB, (
+        f"The upload limit differs: maxUploadSize = {in_file} in .streamlit/config.toml, but "
+        f"MAX_UPLOAD_MB = {MAX_UPLOAD_MB} in core/constants.py. Change both to the same number "
+        "(the file is read by `streamlit run`, the constant by the desktop program and the backup check)."
+    )
 
 
 def test_error_details_are_hidden():

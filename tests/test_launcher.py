@@ -84,7 +84,11 @@ def test_security_settings_match_the_streamlit_config_file():
     flags = flags_as_config(launcher.streamlit_flags(8501))
     for section, options in config.items():
         for option, value in options.items():
-            assert flags[section][option] == value, f"{section}.{option}"
+            assert flags[section][option] == value, (
+                f"{section}.{option} is {value!r} in .streamlit/config.toml but {flags[section][option]!r} "
+                "in desktop/launcher.py streamlit_flags(): the desktop program would run with other "
+                "settings than `streamlit run`. Make them the same."
+            )
 
 
 def test_desktop_flags_listen_locally_on_the_given_port_without_dev_mode_or_telemetry():
