@@ -20,3 +20,18 @@ maxUploadSize = 5
 [client]
 # Do not show tracebacks (file paths, code) to whoever uses the app.
 showErrorDetails = "none"
+
+# The look ("calm Scandinavian"): warm off-white and sand, a deep green accent,
+# serif headings. KEEP IN STEP: THEME in desktop/launcher.py must have the same
+# values (the desktop program does not read this file).
+[theme]
+base = "light"
+primaryColor = "#2F5D4E"
+backgroundColor = "#F4EFE6"
+secondaryBackgroundColor = "#EAE3D6"
+textColor = "#24332D"
+borderColor = "#DDD3C2"
+baseRadius = "large"
+headingFont = "serif"
+showSidebarBorder = false
+chartCategoricalColors = ["#2F5D4E", "#6E9283", "#A9C0B5", "#B08D57", "#8C6F5A"]

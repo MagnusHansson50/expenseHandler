@@ -350,8 +350,10 @@ Desktop program
 - `.streamlit/config.toml` is not read inside a packaged program, so `streamlit_flags()` passes the
   security settings as flags (localhost, 5 MB uploads, no error details) plus no usage statistics,
   no file watching and `global.developmentMode` off (Streamlit guesses dev mode when it is not in
-  `site-packages`, as in a bundle, and would load its UI from a dev server). Keep them in sync with
-  `config.toml`; `tests/test_launcher.py` compares them. `start_streamlit` loads the flags with
+  `site-packages`, as in a bundle, and would load its UI from a dev server), and the look (`THEME`,
+  the `[theme]` section: "calm Scandinavian", warm off-white `#F4EFE6`, sand `#EAE3D6`, deep green
+  accent `#2F5D4E`, serif headings, chart colors). Keep them in sync with `config.toml`;
+  `tests/test_launcher.py` compares them. `start_streamlit` loads the flags with
   `bootstrap.load_config_options` before `bootstrap.run`, as `streamlit run` does; `bootstrap.run`
   alone ignores them.
 - Build: `python -m pip install -r requirements-build.txt`, then
@@ -789,7 +791,7 @@ Commits
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
   `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...` or
   `History Filter Step 1: ...` or `CI Step 1: ...` or `Review Fixes Step 1: ...` or
-  `Max Price Step 1: ...`.
+  `Max Price Step 1: ...` or `Theme Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

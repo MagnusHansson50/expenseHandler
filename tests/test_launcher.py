@@ -144,7 +144,8 @@ def test_the_flags_are_in_effect_when_the_server_starts(tmp_path, monkeypatch):
 
     def fake_run(script, is_hello, args, flags):
         for option in ("server.port", "server.address", "server.maxUploadSize", "global.developmentMode",
-                       "client.showErrorDetails", "browser.gatherUsageStats"):
+                       "client.showErrorDetails", "browser.gatherUsageStats", "theme.primaryColor",
+                       "theme.backgroundColor"):
             seen[option] = config.get_option(option)
 
     monkeypatch.setattr(bootstrap, "run", fake_run)
@@ -156,6 +157,8 @@ def test_the_flags_are_in_effect_when_the_server_starts(tmp_path, monkeypatch):
         "global.developmentMode": False,
         "client.showErrorDetails": "none",
         "browser.gatherUsageStats": False,
+        "theme.primaryColor": "#2F5D4E",  # the look, as in config.toml
+        "theme.backgroundColor": "#F4EFE6",
     }
 
 

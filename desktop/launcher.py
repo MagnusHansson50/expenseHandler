@@ -61,12 +61,28 @@ def free_port():
         return sock.getsockname()[1]
 
 
+# The look, as in [theme] of .streamlit/config.toml. KEEP IN STEP with that file:
+# tests/test_launcher.py fails, and says what differs, until both agree.
+THEME = {
+    "base": "light",
+    "primaryColor": "#2F5D4E",
+    "backgroundColor": "#F4EFE6",
+    "secondaryBackgroundColor": "#EAE3D6",
+    "textColor": "#24332D",
+    "borderColor": "#DDD3C2",
+    "baseRadius": "large",
+    "headingFont": "serif",
+    "showSidebarBorder": False,
+    "chartCategoricalColors": ["#2F5D4E", "#6E9283", "#A9C0B5", "#B08D57", "#8C6F5A"],
+}
+
+
 def streamlit_flags(port):
     """Streamlit config options for the desktop program, as bootstrap.run expects them.
 
     KEEP IN STEP: the security settings (address, maxUploadSize,
-    showErrorDetails) must be the same as in .streamlit/config.toml, which a
-    packaged program does not read. If you change one here, change it there
+    showErrorDetails) and the theme (THEME) must be the same as in
+    .streamlit/config.toml, which a packaged program does not read. If you change one here, change it there
     too; tests/test_launcher.py fails, and says what differs, until both
     agree. The upload limit comes from MAX_UPLOAD_MB in core/constants.py.
 
@@ -83,6 +99,7 @@ def streamlit_flags(port):
         "client_showErrorDetails": "none",
         "browser_gatherUsageStats": False,
         "global_developmentMode": False,
+        **{f"theme_{option}": value for option, value in THEME.items()},
     }
 
 
