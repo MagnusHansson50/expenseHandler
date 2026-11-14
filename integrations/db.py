@@ -288,13 +288,28 @@ def get_user(user_id):
     return User(*row) if row else None
 
 
+def _find_user(conn, name):
+    """The User whose name is `name` ignoring letter case and surrounding spaces, or None.
+
+    Names are unique regardless of case (create_user), so at most one user
+    matches. The comparison is casefold() in Python: SQLite's NOCASE only
+    folds A-Z, so "åsa" would not find "Åsa". The exact name is tried first.
+    """
+    wanted = name.strip()
+    row = conn.execute("SELECT id, name FROM users WHERE name = ?", (wanted,)).fetchone()
+    if row:
+        return User(*row)
+    folded = wanted.casefold()
+    for user_id, stored in conn.execute("SELECT id, name FROM users"):
+        if stored.casefold() == folded:
+            return User(user_id, stored)
+    return None
+
+
 def get_user_by_name(name):
-    """Return the User with this exact name (surrounding spaces ignored), or None."""
+    """Return the User with this name (letter case and surrounding spaces ignored), or None."""
     with closing(get_connection()) as conn:
-        row = conn.execute(
-            "SELECT id, name FROM users WHERE name = ?", (name.strip(),)
-        ).fetchone()
-    return User(*row) if row else None
+        return _find_user(conn, name)
 
 
 # --- Credentials ---------------------------------------------------------
@@ -310,17 +325,19 @@ class Login(NamedTuple):
 
 
 def get_login(name):
-    """Return the Login for a user name, or None if the user does not exist or has no password."""
+    """Return the Login for a user name, or None if the user does not exist or has no password.
+
+    The name is matched like at registration: letter case and surrounding
+    spaces are ignored ("anna" logs in "Anna"). The password is not.
+    """
     with closing(get_connection()) as conn:
+        user = _find_user(conn, name)
+        if user is None:
+            return None
         row = conn.execute(
-            """
-            SELECT users.id, users.name, credentials.password_hash, credentials.salt
-            FROM users JOIN credentials ON credentials.user_id = users.id
-            WHERE users.name = ?
-            """,
-            (name.strip(),),
+            "SELECT password_hash, salt FROM credentials WHERE user_id = ?", (user.id,)
         ).fetchone()
-    return Login(User(row[0], row[1]), row[2], row[3]) if row else None
+    return Login(user, row[0], row[1]) if row else None
 
 
 def set_password(user_id, password_hash, salt):

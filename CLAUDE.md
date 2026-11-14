@@ -194,7 +194,10 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   `create_user_with_password` does the same and stores the credentials in the same transaction;
   the app only uses this one (through `services.auth.register`).
 - `get_login(name)` returns `Login(user, password_hash, salt)`, or `None` for an unknown name or a
-  user without a password. The name must match exactly (surrounding spaces ignored, case not).
+  user without a password. The name is matched like at registration: surrounding spaces and letter
+  case are ignored (`_find_user`: the exact name first, then `casefold()` in Python, since SQLite's
+  `NOCASE` only folds A-Z), so "åsa" logs in "Åsa". `get_user_by_name` matches the same way. The
+  password is compared exactly.
   `set_password(user_id, ...)` adds or replaces a password and returns `False` for an unknown user.
 - `get_all_history(user_id)` returns all of a user's purchases, oldest first (for backups).
   `import_user_data(user_id, categories, memory, history_df)` adds them in one transaction (see
@@ -649,8 +652,8 @@ Known limitations
 - Anyone can lock a name for 30 seconds by entering a wrong password five times. There is no limit
   across different names, and the throttle starts over when the app restarts.
 - No idle timeout: a session lasts as long as the browser tab stays open.
-- Login names are case-sensitive ("anna" does not log in "Anna"), although registration treats
-  them as the same name. Unicode look-alike names (e.g. Latin "a" vs Cyrillic "а") count as different.
+- Unicode look-alike names (e.g. Latin "a" vs Cyrillic "а") count as different names, at
+  registration and at login.
 - `expenses.db` is not encrypted.
 - Passwords can only be changed with `scripts/reset_password.py`; there is no "change password" in
   the app. To delete an account whose password is forgotten, reset it first.

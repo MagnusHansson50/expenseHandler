@@ -54,9 +54,9 @@ Kräver Python 3.12 eller senare.
 ## Konto och inloggning
 
 - Skapa ett konto under fliken **Skapa konto**. Namnet får vara högst 50 tecken och lösenordet
-  8–128 tecken. Namn som bara skiljer sig i stora/små bokstäver ("Anna" och "anna") räknas som
-  samma namn.
-- Logga in med exakt det namn du registrerade (stora/små bokstäver spelar roll).
+  8–128 tecken.
+- Stora och små bokstäver spelar ingen roll i namnet, men i lösenordet: har du registrerat
+  "Anna" loggar du in som "anna" också, och ingen annan kan skapa kontot "anna".
 - Efter fem felaktiga lösenord i rad låses namnet i 30 sekunder.
 - Du loggas ut när du klickar **Logga ut**, laddar om sidan eller stänger fliken.
 

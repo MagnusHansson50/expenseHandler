@@ -166,3 +166,15 @@ def test_no_password_is_left_in_session_state_after_logging_in(temp_db):
     for key in ("login_password", "register_password", "register_password_repeat"):
         # Either emptied by the submit callback or removed with the login form.
         assert key not in at.session_state or at.session_state[key] == ""
+
+
+def test_the_name_logs_in_regardless_of_letter_case_but_the_password_does_not(temp_db):
+    at = start_app()
+    create_user(at, "Åsa")
+    log_out(at)
+    log_in(at, "åSA")
+    assert logged_in_caption(at) == "Logged in as **Åsa**"  # shown as registered
+    log_out(at)
+    log_in(at, "åsa", password=TEST_PASSWORD.upper())
+    assert logged_in_caption(at) is None
+    assert at.error[0].value == "Wrong user name or password."

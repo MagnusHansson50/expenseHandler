@@ -59,10 +59,31 @@ def test_get_login_for_unknown_user_or_user_without_password_is_none(temp_db):
     assert temp_db.get_login("NoPassword") is None
 
 
-def test_get_login_ignores_surrounding_spaces_but_not_case(temp_db):
+@pytest.mark.parametrize("typed", ["Anna", "  Anna ", "anna", "ANNA", " aNNa "])
+def test_get_login_ignores_surrounding_spaces_and_letter_case(temp_db, typed):
+    anna = temp_db.create_user_with_password("Anna", HASH_A, SALT_A)
+    login = temp_db.get_login(typed)
+    assert login.user.id == anna
+    assert login.user.name == "Anna"  # the name as registered
+
+
+@pytest.mark.parametrize("registered, typed", [("Åsa", "åsa"), ("ÖRJAN", "örjan"), ("Straße", "STRASSE")])
+def test_get_login_folds_letters_outside_a_to_z(temp_db, registered, typed):
+    temp_db.create_user_with_password(registered, HASH_A, SALT_A)
+    assert temp_db.get_login(typed).user.name == registered
+
+
+def test_get_login_finds_only_that_user(temp_db):
     temp_db.create_user_with_password("Anna", HASH_A, SALT_A)
-    assert temp_db.get_login("  Anna ") is not None
-    assert temp_db.get_login("anna") is None
+    temp_db.create_user_with_password("Bo", HASH_B, SALT_B)
+    assert temp_db.get_login("bo").password_hash == HASH_B
+    assert temp_db.get_login("annA").password_hash == HASH_A
+    assert temp_db.get_login("Annika") is None
+
+
+def test_get_user_by_name_ignores_letter_case_too(temp_db):
+    anna = temp_db.create_user("Anna")
+    assert temp_db.get_user_by_name("ANNA").id == anna
 
 
 def test_set_password_adds_and_replaces_only_for_that_user(temp_db):
@@ -94,4 +115,5 @@ def test_credentials_are_removed_with_the_user(temp_db):
 def test_get_user_by_name(temp_db):
     anna = temp_db.create_user("Anna")
     assert temp_db.get_user_by_name(" Anna ") == db.User(anna, "Anna")
-    assert temp_db.get_user_by_name("anna") is None
+    assert temp_db.get_user_by_name("anna") == db.User(anna, "Anna")  # as at registration
+    assert temp_db.get_user_by_name("Annika") is None
