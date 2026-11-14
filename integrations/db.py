@@ -19,6 +19,8 @@ from core.constants import (
     MAX_ITEM_LENGTH,
     MAX_NAME_LENGTH,
     MAX_PRICE,
+    MAX_PRICE_CEILING,
+    MAX_PRICE_SETTING_MIN,
 )
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "expenses.db"
@@ -107,8 +109,26 @@ class DatabaseTooNew(Exception):
 # To change the schema: leave the CREATE TABLE script in init_db as version 1,
 # add the change as _MIGRATIONS[n] (a function taking the open connection) and
 # set SCHEMA_VERSION = n.
-SCHEMA_VERSION = 1
-_MIGRATIONS = {}
+SCHEMA_VERSION = 2
+
+
+def _add_settings_table(conn):
+    """Version 2: one row of settings per user (only the highest price per item so far).
+
+    A user without a row has the defaults (MAX_PRICE). The row goes with the
+    user through ON DELETE CASCADE, like their other data.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            user_id   INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            max_price REAL NOT NULL
+        )
+        """
+    )
+
+
+_MIGRATIONS = {2: _add_settings_table}
 
 
 def get_connection():
@@ -312,10 +332,39 @@ def set_password(user_id, password_hash, salt):
     return True
 
 
+def get_max_price(user_id):
+    """The user's highest price per item: their own choice, or MAX_PRICE if they made none."""
+    with closing(get_connection()) as conn:
+        row = conn.execute("SELECT max_price FROM settings WHERE user_id = ?", (user_id,)).fetchone()
+    return row[0] if row else float(MAX_PRICE)
+
+
+def set_max_price(user_id, max_price):
+    """Set the user's highest price per item. Returns False if the user does not exist.
+
+    Raises ValueError (and changes nothing) for a value outside
+    MAX_PRICE_SETTING_MIN..MAX_PRICE_CEILING: the last guard, the UI checks
+    this first with core.settings.max_price_problem.
+    """
+    if not MAX_PRICE_SETTING_MIN <= max_price <= MAX_PRICE_CEILING:
+        raise ValueError("max price outside the allowed range")
+    with transaction() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is None:
+            return False
+        conn.execute(
+            """
+            INSERT INTO settings (user_id, max_price) VALUES (?, ?)
+            ON CONFLICT (user_id) DO UPDATE SET max_price = excluded.max_price
+            """,
+            (user_id, float(max_price)),
+        )
+    return True
+
+
 def delete_user(user_id):
     """Delete a user and everything they own. Returns False if the user does not exist.
 
-    Categories, memory, history and credentials go with the user through
+    Categories, memory, history, credentials and settings go with the user through
     ON DELETE CASCADE, in the same transaction. secure_delete makes SQLite
     overwrite the freed pages with zeros, so the data cannot be read back from
     the database file afterwards.

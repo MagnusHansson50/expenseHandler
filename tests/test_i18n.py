@@ -132,7 +132,7 @@ def keys_produced_below_the_ui():
 
     repo = Path(__file__).resolve().parent.parent
     keys = set()
-    for module in ("receipt.py", "auth.py", "backup.py", "categories.py"):
+    for module in ("receipt.py", "auth.py", "backup.py", "categories.py", "settings.py"):
         tree = ast.parse((repo / "core" / module).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Problem":
@@ -191,6 +191,8 @@ def test_keys_from_core_and_db_are_found():
         "category_name_empty",
         "category_name_too_long",
         "category_name_reserved",
+        "max_price_not_a_number",
+        "max_price_out_of_range",
     }
 
 

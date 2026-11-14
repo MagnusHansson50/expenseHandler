@@ -35,7 +35,8 @@ Code conventions
 - `core/` modules are pure functions: no Streamlit and no database imports. They take plain values
   (DataFrames, dicts, lists, bytes) and return them; callers pass in whatever they loaded from `db`.
 - Shared values (`FALLBACK_CATEGORY`, `FALLBACK_CATEGORY_LABELS`, `RECEIPT_COLUMNS`, `MAX_NAME_LENGTH`,
-  `MAX_ITEM_LENGTH`, `MAX_PRICE`, `MAX_UPLOAD_MB`) live only in `core/constants.py`. Never redefine them.
+  `MAX_ITEM_LENGTH`, `MAX_PRICE`, `MAX_PRICE_SETTING_MIN`, `MAX_PRICE_CEILING`, `MAX_UPLOAD_MB`) live only
+  in `core/constants.py`. Never redefine them.
   `MAX_UPLOAD_MB` (5) is used by the launcher's flags and the backup size check; `config.toml`
   cannot import it, so `tests/test_streamlit_config.py` checks that it says the same.
 - Code below the UI (`core/`, `services/`, `integrations/`) returns translation keys, not sentences,
@@ -100,6 +101,7 @@ Architecture
   or reserved, as a `Problem`), `category_clash(name, categories)` -> `CategoryClash(existing,
   exact)` or `None`, `comparable` (letter case and extra spaces ignored) and `is_reserved` (the
   fallback labels), for asking before adding a category that looks like an existing one.
+- `core/settings.py`: `max_price_problem(value)` - which highest price per item a user may choose.
 - `core/auth.py`: password hashing and checking (`hash_password`, `verify_password`) and password
   rules (`password_problem`).
 - `scripts/reset_password.py`: command-line tool for whoever runs the app to set a new password
@@ -180,6 +182,11 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
 4. `history` (id, date, item, price, category, user_id) - date stored as `YYYY-MM-DD` text.
 5. `credentials` (user_id, password_hash, salt) - one row per user, removed with the user.
    Only the scrypt hash and salt are stored, never the password.
+6. `settings` (user_id, max_price) - at most one row per user (schema version 2), removed with the
+   user. No row means the defaults. `get_max_price(user_id)` returns the user's highest price per
+   item or `MAX_PRICE`; `set_max_price(user_id, value)` raises `ValueError` outside
+   `MAX_PRICE_SETTING_MIN`..`MAX_PRICE_CEILING` and returns `False` for an unknown user. The rule
+   is also `core.settings.max_price_problem` (keys `max_price_not_a_number`, `max_price_out_of_range`).
 - `create_user(name, default_categories)` seeds the user's starting categories (the app passes
   `core.i18n.DEFAULT_CATEGORIES[language]`) and always adds `FALLBACK_CATEGORY`. Name errors are
   `UserNameEmpty`, `UserNameTooLong`, `UserNameTaken` (all `UserNameError`, a `ValueError`).
@@ -229,11 +236,12 @@ Every table except `users` MUST be tied to a `user_id`, and every query on those
   open connection so they can be combined. The memory mapping is passed in because `integrations/`
   may not import `core/receipt.py`.
 - Always use `CREATE TABLE IF NOT EXISTS`. Keep the schema stable.
-- Schema version: the file carries `PRAGMA user_version` (`db.SCHEMA_VERSION`, now 1), because desktop
+- Schema version: the file carries `PRAGMA user_version` (`db.SCHEMA_VERSION`, now 2), because desktop
   users keep their `expenses.db` across program versions. `init_db` stamps new files and files from
   before versioning (0). To change the schema, leave the `CREATE TABLE` script as version 1, add the
   change as `db._MIGRATIONS[n]` (a function taking the open connection) and set `SCHEMA_VERSION = n`;
-  `init_db` runs the missing migrations in order in one transaction with the new version. A file
+  `init_db` runs the missing migrations in order in one transaction with the new version
+  (`_MIGRATIONS[2]` adds the `settings` table). A file
   with a higher version raises `db.DatabaseTooNew` (key `database_too_new`) before anything is
   changed; the app shows that message instead of the login page and the reset script exits with 3.
   The version is written with an f-string only because PRAGMA takes no `?` parameters; it is an int
@@ -595,8 +603,10 @@ Testing
   format and its checks, the CSV export (also CSV injection), the merge rules, export and import
   against a temporary database (one user's data only, twice adds nothing, all or nothing), and the
   UI section. Uploading a backup is not supported by `AppTest`; check it in a browser.
-- `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing) and refusing
-  a database from a newer version.
+- `tests/test_db_schema.py`: schema version, migrations (once, in order, all or nothing, a version 1
+  file getting the settings table) and refusing a database from a newer version.
+- `tests/test_settings.py`, `tests/test_db_settings.py`: the max amount rule and its storage (default,
+  per user, range, removed with the user).
 - `tests/test_launcher.py`: the desktop launcher (data folders, port, flags matching `config.toml` and
   in effect when the server starts, `--reset-password`, `--port`, `--no-browser`, start-up errors).
 - Tests use only made-up test passwords (`TEST_PASSWORD` in `tests/test_app.py`); UI tests register
@@ -691,6 +701,7 @@ Project structure
 ├── core/
 │   ├── auth.py         # Password hashing and rules
 │   ├── categories.py   # Look-alike category names
+│   ├── settings.py     # Rules for a user's settings (highest price per item)
 │   ├── backup.py       # Backup file format, CSV export, import merge rules
 │   ├── history.py      # Category changes and the category filter in the history
 │   ├── constants.py
@@ -724,6 +735,7 @@ Project structure
 │   ├── test_db_credentials.py
 │   ├── test_db_delete_user.py
 │   ├── test_db_schema.py
+│   ├── test_db_settings.py
 │   ├── test_db_update_categories.py
 │   ├── test_history.py
 │   ├── test_i18n.py
@@ -739,6 +751,7 @@ Project structure
 │   ├── test_services_auth.py
 │   ├── test_services_backup.py
 │   ├── test_services_history.py
+│   ├── test_settings.py
 │   ├── test_streamlit_config.py
 │   └── test_text.py
 ├── requirements.txt
@@ -753,7 +766,8 @@ Commits
   `Language Step 5: ...`, `Login Step 4: ...`, `Desktop Step 2: ...`, `Backup Step 3: ...` or
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
   `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...` or
-  `History Filter Step 1: ...` or `CI Step 1: ...`.
+  `History Filter Step 1: ...` or `CI Step 1: ...` or `Review Fixes Step 1: ...` or
+  `Max Price Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

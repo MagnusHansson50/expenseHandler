@@ -19,7 +19,8 @@ def table_names(path):
 
 
 def test_a_new_database_gets_the_current_version(temp_db):
-    assert user_version(temp_db.DB_PATH) == db.SCHEMA_VERSION == 1
+    assert user_version(temp_db.DB_PATH) == db.SCHEMA_VERSION == 2
+    assert "settings" in table_names(temp_db.DB_PATH)
 
 
 def test_a_database_from_before_versioning_is_kept_and_stamped(temp_db):
@@ -28,14 +29,14 @@ def test_a_database_from_before_versioning_is_kept_and_stamped(temp_db):
         conn.execute("PRAGMA user_version = 0")
         conn.commit()
     temp_db.init_db()
-    assert user_version(temp_db.DB_PATH) == 1
+    assert user_version(temp_db.DB_PATH) == db.SCHEMA_VERSION
     assert temp_db.get_user(anna).name == "Anna"
 
 
 def test_init_db_can_run_again(temp_db):
     temp_db.init_db()
     temp_db.init_db()
-    assert user_version(temp_db.DB_PATH) == 1
+    assert user_version(temp_db.DB_PATH) == db.SCHEMA_VERSION
 
 
 def test_a_database_from_a_newer_version_is_refused_and_left_alone(tmp_path, monkeypatch):
@@ -47,28 +48,30 @@ def test_a_database_from_a_newer_version_is_refused_and_left_alone(tmp_path, mon
 
     with pytest.raises(db.DatabaseTooNew) as caught:
         db.init_db()
-    assert caught.value.params == {"found": 7, "supported": 1}
+    assert caught.value.params == {"found": 7, "supported": db.SCHEMA_VERSION}
     assert user_version(path) == 7
     assert table_names(path) == set()  # nothing was created
 
 
 def test_migrations_run_once_in_order_up_to_the_current_version(temp_db, monkeypatch):
+    # Two made-up migrations after the real ones; the database is at the current version.
+    current = db.SCHEMA_VERSION
     calls = []
 
     def add_note_column(conn):
-        calls.append(2)
+        calls.append(current + 1)
         conn.execute("ALTER TABLE history ADD COLUMN note TEXT")
 
     def add_index(conn):
-        calls.append(3)
+        calls.append(current + 2)
         conn.execute("CREATE INDEX idx_history_note ON history (note)")
 
-    monkeypatch.setattr(db, "SCHEMA_VERSION", 3)
-    monkeypatch.setattr(db, "_MIGRATIONS", {2: add_note_column, 3: add_index})
+    monkeypatch.setattr(db, "SCHEMA_VERSION", current + 2)
+    monkeypatch.setattr(db, "_MIGRATIONS", {**db._MIGRATIONS, current + 1: add_note_column, current + 2: add_index})
     temp_db.init_db()
     temp_db.init_db()
-    assert calls == [2, 3]
-    assert user_version(temp_db.DB_PATH) == 3
+    assert calls == [current + 1, current + 2]
+    assert user_version(temp_db.DB_PATH) == current + 2
 
 
 def test_a_failing_migration_changes_nothing(temp_db, monkeypatch):
@@ -76,14 +79,30 @@ def test_a_failing_migration_changes_nothing(temp_db, monkeypatch):
         conn.execute("ALTER TABLE history ADD COLUMN note TEXT")
         raise sqlite3.OperationalError("disk full")
 
-    monkeypatch.setattr(db, "SCHEMA_VERSION", 2)
-    monkeypatch.setattr(db, "_MIGRATIONS", {2: half_done})
+    current = db.SCHEMA_VERSION
+    monkeypatch.setattr(db, "SCHEMA_VERSION", current + 1)
+    monkeypatch.setattr(db, "_MIGRATIONS", {**db._MIGRATIONS, current + 1: half_done})
     with pytest.raises(sqlite3.OperationalError):
         temp_db.init_db()
-    assert user_version(temp_db.DB_PATH) == 1
+    assert user_version(temp_db.DB_PATH) == current
     with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
         columns = [row[1] for row in conn.execute("PRAGMA table_info(history)")]
     assert "note" not in columns
+
+
+def test_a_version_1_database_gets_the_settings_table_and_keeps_its_data(temp_db):
+    # As a desktop user's expenses.db from before version 2: no settings table.
+    anna = temp_db.create_user("Anna", ["Mejeri"])
+    with closing(sqlite3.connect(temp_db.DB_PATH)) as conn:
+        conn.execute("DROP TABLE settings")
+        conn.execute("PRAGMA user_version = 1")
+        conn.commit()
+    temp_db.init_db()
+    assert user_version(temp_db.DB_PATH) == 2
+    assert "settings" in table_names(temp_db.DB_PATH)
+    assert temp_db.get_user(anna).name == "Anna"
+    assert "Mejeri" in temp_db.get_categories(anna)
+    assert temp_db.get_max_price(anna) == 100_000  # no choice made yet: the default
 
 
 # --- Which file is used (EXPENSES_DB_PATH) ------------------------------------
