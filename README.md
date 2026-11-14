@@ -178,6 +178,7 @@ skapa ett konto (eller logga in) och läs in filen.
 - **Säkerhetskopian är inte krypterad** och kan inte skyddas med lösenord. En säkerhetskopia från
   en nyare version av programmet kan inte läsas in av en äldre; uppdatera då programmet först.
 - **Högsta belopp per vara är som mest 10 000 000 kr**, även om du höjer gränsen.
+- **Bara ljust utseende.** Appen har ett eget ljust tema och inget mörkt läge.
 - **Bara två sorters PDF-kvitton kan läsas in:** kvittokopior från Kivra, oavsett butik (till
   exempel ICA, Jula, Kjell & Co, Rusta och Stadium; ladda ner kvittot som PDF i Kivra), och
   digitala kvitton från Willys. Andra kvitton ger meddelandet att formatet inte känns igen och

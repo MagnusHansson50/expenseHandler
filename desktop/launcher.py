@@ -97,6 +97,7 @@ def streamlit_flags(port):
         "server_maxUploadSize": MAX_UPLOAD_MB,
         "server_fileWatcherType": "none",
         "client_showErrorDetails": "none",
+        "client_toolbarMode": "minimal",  # no "Deploy" button or developer options
         "browser_gatherUsageStats": False,
         "global_developmentMode": False,
         **{f"theme_{option}": value for option, value in THEME.items()},

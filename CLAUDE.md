@@ -357,7 +357,9 @@ Desktop program
   (`desktop_press_enter`), since a double-clicked console window would otherwise close at once; a
   missing or bad `--port` (`port_argument`, 1-65535; `desktop_bad_port`, exit 2) does not wait.
 - `.streamlit/config.toml` is not read inside a packaged program, so `streamlit_flags()` passes the
-  security settings as flags (localhost, 5 MB uploads, no error details) plus no usage statistics,
+  security settings as flags (localhost, 5 MB uploads, no error details, `client.toolbarMode =
+  "minimal"`: no "Deploy" button, which offers to publish the app online, and no developer menu; with
+  nothing left in it Streamlit hides the menu, so its light/dark switch is gone too) plus no usage statistics,
   no file watching and `global.developmentMode` off (Streamlit guesses dev mode when it is not in
   `site-packages`, as in a bundle, and would load its UI from a dev server), and the look (`THEME`,
   the `[theme]` section: "calm Scandinavian", warm off-white `#F4EFE6`, sand `#EAE3D6`, deep green
@@ -419,6 +421,10 @@ Authentication
   exists). There is no undo and no export first.
 
 UI
+- The look ("calm Scandinavian"): the theme (`[theme]` / `THEME`, see Desktop program) and
+  `ui/style.py` (linen background, sections as cards, the logo next to the title, in the sidebar
+  and as the tab icon). Light only: the cards are drawn for the light theme, and the toolbar has no
+  theme switch.
 - Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
   "Create account". Nothing about other users (not even their names) is shown. The login page is
   one `st.container()` in the place where the app's tabs come after logging in, so the next run
@@ -697,6 +703,8 @@ Known limitations
 - `st.tabs` runs both tabs on every rerun, so the History query also runs while editing a receipt.
   Accepted for now.
 - The language is remembered per browser tab/URL, not per user.
+- The look is light only (no dark mode); `ui/style.py` relies on Streamlit's `data-testid`s, so a
+  Streamlit update can drop parts of it back to the plain theme until the selectors are updated.
 - Prices in number inputs and tables (`PRICE_INPUT_FORMAT`) always use a decimal point ("1122.17"):
   these Streamlit widgets only accept printf-style formats. Totals and messages are localized.
 - Streamlit's own widget texts ("Press Enter to submit form", "Upload", "… per file") are English and

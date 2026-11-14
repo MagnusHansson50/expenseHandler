@@ -20,6 +20,8 @@ maxUploadSize = 5
 [client]
 # Do not show tracebacks (file paths, code) to whoever uses the app.
 showErrorDetails = "none"
+# No "Deploy" button (it offers to publish the app online) or developer options in the toolbar.
+toolbarMode = "minimal"
 
 # The look ("calm Scandinavian"): warm off-white and sand, a deep green accent,
 # serif headings. KEEP IN STEP: THEME in desktop/launcher.py must have the same
