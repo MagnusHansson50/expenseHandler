@@ -23,6 +23,7 @@ hiddenimports = [
     *collect_submodules("services"),
     *collect_submodules("integrations"),
     *collect_submodules("scripts"),
+    *collect_submodules("ui"),
     *collect_submodules("streamlit"),
 ]
 

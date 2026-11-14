@@ -160,7 +160,7 @@ def test_bug_in_our_parsing_is_not_hidden_as_a_read_error(monkeypatch):
 
 def test_broad_except_is_only_used_at_the_pypdf_boundary():
     repo = Path(__file__).resolve().parent.parent
-    sources = [repo / "app.py", *repo.glob("core/**/*.py"), *repo.glob("integrations/*.py")]
+    sources = [repo / "app.py", *repo.glob("ui/*.py"), *repo.glob("core/**/*.py"), *repo.glob("integrations/*.py")]
     found = {
         path.relative_to(repo).as_posix(): path.read_text(encoding="utf-8").count("except Exception")
         for path in sources
@@ -171,7 +171,7 @@ def test_broad_except_is_only_used_at_the_pypdf_boundary():
 def test_unmaintained_pypdf2_is_not_imported():
     repo = Path(__file__).resolve().parent.parent
     imports_pypdf2 = re.compile(r"^\s*(import|from)\s+PyPDF2\b", re.MULTILINE)
-    for path in [repo / "app.py", *repo.glob("core/**/*.py"), *repo.glob("integrations/*.py")]:
+    for path in [repo / "app.py", *repo.glob("ui/*.py"), *repo.glob("core/**/*.py"), *repo.glob("integrations/*.py")]:
         assert not imports_pypdf2.search(path.read_text(encoding="utf-8")), path.name
 
 

@@ -98,14 +98,14 @@ def test_format_amount_unknown_language_uses_default():
 
 
 def ui_keys_used_in_app():
-    """Translation keys used in app.py and desktop/launcher.py: t("key", ...), load(..., what="key"),
+    """Translation keys used in app.py, ui/ and desktop/launcher.py: t("key", ...), load(..., what="key"),
     write_errors("key"), say("key", ...) (launcher) and set_auth_message(form, "key", ...)."""
     import ast
     from pathlib import Path
 
     repo = Path(__file__).resolve().parent.parent
     nodes = []
-    for path in (repo / "app.py", repo / "desktop" / "launcher.py"):
+    for path in (repo / "app.py", *sorted((repo / "ui").glob("*.py")), repo / "desktop" / "launcher.py"):
         nodes.extend(ast.walk(ast.parse(path.read_text(encoding="utf-8"))))
     keys = set()
     for node in nodes:

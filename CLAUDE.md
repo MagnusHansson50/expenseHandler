@@ -29,7 +29,7 @@ Tech stack
 Code conventions
 - Language: code, variable names, comments, DataFrame columns, log messages and commits are in English.
   Everything the user sees is translated: it goes through `t(key, lang)` and exists in Swedish and
-  English (see Languages). Never write user-facing text directly in `app.py`.
+  English (see Languages). Never write user-facing text directly in `app.py` or `ui/`.
 - Naming: `snake_case` for functions and variables.
 - Modularization: each database operation (init, create, load, save, delete) is its own function.
 - `core/` modules are pure functions: no Streamlit and no database imports. They take plain values
@@ -46,16 +46,30 @@ Code conventions
   `core.parser.ParsedReceipt(items, purchase_date, paid_total)`, `services.receipts.ImportResult(items,
   remembered, purchase_date, paid_total)`. Use the field names (`user.name`), never positions (`user[1]`).
 - "Draft" is the receipt being edited before it is saved: `st.session_state.receipt_df`, the local
-  name `draft`, `set_draft` / `add_to_draft`, and `core/receipt.py` imported as `draft_ops` in `app.py`.
+  name `draft`, `set_draft` / `add_to_draft`, and `core/receipt.py` imported as `draft_ops` in the UI.
   "Receipt" alone means the purchase as a whole (the PDF, or what is saved to history).
 - Write non-trivial regular expressions with `re.VERBOSE`, one commented line per part and an example
   line in the comment.
 
 Architecture
-- `app.py`: UI only (sidebar user handling, tabs, forms, tables, charts). It reads and writes
-  `st.session_state` and calls `services/`, `core/` and `integrations/db.py`; business rules and
-  multi-step flows do not belong here. Every `db` call goes through `load(...)` or `write_errors(...)`
-  (see Error handling).
+- `app.py` and `ui/`: the UI only (forms, tables, charts). They read and write `st.session_state` and
+  call `services/`, `core/` and `integrations/db.py`; business rules and multi-step flows do not belong
+  here. Every `db` call goes through `load(...)` or `write_errors(...)` (see Error handling).
+  - `app.py`: the script Streamlit runs. Session state defaults, the language selector, logging in,
+    registering, logging out and deleting the account (the only code that sets `current_user`),
+    the account sidebar and `main` (the tabs).
+  - `ui/common.py`: `lang`, `load` / `DataUnavailable` / `render_section`, `write_errors`, `flash` /
+    `show_flash`, `PRICE_INPUT_FORMAT`, and the remove-form callbacks `take_confirmation` /
+    `take_removal`.
+  - `ui/draft.py`: the draft in session state (`set_draft`, `add_to_draft`, the editor's `on_change`,
+    `note_removed`) and the purchase date picker.
+  - `ui/categories.py`: "Manage categories", and `add_category` / `remove_category`, shared with the
+    review popup.
+  - `ui/receipt.py`: the Current Receipt tab (manual entry, PDF upload, the list, removing an item,
+    the paid comparison, saving).
+  - `ui/review.py`: the popup for items without a category.
+  - `ui/history.py`: the History tab (period, category filter, chart, list, deleting a date).
+  - `ui/backup.py`: the Backup section of the History tab.
 - `services/auth.py`: `register`, `authenticate` (with the login throttle), `reset_password` and
   `delete_account`.
 - `services/receipts.py`: flows that combine `core/` logic with the database, with no Streamlit:
@@ -96,8 +110,9 @@ Architecture
   built program starts and answers.
 - `core/i18n.py`: translations (`TRANSLATIONS`, `t`), number and amount formatting per language,
   default categories per language and the fallback category label (see Languages).
-- Dependency direction: `app.py` -> `services/`, `core/`, `integrations/`;
-  `services/` -> `core/`, `integrations/`; `core/` -> `core/` only;
+- Dependency direction: `app.py` -> `ui/`, `services/`, `core/`, `integrations/`;
+  `ui/` -> `ui/`, `services/`, `core/`, `integrations/` (never `app.py`; `ui/common` imports no other
+  `ui` module, and there are no cycles); `services/` -> `core/`, `integrations/`; `core/` -> `core/` only;
   `integrations/` -> `core/constants.py` only. `tests/test_architecture.py` enforces this.
 - Connection handling: SQLite connections must use `check_same_thread=False`. Each `db` function opens
   and closes its own connection: writes use `with transaction() as conn:` (commit on success, rollback
@@ -324,7 +339,7 @@ Desktop program
   `python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm` -> `dist/ExpenseHandler/`
   (`ExpenseHandler.exe` and `_internal/`, about 200 MB; one folder, not one file, for start-up time
   and fewer antivirus alarms). Streamlit has no PyInstaller hook: the spec collects its data files,
-  metadata and submodules, copies `app.py` as a file and lists our packages as hidden imports
+  metadata and submodules, copies `app.py` as a file and lists our packages (`ui` included) as hidden imports
   (Streamlit runs `app.py` as a script, so PyInstaller cannot see its imports). A new top-level
   package must be added to the spec. `streamlit/.agents` (templates for AI assistants, unused) is
   left out: its 138-character paths made unzipping fail under Windows' 260-character limit in a
@@ -414,7 +429,7 @@ Reviewing items without a category
   closes and a flash says so, or how many were skipped. It never blocks saving.
 - Categories in the popup: a "New category" field adds one (it becomes a tag; it is not chosen for
   the item shown), and a collapsed "🗑️ Remove a category" section removes one (a list without the
-  fallback category, a confirmation box). Both use `add_category` / `remove_category` in `app.py`,
+  fallback category, a confirmation box). Both use `add_category` / `remove_category` in `ui/categories.py`,
   shared with "Manage categories", are handled at the top of the popup's next run
   (`handle_review_category_forms`) so the tags are reloaded there, keep the popup on the
   same item, and show their result once inside the popup (`review_category_message`), since a flash
@@ -461,7 +476,8 @@ Languages
 - Adding or changing a text: add the same key to every language in `core.i18n.TRANSLATIONS`, with the
   same `{placeholders}`, and use it with `t("key", lang())`. `tests/test_i18n.py` fails if a key is
   missing in a language, has different placeholders, or is defined but never used (it scans `app.py`,
-  `desktop/launcher.py` and the keys produced in `core/` (receipt, auth, backup) and `db.py`).
+  `ui/`, `desktop/launcher.py` and the keys produced in `core/` (receipt, auth, backup, categories)
+  and `db.py`).
 - `t()` formats numeric parameters for the language (`format_number`): "100 000" in Swedish,
   "100,000" in English. Amounts in kronor use `format_amount`: "1 122,17 kr" / "1,122.17 kr".
   Dates are shown as `YYYY-MM-DD` in both languages.
@@ -477,14 +493,14 @@ Languages
 Error handling
 - Catch errors from external code at the boundary where it is called, and turn them into our own
   types or messages: pypdf -> `ReceiptReadError` (in `core/parser.extract_text`), SQLite ->
-  `sqlite3.Error` handled in `app.py`. Only external calls go inside these `try` blocks.
+  `sqlite3.Error` handled in the UI. Only external calls go inside these `try` blocks.
 - Never wrap our own code in `except Exception`. A bug must surface: Streamlit logs the full traceback
   and shows a generic message. `except Exception` is allowed only at the pypdf boundary, and
   `tests/test_parser.py` checks that it appears nowhere else.
-- Database reads in `app.py` use `load(fetch, *args, what=...)`: on `sqlite3.Error` it logs, shows
+- Database reads in the UI use `load(fetch, *args, what=...)`: on `sqlite3.Error` it logs, shows
   "Could not load ..." with a "Try again" button and raises `DataUnavailable`, which `render_section`
   catches so only that part of the page stops (the user list and selected user stop the whole page).
-- Database writes in `app.py` run inside `with write_errors("<action>"):`, together with everything
+- Database writes in the UI run inside `with write_errors("<action>"):`, together with everything
   that should only happen on success (reset, flash, `st.rerun()`). On `sqlite3.Error` it logs and shows
   "Could not <action> ... try again"; the user's input stays on the page.
 - Log with `logging` (`logger.exception` / `logger.warning(..., exc_info=True)`). Log messages must not
@@ -529,7 +545,7 @@ Rules
 - Never put a password in a log, the URL, session state or the database; only `core/auth.py` hashes
   and checks passwords, and only `log_in` / `log_out` change `current_user`.
 - New logic goes in `core/` with tests; flows that also need the database go in `services/`;
-  `app.py` only wires them to the UI.
+  `app.py` and `ui/` only wire them to the UI.
 - Follow the Security section for anything that renders user text, accepts input or adds a dependency,
   and the Error handling section for anything that calls the database or an external library.
 
@@ -646,7 +662,8 @@ Known limitations
 
 Project structure
 /
-├── app.py
+├── app.py              # The script Streamlit runs: login, sidebar, tabs
+├── ui/                 # The rest of the UI: common, draft, categories, receipt, review, history, backup
 ├── README.md           # For users, in Swedish: run, log in, reset password, limitations
 ├── .streamlit/
 │   └── config.toml     # Security settings (localhost only, upload size, error details)

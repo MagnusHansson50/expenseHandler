@@ -1,6 +1,7 @@
 """Module dependencies follow the layers described in CLAUDE.md.
 
-app.py -> services/, core/, integrations/
+app.py -> ui/, services/, core/, integrations/
+ui/ -> ui/, services/, core/, integrations/ (never app.py)
 services/ -> core/, integrations/ (no Streamlit)
 core/ -> core/ only (no Streamlit, no database)
 integrations/ -> core/constants.py only
@@ -37,6 +38,22 @@ def test_core_has_no_streamlit_database_or_higher_layers(path):
 @pytest.mark.parametrize("path", modules_in("services"), ids=lambda p: p.name)
 def test_services_have_no_streamlit(path):
     bad = [m for m in imported_modules(path) if m.split(".")[0] == "streamlit"]
+    assert not bad, f"{path.name} imports {bad}"
+
+
+@pytest.mark.parametrize("path", modules_in("ui"), ids=lambda p: p.name)
+def test_ui_does_not_import_app(path):
+    bad = [m for m in imported_modules(path) if m.split(".")[0] == "app"]
+    assert not bad, f"{path.name} imports {bad}"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [*modules_in("core"), *modules_in("services"), *modules_in("integrations")],
+    ids=lambda p: p.relative_to(REPO_ROOT).as_posix(),
+)
+def test_nothing_below_the_ui_imports_it(path):
+    bad = [m for m in imported_modules(path) if m.split(".")[0] in ("ui", "app")]
     assert not bad, f"{path.name} imports {bad}"
 
 
