@@ -18,6 +18,8 @@ from urllib.parse import quote
 
 import streamlit as st
 
+from core.i18n import LANGUAGES
+
 CARD = "#FFFDF8"  # warm white, a step lighter than the background (#F4EFE6)
 CARD_BORDER = "#DDD3C2"  # the theme's borderColor
 
@@ -103,6 +105,26 @@ def apply_style():
     st.logo(LOGO_SVG, size="large")
 
 
-def render_title(title):
-    """The page title next to the logo, styled like the theme's headings (serif)."""
-    st.html(f'<div class="eh-brand"><img src="{LOGO_URI}" alt=""><h1>{escape(title)}</h1></div>')
+def page_language_script(lang):
+    """A one-line script that sets <html lang>, so screen readers use the right voice.
+
+    Streamlit always writes lang="en". `lang` is checked against LANGUAGES, so
+    nothing else can end up in the script.
+    """
+    if lang not in LANGUAGES:
+        raise ValueError(f"unknown language {lang!r}")
+    return f'<script>document.documentElement.lang = "{lang}";</script>'
+
+
+def render_title(title, lang):
+    """The page title next to the logo, and the page language for screen readers.
+
+    One element for both: Streamlit puts a gap after every element, so a
+    separate one for the (invisible) script would push the page down. The
+    title text is escaped; the script runs in the page, not in an iframe.
+    """
+    st.html(
+        f'<div class="eh-brand"><img src="{LOGO_URI}" alt=""><h1>{escape(title)}</h1></div>'
+        + page_language_script(lang),
+        unsafe_allow_javascript=True,
+    )

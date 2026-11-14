@@ -425,6 +425,12 @@ UI
   `ui/style.py` (linen background, sections as cards, the logo next to the title, in the sidebar
   and as the tab icon). Light only: the cards are drawn for the light theme, and the toolbar has no
   theme switch.
+- Accessibility (WCAG 2.1 AA as the target): text 4.5:1 against every surface, the edges of input
+  fields and buttons 3:1 (`showWidgetBorder` with `borderColor #857A69`), and `<html lang>` set to the
+  selected language (Streamlit always writes "en"; `render_title` adds `page_language_script(lang)`
+  in the same `st.html` element, with JavaScript allowed, so no extra element adds a gap).
+  `tests/test_accessibility.py` checks the contrast from the theme's own values and the language.
+  Change a colour only if those tests still pass.
 - Not logged in: the language selector in the sidebar and a login page with the tabs "Log in" and
   "Create account". Nothing about other users (not even their names) is shown. The login page is
   one `st.container()` in the place where the app's tabs come after logging in, so the next run
@@ -656,6 +662,8 @@ Testing
   key exists, no unused keys), number/amount formatting and category labels.
 - `tests/test_app_language.py`: the UI in both languages (`?lang=`, switching, kept state, translated
   messages and categories). Other UI tests run in English via `start_app(lang="en")`.
+- `tests/test_accessibility.py`: colour contrast of the theme (text 4.5:1, control edges 3:1) and the
+  page language (follows the selector, only known languages reach the script).
 - `tests/test_style.py`: the CSS loads nothing from the network, the pattern and the logo are valid
   inline SVG, the title shows the logo and the name, the style is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
@@ -755,6 +763,7 @@ Project structure
 │   └── text.py
 ├── tests/
 │   ├── conftest.py
+│   ├── test_accessibility.py
 │   ├── test_app.py
 │   ├── test_app_backup.py
 │   ├── test_app_db_errors.py
@@ -811,7 +820,7 @@ Commits
   `Popup Step 1: ...`, `Popup Categories Step 2: ...`, `Receipt Format Step 2: ...` or
   `Edit Category Step 1: ...` or `Edit Receipt Step 1: ...` or `Similar Category Step 1: ...` or
   `History Filter Step 1: ...` or `CI Step 1: ...` or `Review Fixes Step 1: ...` or
-  `Max Price Step 1: ...` or `Theme Step 1: ...`.
+  `Max Price Step 1: ...` or `Theme Step 1: ...` or `Accessibility Step 1: ...`.
 - One commit per step; push only when the user asks.
 
 Setup

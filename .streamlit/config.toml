@@ -32,7 +32,10 @@ primaryColor = "#2F5D4E"
 backgroundColor = "#F4EFE6"
 secondaryBackgroundColor = "#EAE3D6"
 textColor = "#24332D"
-borderColor = "#DDD3C2"
+# Borders of input fields and other controls: at least 3:1 against the card,
+# the background and the sand fields (WCAG 1.4.11), see tests/test_accessibility.py.
+borderColor = "#857A69"
+showWidgetBorder = true
 baseRadius = "large"
 headingFont = "serif"
 showSidebarBorder = false

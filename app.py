@@ -306,7 +306,7 @@ def main():
     init_session_state()
     sync_language_to_url()
     render_language_selector()
-    render_title(t("app_title", lang()))
+    render_title(t("app_title", lang()), lang())
 
     try:
         load(setup_database, what="what_database")
