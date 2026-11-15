@@ -2,15 +2,33 @@
 
 [![Tests](https://github.com/MagnusHansson50/expenseHandler/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/MagnusHansson50/expenseHandler/actions/workflows/tests.yml)
 
-En webbapp för att hålla koll på vad du handlar för. Ladda upp kvittokopior från Kivra eller
-digitala kvitton från Willys (PDF) eller lägg in köp för hand, sortera varorna i kategorier och följ upp utgifterna över tid.
-Flera personer kan använda samma app; var och en loggar in och ser bara sina egna kvitton.
+ExpenseHandler håller koll på vad du handlar för genom att läsa in dina kvitton och sortera
+varorna i kategorier, så att du kan följa upp dina utgifter över tid.
+
+**Live:** ingen live-version, avsiktligt. Appen körs på din egen dator och dina kvitton lämnar
+den aldrig. Ladda ner programmet för Windows under
+[Releases](https://github.com/MagnusHansson50/expenseHandler/releases) eller kör det från koden.
+
+## Vad det gör
+
+Appen läser in PDF-kvitton från Kivra och Willys, plockar ut varor och priser (rabatter och
+pant räknas in i varan) och kontrollerar att summan stämmer med det du betalade. Du sorterar
+varorna i egna kategorier, och appen kommer ihåg ditt val till nästa kvitto. I historiken ser du
+vad du har lagt per kategori och period. Flera personer kan använda samma program med varsitt
+konto, och ingen ser någon annans kvitton.
 
 Appen finns på svenska och engelska (välj språk i sidomenyn).
 
 ## Kom igång
 
 Det finns två sätt: ladda ner programmet för Windows, eller köra appen från koden.
+
+### Krav
+
+- **Programmet för Windows:** Windows 10 eller 11. Inget annat behöver installeras.
+- **Från koden:** Python 3.12 eller senare (Windows, macOS eller Linux).
+- **Inga externa tjänster:** inga konton, API-nycklar eller internetanslutning behövs. Allt körs
+  lokalt.
 
 ### Programmet för Windows
 
@@ -30,11 +48,11 @@ finns kvar.
 
 ### Från koden
 
-Kräver Python 3.12 eller senare.
-
-1. Installera beroenden (en gång), från mappen där koden ligger:
+1. Hämta koden och installera beroenden (en gång):
 
    ```bash
+   git clone https://github.com/MagnusHansson50/expenseHandler.git
+   cd expenseHandler
    pip install -r requirements.txt
    ```
 
@@ -50,6 +68,18 @@ Kräver Python 3.12 eller senare.
 
    Vill du köra från koden men som programmet gör (data i `%APPDATA%`, ledig port, webbläsaren
    öppnas automatiskt) startar du `python desktop/launcher.py` i stället.
+
+### Konfiguration
+
+Ingen konfiguration krävs, och det finns ingen `.env`-fil. Säkerhetsinställningar och utseende
+finns i `.streamlit/config.toml`.
+
+Valfritt: miljövariabeln `EXPENSES_DB_PATH` pekar ut en annan databasfil, till exempel för att
+prova appen utan att röra dina riktiga kvitton (PowerShell):
+
+```powershell
+$env:EXPENSES_DB_PATH = "C:\temp\prova.db"; python -m streamlit run app.py
+```
 
 ## Konto och inloggning
 
@@ -180,6 +210,65 @@ Under **Historik → 💾 Säkerhetskopia**:
 
 Byta dator: ladda ner en säkerhetskopia på den gamla datorn, installera programmet på den nya,
 skapa ett konto (eller logga in) och läs in filen.
+
+## Arkitektur
+
+Koden är uppdelad i lager där beroenden bara går nedåt; ett test stoppar ändringar som bryter
+mot det. Gränssnittet (`app.py` och `ui/`) visar och tar emot, men innehåller inga affärsregler.
+Flöden som behöver databasen ligger i `services/`, all ren logik (kvittotolkning, beräkningar,
+regler, översättningar) i `core/` utan Streamlit eller databas, och all SQLite-åtkomst i
+`integrations/db.py`. Skrivbordsprogrammet är ett tunt skal runt samma app.
+
+```
+expenseHandler/
+├── app.py              # Det Streamlit kör: inloggning, sidomeny, flikar
+├── ui/                 # Resten av gränssnittet: kvitto, historik, popup, inställningar, utseende
+├── services/           # Flöden som kombinerar logik och databas
+├── core/               # Ren logik: kvittoformat, regler, beräkningar, översättningar
+├── integrations/db.py  # All databasåtkomst (SQLite), med användarisolering och schemaversion
+├── desktop/            # Skrivbordsprogrammet: launcher, PyInstaller-bygge, starttest
+├── scripts/            # Återställning av lösenord från kommandoraden
+├── tests/              # pytest, inklusive tester av gränssnittet och tillgänglighet (tests/a11y)
+└── .github/workflows/  # CI: lint, tester, tillgänglighetsgranskning, bygge och release
+```
+
+## Teknisk stack
+
+| Komponent | Val | Anledning |
+|---|---|---|
+| Gränssnitt | Streamlit | Formulär, tabeller och diagram i ren Python; körs lokalt i webbläsaren |
+| Data | pandas | Kvittorader och historik som tabeller, summor per kategori |
+| PDF | pypdf | Underhållen och ren Python; ersatte PyPDF2, som har kända säkerhetsbrister |
+| Databas | SQLite | En fil på den egna datorn utan server, med transaktioner och versionshanterat schema |
+| Lösenord | scrypt (Pythons standardbibliotek) | Saltad, långsam hash utan extra beroenden |
+| Skrivbordsprogram | PyInstaller | Python och alla bibliotek i en mapp; inget att installera för användaren |
+| Tester | pytest och Streamlits AppTest | Drygt 760 tester, även av gränssnittet |
+| Kodkontroll | Ruff | Snabb lint som stoppar pipelinen vid fel |
+| Tillgänglighet | Playwright och axe-core | Granskar varje vy mot WCAG 2.1 AA och provar appen med bara tangentbordet |
+| CI/CD | GitHub Actions | Lint, tester på Windows och Ubuntu, tillgänglighet och bygge; en release vid varje versionstagg |
+
+## Utveckling
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest              # alla tester
+python -m ruff check .        # kodkontroll
+```
+
+Tillgänglighetsgranskningen kräver Playwright och en webbläsare:
+
+```bash
+pip install -r requirements-a11y.txt
+python -m playwright install chromium
+python -m pytest tests/a11y
+```
+
+Bygga skrivbordsprogrammet:
+
+```bash
+pip install -r requirements-build.txt
+python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm
+```
 
 ## Begränsningar
 
