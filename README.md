@@ -11,7 +11,7 @@ den aldrig. Ladda ner programmet för Windows under
 
 ## Vad det gör
 
-Appen läser in PDF-kvitton från Kivra och Willys, plockar ut varor och priser (rabatter och
+Appen läser in PDF-kvitton från Kivra, Willys och City Gross, plockar ut varor och priser (rabatter och
 pant räknas in i varan) och kontrollerar att summan stämmer med det du betalade. Du sorterar
 varorna i egna kategorier, och appen kommer ihåg ditt val till nästa kvitto. I historiken ser du
 vad du har lagt per kategori och period. Flera personer kan använda samma program med varsitt
@@ -125,7 +125,7 @@ Du får skriva det nya lösenordet två gånger; det visas inte på skärmen.
 ## Användning
 
 - **Aktuellt kvitto:** ladda upp en kvittokopia från Kivra eller ett digitalt kvitto från Willys
-  (PDF, högst 5 MB) eller lägg till köp för hand. Rabatter och pant räknas in i varan de hör
+  eller City Gross (PDF, högst 5 MB) eller lägg till köp för hand. Rabatter och pant räknas in i varan de hör
   till; en mängdrabatt som gäller flera varor (till exempel `Willys Plus:CHOKLAD`) blir en egen
   rad. Kontrollera och ändra vara, pris och kategori direkt i tabellen, välj datum och klicka
   **Spara**. Appen kommer ihåg vilken kategori du valde för en vara till nästa gång.
@@ -296,10 +296,11 @@ python -m PyInstaller desktop/ExpenseHandler.spec --noconfirm
 - **Bara ljust utseende.** Appen har ett eget ljust tema och inget mörkt läge.
 - **Bara två sorters PDF-kvitton kan läsas in:** kvittokopior från Kivra, oavsett butik (till
   exempel ICA, Jula, Kjell & Co, Rusta och Stadium; ladda ner kvittot som PDF i Kivra), och
-  digitala kvitton från Willys. Andra kvitton ger meddelandet att formatet inte känns igen och
-  får läggas in för hand.
-- **Willys-kvitton är bara provade från självscanning.** Ett kvitto från vanlig kassa kan se
-  annorlunda ut; läses en rad fel syns det som en varning om att summan inte stämmer.
+  digitala kvitton från Willys och City Gross (de ser likadana ut). Andra kvitton ger
+  meddelandet att formatet inte känns igen och får läggas in för hand.
+- **Willys-kvitton är bara provade från självscanning, och City Gross bara med ett kvitto.**
+  Ett kvitto från vanlig kassa kan se annorlunda ut; läses en rad fel syns det som en varning om
+  att summan inte stämmer.
 - **I sparade köp går bara kategorin att ändra**, inte datum, vara eller pris. Ett köp som
   sparades med en kategori du sedan har tagit bort visar den gamla kategorin tills du byter den.
 - **Registreringen visar om ett namn redan är upptaget**, och vem som helst kan låsa ett namn i

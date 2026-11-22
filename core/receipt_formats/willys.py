@@ -1,4 +1,4 @@
-"""Digital receipts (PDF) from Willys.
+"""Digital receipts (PDF) from Willys, and from City Gross, which uses the same layout.
 
 The PDF is a copy of the till receipt, one line of fixed-width text per row.
 The items come first, each with its amount at the end; several of the same

@@ -1,6 +1,6 @@
 Project
 ExpenseHandler: a Streamlit web application for tracking personal spending.
-Users upload receipts (PDF receipt copies from Kivra or digital receipts from Willys), add manual purchases,
+Users upload receipts (PDF receipt copies from Kivra or digital receipts from Willys or City Gross), add manual purchases,
 categorize items, and save them to a history so they can follow up on their expenses.
 
 The app supports MULTIPLE USERS, and each user's data is COMPLETELY ISOLATED from every other user's.
@@ -304,6 +304,8 @@ PDF parsing
   -34,50`) becomes its own row, so no item gets a negative price. A line without an amount followed
   by an indented amount is read as a weighed item (not yet seen on a real receipt). Items end at
   `Totalt N varor`; `Totalt ... SEK` is the amount paid. Only self-checkout receipts have been seen.
+  City Gross prints its digital receipts in the same layout, so `willys.py` reads them too
+  (checked with one real receipt: items, paid total and date all right).
 - The purchase date is the first valid `YYYY-MM-DD` in the text; text extraction may glue it to a label
   (e.g. `Kassör2026-09-26`).
 - After an upload the app compares the items with the amount paid (`paid_difference`); if they
@@ -682,7 +684,7 @@ Testing
   inline SVG, the title shows the logo and the name, the style is on every page.
 - `tests/test_streamlit_config.py`, `tests/test_requirements.py`, `tests/test_no_personal_data.py`:
   keep the security settings, version pins and the absence of personal data in place.
-- Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local receipt PDFs (Kivra or Willys)
+- Optional real-receipt test: set `SAMPLE_RECEIPT_PDF` to one or more local receipt PDFs (Kivra, Willys or City Gross)
   (separated by `;` on Windows, `:` elsewhere) to check that their items add up to `Betalat`;
   it is skipped otherwise. Never commit those files.
 
@@ -713,8 +715,9 @@ Known limitations
   a guard against typing mistakes, so it cannot be turned off.
 - If `expenses.db` is lost or damaged, whatever is not in a downloaded backup is gone. Copying the
   file while the app is stopped backs up all users at once.
-- Only receipt copies from Kivra and digital receipts from Willys (PDF) can be imported; other
-  receipts must be entered manually. Willys receipts have only been seen from the self-checkout.
+- Only receipt copies from Kivra and digital receipts from Willys and City Gross (PDF) can be
+  imported; other receipts must be entered manually. Willys receipts have only been seen from the
+  self-checkout, and City Gross from a single receipt.
   A layout that changes or a line the parser does not recognize shows up as a warning that the
   items do not add up to `Betalat`.
 - PDF upload and `st.data_editor` edits are not covered by the automated tests (`AppTest` does not

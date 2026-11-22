@@ -72,7 +72,7 @@ def render_manual_entry(categories, header, max_price):
 
 
 def render_pdf_upload(user_id, categories):
-    """Upload a receipt PDF (Kivra or Willys), parse it and pre-fill categories from memory."""
+    """Upload a receipt PDF (Kivra, Willys or City Gross), parse it and pre-fill categories from memory."""
     uploaded = st.file_uploader(
         t("upload_label", lang()),
         type="pdf",
